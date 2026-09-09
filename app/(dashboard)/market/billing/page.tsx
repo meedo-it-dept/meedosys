@@ -4,10 +4,10 @@ import React, { useState } from 'react';
 import { useMeedo } from '@/lib/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ElectricBill } from '@/lib/types';
-import { Card, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Zap, Printer, Plus, Table as TableIcon, Save, CheckCircle2 } from 'lucide-react';
+import { Zap, Printer, Table as TableIcon, Save, CheckCircle2, FileText } from 'lucide-react';
 
 export default function ElectricBillingPage() {
   const { stalls, electricBills, addElectricBill, updateBillStatus } = useMeedo();
@@ -25,6 +25,7 @@ export default function ElectricBillingPage() {
   });
 
   const [isBatchMode, setIsBatchMode] = useState(false);
+  const [printAllMode, setPrintAllMode] = useState(false);
   const [selectedStall, setSelectedStall] = useState('');
   const [prevReading, setPrevReading] = useState(0);
   const [currReading, setCurrReading] = useState(0);
@@ -32,7 +33,7 @@ export default function ElectricBillingPage() {
   const [meterReset, setMeterReset] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  // Batch readings state: map of stallNo -> { prev, curr, arrears }
+  // Batch readings state: stallNo -> curr reading
   const [batchReadings, setBatchReadings] = useState<Record<string, { curr: number }>>({});
 
   const activeStall = stalls.find((s) => s.stall_no === selectedStall);
@@ -79,7 +80,7 @@ export default function ElectricBillingPage() {
   const handleSaveBatchItem = (stallNo: string) => {
     const lastBill = electricBills.find((b) => b.stall_no === stallNo);
     const prev = lastBill ? lastBill.curr_reading : 100;
-    const curr = batchReadings[stallNo]?.curr || prev;
+    const curr = batchReadings[stallNo]?.curr ?? prev;
     const cons = Math.max(0, curr - prev);
     const bill = cons * rate;
     const stall = stalls.find((s) => s.stall_no === stallNo);
@@ -102,14 +103,17 @@ export default function ElectricBillingPage() {
     addElectricBill(newBill);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrintAllSlips = () => {
+    setPrintAllMode(true);
+    setTimeout(() => {
+      window.print();
+    }, 200);
   };
 
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Electric Utility Billing</h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -117,7 +121,7 @@ export default function ElectricBillingPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 no-print">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -126,14 +130,93 @@ export default function ElectricBillingPage() {
             <TableIcon className="w-4 h-4 mr-1.5 text-blue-600" />
             {isBatchMode ? 'Switch to Single Entry' : 'Batch Entry Mode'}
           </Button>
-          <Button variant="primary" size="sm" onClick={handlePrint}>
-            <Printer className="w-4 h-4 mr-1.5" /> Print Summary
+
+          <Button variant="primary" size="sm" onClick={handlePrintAllSlips}>
+            <Printer className="w-4 h-4 mr-1.5" /> Print All Slips for Due Date
           </Button>
         </div>
       </div>
 
+      {/* PRINT-ONLY INDIVIDUAL BILLING SLIPS */}
+      {printAllMode && (
+        <div className="print-only hidden space-y-8">
+          {electricBills
+            .filter((b) => b.due_date === dueDate)
+            .map((b) => (
+              <div
+                key={b.id || b.stall_no}
+                className="p-6 border-2 border-slate-900 rounded-xl max-w-lg mx-auto bg-white mb-8 page-break-inside-avoid"
+              >
+                <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
+                  <h3 className="text-sm font-extrabold uppercase text-slate-900 tracking-wider">
+                    Municipality of Malungon
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-600">
+                    Municipal Economic Enterprise Development Office (MEEDO)
+                  </p>
+                  <p className="text-base font-black text-blue-900 mt-1 uppercase">
+                    Electric Utility Billing Statement
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs mb-4">
+                  <div>
+                    <span className="text-slate-500 font-semibold block">Stall Number:</span>
+                    <strong className="text-sm text-slate-900">{b.stall_no}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-semibold block">Tenant / Owner:</span>
+                    <strong className="text-sm text-slate-900">{b.owner_name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-semibold block">Due Date:</span>
+                    <strong className="text-rose-700">{formatDate(b.due_date)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-semibold block">Disconnection Date:</span>
+                    <strong className="text-slate-800">{b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</strong>
+                  </div>
+                </div>
+
+                <div className="border border-slate-300 rounded-lg p-3 bg-slate-50 text-xs space-y-1.5 mb-4">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Previous Reading:</span>
+                    <strong className="font-mono">{b.prev_reading} kWh</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Current Reading:</span>
+                    <strong className="font-mono">{b.curr_reading} kWh</strong>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-1">
+                    <span className="text-slate-600">Consumption:</span>
+                    <strong>{b.consumption} kWh</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Rate per kWh:</span>
+                    <span>₱{b.rate_per_kwh.toFixed(2)}</span>
+                  </div>
+                  {b.arrears > 0 && (
+                    <div className="flex justify-between text-rose-600">
+                      <span>Previous Arrears:</span>
+                      <strong>{formatCurrency(b.arrears)}</strong>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t-2 border-slate-900 pt-1.5 text-sm font-black text-slate-900">
+                    <span>Total Amount Due:</span>
+                    <span className="text-blue-800">{formatCurrency(b.bill_amount)}</span>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-center text-slate-500 italic">
+                  Notice: Please settle your utility bill on or before the due date to avoid service disconnection.
+                </p>
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* Billing Configuration Card */}
-      <Card className="bg-blue-50/50 border-blue-200">
+      <Card className="bg-blue-50/50 border-blue-200 no-print">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold text-slate-700">
           <div>
             <label className="block mb-1 text-blue-950 font-bold">Rate per kWh (₱)</label>
@@ -168,7 +251,7 @@ export default function ElectricBillingPage() {
 
       {/* SINGLE ENTRY MODE */}
       {!isBatchMode && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
           <Card className="lg:col-span-1">
             <h3 className="font-bold text-slate-800 text-sm mb-4">Generate Single Bill</h3>
             <form onSubmit={handleSaveSingle} className="space-y-3 text-xs">
@@ -278,7 +361,7 @@ export default function ElectricBillingPage() {
                     <th className="py-2.5 px-3">Cons.</th>
                     <th className="py-2.5 px-3">Amount</th>
                     <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3 no-print">Action</th>
+                    <th className="py-2.5 px-3">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -306,7 +389,7 @@ export default function ElectricBillingPage() {
                           {bill.status}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 no-print">
+                      <td className="py-2.5 px-3">
                         {bill.status === 'Unpaid' ? (
                           <button
                             onClick={() => updateBillStatus(bill.stall_no, 'Fully Paid')}
@@ -329,11 +412,11 @@ export default function ElectricBillingPage() {
 
       {/* BATCH ENTRY MODE */}
       {isBatchMode && (
-        <Card>
+        <Card className="no-print">
           <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-bold text-slate-800 text-sm">Batch Reading Entry</h3>
-              <p className="text-xs text-slate-500">Encode readings for all stalls in one continuous table.</p>
+              <p className="text-xs text-slate-500">Encode meter readings for all stalls simultaneously.</p>
             </div>
           </div>
 

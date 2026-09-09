@@ -35,8 +35,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-100">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-500/20 font-black text-2xl">
-            M
+          <div className="w-20 h-20 mx-auto mb-3 flex items-center justify-center p-2 rounded-2xl bg-slate-50 border border-slate-100 shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://drive.google.com/thumbnail?id=1pd-9dhfan3PD5325kYwZGudUcEgVtKnu&sz=w1000"
+              alt="MEEDO Market Logo"
+              className="w-full h-full object-contain logo-blend"
+            />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome to MEEDOSys</h1>
           <p className="text-xs text-slate-500 font-medium mt-1">

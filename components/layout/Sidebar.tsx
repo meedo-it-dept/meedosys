@@ -67,15 +67,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         )}
       >
         {/* Brand Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-            M
+        <div className="p-4 border-b border-slate-100 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center p-1 border border-slate-100 shadow-sm flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://drive.google.com/thumbnail?id=1uiTfp9Sak_EdeurZ20zMm_FttQiKQmTc&sz=w1000"
+              alt="Malungon Municipal Logo"
+              className="w-full h-full object-contain logo-blend"
+            />
           </div>
           <div>
             <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">
               MEEDO Malungon
             </h1>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Enterprise Office
             </p>
           </div>
