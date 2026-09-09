@@ -73,6 +73,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <img
               src="https://drive.google.com/thumbnail?id=1uiTfp9Sak_EdeurZ20zMm_FttQiKQmTc&sz=w1000"
               alt="Malungon Municipal Logo"
+              width={40}
+              height={40}
+              style={{ maxWidth: '40px', maxHeight: '40px', objectFit: 'contain' }}
               className="w-full h-full object-contain logo-blend"
             />
           </div>

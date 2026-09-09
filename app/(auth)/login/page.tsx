@@ -40,6 +40,9 @@ export default function LoginPage() {
             <img
               src="https://drive.google.com/thumbnail?id=1pd-9dhfan3PD5325kYwZGudUcEgVtKnu&sz=w1000"
               alt="MEEDO Market Logo"
+              width={64}
+              height={64}
+              style={{ maxWidth: '64px', maxHeight: '64px', objectFit: 'contain' }}
               className="w-full h-full object-contain logo-blend"
             />
           </div>
