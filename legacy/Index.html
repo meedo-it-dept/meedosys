@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MEEDO Market Manager</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <!-- FullCalendar JS for Cemetery Bookings -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+
+    <!-- Include the CSS File -->
+    <?!= HtmlService.createHtmlOutputFromFile('map_css').getContent(); ?>
+  </head>
+  <body>
+
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+      <button class="sidebar-toggle" onclick="window.app.toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="mobile-title" style="flex: 1;">MEEDO Market Manager</div>
+      <!-- ADD THIS SYNC BUTTON -->
+      <button class="sidebar-toggle" onclick="window.app.startLoadingSequence()">
+        <i class="fas fa-sync-alt" style="color: var(--primary-color);"></i>
+      </button>
+    </header>
+
+    <!-- Login/Register Screen -->
+    <div id="authScreen" class="login-wrapper">
+       <div id="loginCard" class="login-card">
+          <img src="https://drive.google.com/thumbnail?id=1pd-9dhfan3PD5325kYwZGudUcEgVtKnu&sz=w1000" class="login-logo-img logo-blend" alt="MEEDO Market">
+          <div id="loginError" class="login-error"></div>
+          <h2 style="margin-bottom: var(--space-lg)">Welcome Back</h2>
+          <div class="form-group">
+              <label>Username</label>
+              <input type="text" id="loginUser" class="input-field" placeholder="Enter username">
+          </div>
+          <div class="form-group">
+              <label>Password</label>
+              <input type="password" id="loginPass" class="input-field" placeholder="Enter password">
+          </div>
+          <button id="btnLogin" class="btn btn-primary btn-full" style="margin-top: 10px;" onclick="window.app.login()">Sign In</button>
+          <div class="toggle-auth" onclick="window.app.toggleAuth('register')">Create an account</div>
+       </div>
+
+       <div id="registerCard" class="login-card hidden">
+          <img src="https://drive.google.com/thumbnail?id=1pd-9dhfan3PD5325kYwZGudUcEgVtKnu&sz=w1000" class="login-logo-img logo-blend" alt="MEEDO Market">
+          <div id="regError" class="login-error"></div>
+          <h2 style="margin-bottom: var(--space-lg)">Create Account</h2>
+          <div class="form-group"><label>Username</label><input type="text" id="regUser" class="input-field" placeholder="Choose username"></div>
+          <div class="form-group">
+          <label><i class="fas fa-building"></i> Assigned Department / Section</label>
+          <select id="regSection" class="input-field" style="width: 100%;">
+              <option value="A">Section A: Market Management</option>
+              <option value="B">Section B: Slaughter House</option>
+              <option value="C">Section C: Cemetery</option>
+              <option value="D">Section D: Transport Terminal</option>
+              <option value="E">Section E: Admin Services</option>
+              <option value="F">Section F: Peace & Order (CSU)</option>
+          </select>
+        </div>
+          <div class="form-group"><label>Password</label><input type="password" id="regPass" class="input-field" placeholder="Choose password"></div>
+          <div class="form-group"><label>Confirm Password</label><input type="password" id="regPassConfirm" class="input-field" placeholder="Confirm password"></div>
+          <button id="btnReg" class="btn btn-success btn-full" style="margin-top: 10px;" onclick="window.app.register()">Register</button>
+          <div class="toggle-auth" onclick="window.app.toggleAuth('login')">Back to Login</div>
+       </div>
+    </div>
+
+    <!-- Full Page Loader -->
+    <div id="fullPageLoader" class="loader-wrapper">
+        <img src="https://drive.google.com/thumbnail?id=1uI8KiAGzjJd2PLhCa_TV4Uy-eFEuXVLo&sz=w1000" class="loader-logo logo-blend" alt="Loading">
+        <div class="progress-container"><div class="progress-bar" id="loadingProgressBar"></div></div>
+        <div class="loading-text" id="loadingText">Connecting... 0%</div>
+    </div>
+
+    <!-- Main Container (Sidebar + Content) -->
+    <div id="mainContainer" class="main-container">
+        
+        <!-- Sidebar -->
+        <aside class="sidebar" id="appSidebar">
+            <div class="sidebar-header">
+                <img src="https://drive.google.com/thumbnail?id=1uiTfp9Sak_EdeurZ20zMm_FttQiKQmTc&sz=w1000" class="sidebar-logo logo-blend">
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <span class="sidebar-title" style="line-height: 1.1;">MEEDO</span>
+                    <span style="font-size: 0.65rem; color: var(--text-sub); font-weight: 700; margin-top: 2px; text-transform: uppercase;">Municipality of Malungon</span>
+                </div>
+            </div>
+            
+            <nav class="nav-links">
+                <!-- MARKET MANAGEMENT (Section A) -->
+                <div id="navMarketWrapper">
+                    <div class="nav-parent nav-item open active" onclick="window.app.toggleNavMenu('menuMarket')">
+                        <div class="flex-row"><i class="fas fa-store-alt"></i> Market Management</div>
+                        <i class="fas fa-chevron-down submenu-icon"></i>
+                    </div>
+                    <div class="nav-submenu open" id="menuMarket">
+                        <a class="nav-item sub-item active" onclick="window.app.navigate('map')"><i class="fas fa-map-marked-alt"></i> Market Map</a>
+                        <a class="nav-item sub-item" onclick="window.app.navigate('monitoring')"><i class="fas fa-calendar-check"></i> Monthly Monitoring</a>
+                        <a class="nav-item sub-item" onclick="window.app.navigate('ebill')"><i class="fas fa-bolt"></i> Electric Bills</a>
+                        <a class="nav-item sub-item" onclick="window.app.navigate('reports')"><i class="fas fa-chart-line"></i> Reports</a>
+                    </div>
+                </div>
+
+                <!-- SLAUGHTERHOUSE MANAGEMENT (Section B) -->
+                <div id="navSlaughterWrapper">
+                    <div class="nav-parent nav-item" onclick="window.app.toggleNavMenu('menuSlaughter')">
+                        <div class="flex-row"><i class="fas fa-hat-cowboy"></i> Slaughterhouse Mgt.</div>
+                        <i class="fas fa-chevron-down submenu-icon"></i>
+                    </div>
+                    <div class="nav-submenu" id="menuSlaughter">
+                        <a class="nav-item sub-item" onclick="window.app.navigate('slaughter')"><i class="fas fa-clipboard-list"></i> Logs & Reports</a>
+                    </div>
+                </div>
+
+                <!-- CEMETERY MANAGEMENT (Section C) -->
+                <div id="navCemeteryWrapper">
+                    <div class="nav-parent nav-item" onclick="window.app.toggleNavMenu('menuCemetery')">
+                        <div class="flex-row"><i class="fas fa-cross"></i> Cemetery Management</div>
+                        <i class="fas fa-chevron-down submenu-icon"></i>
+                    </div>
+                    <div class="nav-submenu" id="menuCemetery">
+                        <a class="nav-item sub-item" onclick="window.app.navigate('cem_booking')"><i class="fas fa-calendar-alt"></i> Booking Schedule</a>
+                        <a class="nav-item sub-item" onclick="window.app.navigate('cem_report')"><i class="fas fa-chart-area"></i> Reports</a>
+                    </div>
+                </div>
+
+                <!-- TRANSPORT TERMINAL MANAGEMENT (Section D) -->
+                <div id="navTransportWrapper">
+                    <div class="nav-parent nav-item" onclick="window.app.toggleNavMenu('menuTransport')">
+                        <div class="flex-row"><i class="fas fa-bus"></i> Transport Terminal</div>
+                        <i class="fas fa-chevron-down submenu-icon"></i>
+                    </div>
+                    <div class="nav-submenu" id="menuTransport">
+                        <a class="nav-item sub-item" onclick="window.app.navigate('transport_toda')"><i class="fas fa-list"></i> List of TODA</a>
+                        <a class="nav-item sub-item" onclick="window.app.navigate('transport_members')"><i class="fas fa-users"></i> Members Profile</a>
+                        <a class="nav-item sub-item" onclick="window.app.navigate('transport_report')"><i class="fas fa-chart-bar"></i> Report</a>
+                    </div>
+                </div>
+
+                <!-- OPIF REPORT (STANDALONE PARENT TAB - Visible to all) -->
+                <a class="nav-item" onclick="window.app.navigate('opif')">
+                    <div class="flex-row"><i class="fas fa-file-signature"></i> OPIF Report</div>
+                </a>
+
+                <!-- ADD THIS NEW BLOCK: PEACE & ORDER (CSU) -->
+                <div id="navCsuWrapper">
+                    <a class="nav-item" onclick="window.app.navigate('csu')">
+                        <div class="flex-row"><i class="fas fa-shield-alt"></i> Peace & Order (CSU)</div>
+                    </a>
+                </div>
+
+                <!-- USER MANAGEMENT (Admin Only) -->
+                <div id="navUserMgmt" class="hidden">
+                    <div class="nav-parent nav-item" onclick="window.app.toggleNavMenu('menuUsers')">
+                        <div class="flex-row"><i class="fas fa-users-cog"></i> User Management</div>
+                        <i class="fas fa-chevron-down submenu-icon"></i>
+                    </div>
+                    <div class="nav-submenu" id="menuUsers">
+                        <a class="nav-item sub-item" onclick="window.app.navigate('users')"><i class="fas fa-user-shield"></i> System Users</a>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="user-profile-section">
+                <div class="user-info" id="sidebarUser">User</div>
+                <div class="user-role" id="sidebarRole">Staff</div>
+                <!-- ADD THIS SYNC BUTTON -->
+                <button class="btn btn-primary btn-sm btn-full" style="margin-top:12px;" onclick="window.app.startLoadingSequence()">
+                    <i class="fas fa-sync-alt"></i> Sync Data
+                </button>
+                <!-- EXISTING LOGOUT BUTTON -->
+                <button class="btn btn-ghost btn-sm btn-full" style="margin-top:12px; color:var(--danger-color); border:1px solid var(--danger-light); background: var(--danger-light);" onclick="window.app.logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </aside>
+        
+        <div class="sidebar-overlay" onclick="window.app.toggleSidebar()"></div>
+
+        <!-- Main Content Area -->
+        <main class="content-area" id="contentArea">
+            
+            <!-- Map View -->
+            <div id="viewMap" class="view-section active">
+                <div class="card">
+                   <div class="header-controls">
+                      <h2 style="margin:0; font-size:1.5rem">Market Layout</h2>
+                      <div class="tab-group" id="tabGroup"></div>
+                      <div class="search-container" id="mainSearchContainer">
+                         <input id="searchInput" class="input-field" placeholder="Search stall or owner...">
+                         <select id="filterSelect" class="input-field" style="min-width: 120px;">
+                             <option value="all">All Status</option>
+                             <option value="occupied">Occupied</option>
+                             <option value="vacant">Vacant</option>
+                         </select>
+                      </div>
+                   </div>
+                </div>
+                <div class="card map-scroll-container">
+                    <div id="mapContent"></div>
+                </div>
+            </div>
+
+            <!-- Reports View -->
+            <div id="viewReports" class="view-section">
+                <div class="card">
+                   <h2 style="margin-top:0; margin-bottom:24px; font-size:1.5rem">Generated Reports</h2>
+                   
+                   <div class="modal-tabs" style="margin-bottom: 24px; border-radius: var(--radius-md); overflow: hidden;">
+                       <div id="tabGenReport" class="modal-tab active" onclick="window.app.switchReportTab('general')">General Status Report</div>
+                       <div id="tabMonReport" class="modal-tab" onclick="window.app.switchReportTab('compliance')">Monthly Compliance Report</div>
+                   </div>
+
+                   <div id="reportContentArea"></div>
+                </div>
+            </div>
+
+            <!-- Electric Bill View -->
+            <div id="viewEbill" class="view-section">
+                <div class="card">
+                   <div class="header-controls" style="margin-bottom: 25px;">
+                      <h2 style="margin:0; font-size:1.5rem">Electric Bill Generator</h2>
+                   </div>
+
+                   <!-- Bill Settings -->
+                   <div class="monitoring-card" style="margin-bottom: 24px; background: var(--primary-light); border-color: var(--primary-color);">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                          <h3 style="margin:0; font-size:1.1rem; color:var(--primary-dark);"><i class="fas fa-cog"></i> Setup Billing Settings</h3>
+                          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                              <select id="ebillPrintSection" class="input-field" style="padding: 6px; min-width: 150px; font-size: 0.9rem;" onchange="if(window.app.state.isBatchMode) window.app.renderBatchTable()">
+                                  <option value="All">All Sections</option>
+                                  <option value="Wet">Wet Section</option>
+                                  <option value="Dry">Dry Goods</option>
+                                  <option value="Old">Old Building</option>
+                                  <option value="Triangular">Triangular</option>
+                              </select>
+                              <button class="btn btn-primary btn-sm" onclick="window.app.printAllBills()"><i class="fas fa-print"></i> Print All for Due Date</button>
+                          </div>
+                      </div>
+                      <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                           <div class="form-group" style="flex:1"><label>Rate per kWh (₱)</label><input type="number" id="ebillRate" class="input-field" value="15.00" oninput="window.app.calculateEbill(); if(window.app.state.isBatchMode) window.app.renderBatchTable();"></div>
+                           <div class="form-group" style="flex:1"><label>Due Date</label><input type="date" id="ebillDueDate" class="input-field" onchange="window.app.renderEbillSummary(); if(window.app.state.isBatchMode) window.app.renderBatchTable();"></div>
+                           <div class="form-group" style="flex:1"><label>Disconnection Date</label><input type="date" id="ebillDiscDate" class="input-field"></div>
+                      </div>
+                   </div>
+
+                   <!-- Select Stall -->
+                   <div class="search-container" style="justify-content: space-between; margin-bottom: 20px;">
+                      <select id="ebillStallSelect" class="input-field" style="max-width: 400px; flex:1;" onchange="window.app.loadEbillStall(this.value)">
+                         <option value="">Select a Stall to Generate Bill...</option>
+                      </select>
+                      <button id="btnToggleBatch" class="btn btn-ghost" style="border: 2px dashed var(--primary-color); color: var(--primary-color);" onclick="window.app.toggleBatchMode()"><i class="fas fa-table"></i> Batch Entry Mode</button>
+                   </div>
+
+                   <!-- Batch Entry Container -->
+                   <div id="ebillBatchContainer" class="hidden monitoring-card" style="margin-bottom: 24px; max-width: 100%; overflow-x: auto;">
+                      <h3 style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:10px;"><i class="fas fa-list"></i> Batch Entry</h3>
+                      <div class="table-responsive">
+                          <table class="report-table">
+                              <thead><tr><th>Stall No.</th><th>Owner</th><th>Prev (kWh)</th><th>Curr (kWh)</th><th>Cons (kWh)</th><th>Total (₱)</th><th>Action</th></tr></thead>
+                              <tbody id="ebillBatchTableBody"></tbody>
+                          </table>
+                      </div>
+                   </div>
+
+                   <!-- Bill Form -->
+                   <div id="ebillFormContainer" class="hidden">
+                      <div class="monitoring-card" style="max-width: 500px; margin: 0 auto; width: 100%;">
+                          <h3 style="text-align:center; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-top:0;">
+                             <i class="fas fa-file-invoice-dollar" style="color:var(--text-sub)"></i> Billing Details: <span id="ebillStallLabel" style="color:var(--primary-color)"></span>
+                          </h3>
+                          <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:1.05rem;">
+                              <strong>Owner:</strong> <span id="ebillOwnerLabel" style="font-weight:600"></span>
+                          </div>
+                          <div id="ebillHistoryText" style="text-align:right; font-size:0.85rem; color:var(--text-muted); margin-bottom:15px; font-style:italic;">
+                              Last Month: --
+                          </div>
+                          
+                          <div class="form-group">
+                              <label style="display:flex; justify-content:space-between;">
+                                  Previous Reading (kWh)
+                                  <label style="font-size:0.8rem; font-weight:normal; display:flex; align-items:center; gap:5px; cursor:pointer;">
+                                      <input type="checkbox" id="ebillMeterReset" onchange="window.app.calculateEbill()"> Meter Reset/Replaced
+                                  </label>
+                              </label>
+                              <input type="number" id="ebillPrev" class="input-field" oninput="window.app.calculateEbill()">
+                              <small style="color:var(--text-muted); font-size:0.75rem;">Editable if meter was replaced/adjusted.</small>
+                          </div>
+                          
+                          <div class="form-group">
+                              <label>Current Reading (kWh)</label>
+                              <input type="number" id="ebillCurr" class="input-field" oninput="window.app.calculateEbill()">
+                          </div>
+                          
+                          <div class="form-group">
+                              <label>Consumption (kWh)</label>
+                              <input type="text" id="ebillCons" class="input-field" readonly style="background: var(--bg-color); font-weight: bold;">
+                          </div>
+
+                          <div class="form-group" style="margin-top: 15px;">
+                              <label>Previous Unpaid Balance / Arrears (₱)</label>
+                              <input type="number" id="ebillArrears" class="input-field" value="0" oninput="window.app.calculateEbill()" style="color: var(--danger-color); font-weight: bold;">
+                          </div>
+                          
+                          <div class="form-group" style="border-top: 2px dashed var(--border-color); padding-top: 15px; margin-top: 15px;">
+                              <label style="font-size: 1.1rem; color: var(--primary-color);">Total Bill Amount (₱)</label>
+                              <input type="text" id="ebillTotal" class="input-field" readonly style="font-size: 1.5rem; font-weight: bold; color: var(--primary-color); background: var(--primary-light);">
+                          </div>
+                          
+                          <button id="btnGenerateBill" class="btn btn-primary btn-full" style="font-size: 1.1rem; padding: 12px;" onclick="window.app.generateBill()">
+                              <i class="fas fa-save"></i> Generate & Save Bill
+                          </button>
+                      </div>
+                   </div>
+
+                   <!-- Electric Bill Summary Section -->
+                   <div class="monitoring-card" style="margin-top: 24px; max-width: 100%;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                          <h3 style="margin:0; font-size:1.1rem; color:var(--text-main);"><i class="fas fa-list-alt text-sub"></i> Billing Summary for Due Date</h3>
+                          <button class="btn btn-primary btn-sm" onclick="window.app.printEbillSummary()"><i class="fas fa-print"></i> Print Summary</button>
+                      </div>
+                      <div class="table-responsive">
+                          <table class="report-table">
+                              <thead>
+                                  <tr>
+                                      <th>Stall No.</th>
+                                      <th>Owner</th>
+                                      <th>Previous (kWh)</th>
+                                      <th>Current (kWh)</th>
+                                      <th>Consume (kWh)</th>
+                                      <th>Total Amount (₱)</th>
+                                      <th>Status</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="ebillSummaryTableBody">
+                                  <tr><td colspan="7" style="text-align:center; padding: 20px;">Select a due date to view summary</td></tr>
+                              </tbody>
+                              <tfoot id="ebillSummaryTableFoot" style="font-weight: bold; background: var(--bg-color);">
+                              </tfoot>
+                          </table>
+                      </div>
+                   </div>
+
+                </div>
+            </div>
+
+            <!-- Monthly Monitoring View -->
+            <div id="viewMonitoring" class="view-section">
+                <div class="card">
+                   <div class="header-controls" style="margin-bottom: 25px;">
+                      <h2 style="margin:0; font-size:1.5rem">Monthly Monitoring</h2>
+                      <div class="search-container" style="flex: 2;">
+                         <select id="monStallSelect" class="input-field" onchange="window.app.loadMonitoringData(this.value)">
+                            <option value="">Select a Stall to Update...</option>
+                         </select>
+                      </div>
+                   </div>
+
+                   <div id="monEmptyState" style="text-align:center; padding:60px 20px; color:var(--text-sub); background: var(--bg-color); border-radius: var(--radius-lg); border: 2px dashed var(--border-color);">
+                      <i class="fas fa-store-alt" style="font-size:4rem; color: var(--text-muted); margin-bottom:20px; display: block;"></i>
+                      <p style="font-size:1.1rem; font-weight: 500; margin: 0;">Please select a stall from the dropdown above to view or update details.</p>
+                   </div>
+
+                   <div id="monFormContainer" class="hidden">
+                      <div class="monitoring-grid">
+                         <!-- Monitoring Cards -->
+                         <div class="monitoring-card">
+                            <h3 style="margin-top:0; font-size:1.1rem; color:var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">General Information</h3>
+                            <div class="form-group"><label>Date of Monitoring</label><input type="date" id="monDate" class="input-field"></div>
+                            <div class="form-group"><label>Goodwill (Balance)</label><input type="number" id="monGoodwill" class="input-field" placeholder="0.00"></div>
+                            <div class="form-group"><label>Status</label><select id="monStatus" class="input-field"><option value="Operational">Operational</option><option value="Non-Operational">Non-Operational</option></select></div>
+                         </div>
+
+                         <div class="monitoring-card">
+                            <h3 style="margin-top:0; font-size:1.1rem; color:var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">Compliance & Payments</h3>
+                            
+                            <div class="form-group">
+                                <label style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span>Business Permit</span>
+                                    <span style="font-size:0.8rem; font-weight:normal; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="monPermitNone" onchange="window.app.toggleMonInput('monPermitNone', 'monPermitDate')" style="width: 16px; height: 16px;"> No Submission</span>
+                                </label>
+                                <input type="date" id="monPermitDate" class="input-field">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span>Contract of Lease</span>
+                                    <span style="font-size:0.8rem; font-weight:normal; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="monLeaseNone" onchange="window.app.toggleMonInput('monLeaseNone', 'monLeaseDate')" style="width: 16px; height: 16px;"> No Submission</span>
+                                </label>
+                                <input type="date" id="monLeaseDate" class="input-field">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span>Stall Rental (O.R. No.)</span>
+                                    <span style="font-size:0.8rem; font-weight:normal; display:flex; gap:6px; align-items:center;"><input type="checkbox" id="monRentalNone" onchange="window.app.toggleMonInput('monRentalNone', 'monRentalOR')" style="width: 16px; height: 16px;"> No Payment</span>
+                                </label>
+                                <input type="text" id="monRentalOR" class="input-field" placeholder="Enter Official Receipt">
+                            </div>
+                         </div>
+
+                         <!-- Operational Checks Card -->
+                         <div class="monitoring-card">
+                            <h3 style="margin-top:0; font-size:1.1rem; color:var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">Operational Checks</h3>
+                            <div class="form-group"><label>CLAYGO Compliance</label><select id="monClaygo" class="input-field"><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div>
+                            <div class="form-group"><label>CCTV Available</label><select id="monCctv" class="input-field"><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div>
+                            <div class="form-group"><label>PalengQR Implemented</label><select id="monPalengqr" class="input-field"><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div>
+                         </div>
+
+                         <!-- Electric Bill Card -->
+                         <div class="monitoring-card">
+                            <h3 style="margin-top:0; font-size:1.1rem; color:var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">Electric Bill</h3>
+                            <div class="form-group"><label>Electric Bill Amount</label><input type="number" id="monEbillAmount" class="input-field" placeholder="0.00"></div>
+                            <div class="form-group"><label>Payment Status</label><select id="monEbillStatus" class="input-field"><option value="">Select...</option><option value="Fully Paid">Fully Paid</option><option value="Partial">Partial</option><option value="Unpaid">Unpaid</option></select></div>
+                            <div class="form-group"><label>Due Date</label><input type="date" id="monEbillDate" class="input-field"></div>
+                            
+                            <!-- Acknowledgement Receipt Button -->
+                            <button id="btnPrintAck" class="btn btn-ghost btn-sm btn-full" style="margin-top:10px; border:2px dashed var(--success-color); color:var(--success-color);" onclick="window.app.printAckReceipt()">
+                                <i class="fas fa-receipt"></i> Print Acknowledgement Receipt
+                            </button>
+                         </div>
+
+                         <div class="monitoring-card" style="grid-column: 1 / -1;">
+                            <h3 style="margin-top:0; font-size:1.1rem; color:var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px; display:flex; justify-content:space-between; align-items:center;">
+                                Seminars Attended
+                                <span id="monSeminarTotal" class="badge badge-admin">Total: 0</span>
+                            </h3>
+                            <div id="monSeminarsList"></div>
+                            <button class="btn btn-ghost btn-sm" onclick="window.app.addSeminarField()" style="margin-top:10px; border:2px dashed var(--primary-color); color:var(--primary-color); width:100%;"><i class="fas fa-plus"></i> Add Seminar</button>
+                         </div>
+
+                         <!-- History Table -->
+                         <div class="monitoring-card" style="grid-column: 1 / -1;">
+                            <h3 style="margin-top:0; font-size:1.1rem; color:var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">Monitoring History</h3>
+                            <div class="table-responsive">
+                                <table class="report-table">
+                                    <thead><tr><th>Date</th><th>Goodwill</th><th>Status</th><th>Permit</th><th>Lease</th><th>Rental</th><th>E-Bill</th></tr></thead>
+                                    <tbody id="monHistoryTableBody"><tr><td colspan="7" style="text-align:center; padding: 20px;">No history available</td></tr></tbody>
+                                </table>
+                            </div>
+                         </div>
+                      </div>
+
+                      <div style="margin-top: 24px; display:flex; justify-content:flex-end;">
+                          <button id="btnSaveMonitoring" class="btn btn-primary" onclick="window.app.saveMonitoring()"><i class="fas fa-save"></i> Save Monitoring Update</button>
+                      </div>
+                   </div>
+                </div>
+            </div>
+
+            <!-- Slaughterhouse View -->
+            <div id="viewSlaughter" class="view-section">
+                <div class="card">
+                    <div class="header-controls" style="margin-bottom: 25px;">
+                        <h2 style="margin:0; font-size:1.5rem">Slaughterhouse Management</h2>
+                    </div>
+
+                    <!-- Input Form -->
+                    <div class="monitoring-card" style="margin-bottom: 24px; background: var(--primary-light); border-color: var(--primary-color);">
+                        <h3 style="margin-top:0; color:var(--primary-dark);"><i class="fas fa-plus-circle"></i> Log Livestock</h3>
+                        
+                        <!-- Row 1 -->
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <div class="form-group" style="flex:1; min-width: 150px;">
+                                <label>Client ID <small style="font-weight:normal; color:var(--text-muted)">(Auto-generates if blank)</small></label>
+                                <input type="text" id="shClientId" class="input-field" placeholder="e.g. C-123456" list="shClientIdList" oninput="window.app.autoFillClientById()">
+                                <datalist id="shClientIdList"></datalist>
+                            </div>
+                            <div class="form-group" style="flex:2; min-width: 200px;">
+                                <label>Name of Client</label>
+                                <input type="text" id="shClientName" class="input-field" placeholder="Search returning or Enter new name" list="shClientNameList" oninput="window.app.autoFillClientByName()">
+                                <datalist id="shClientNameList"></datalist>
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 150px;">
+                                <label>Contact No.</label>
+                                <input type="text" id="shContact" class="input-field" placeholder="Optional">
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 150px;">
+                                <label>OR #</label>
+                                <input type="text" id="shOR" class="input-field" placeholder="Leave blank if Unpaid">
+                            </div>
+                        </div>
+
+                        <!-- Row 2 -->
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Status</label>
+                                <select id="shStatus" class="input-field">
+                                    <option value="Private">Private</option>
+                                    <option value="Public">Public</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Livestock</label>
+                                <select id="shType" class="input-field">
+                                    <option value="Hogs">Hogs</option>
+                                    <option value="Chicken">Chicken</option>
+                                    <option value="Goat">Goat</option>
+                                    <option value="Cow">Cow</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 100px;">
+                                <label>No. of Livestock</label>
+                                <input type="number" id="shHeadCount" class="input-field" min="1" value="1">
+                            </div>
+                            <div class="form-group" style="flex:1; min-width: 120px;">
+                                <label>Amount (₱)</label>
+                                <input type="number" id="shAmount" class="input-field" placeholder="0.00" step="0.01">
+                            </div>
+                            <div class="form-group" style="flex:1; display:flex; align-items:flex-end;">
+                                <button id="btnSaveSlaughter" class="btn btn-primary btn-full" onclick="window.app.saveSlaughterEntry()">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dashboard / Report -->
+                    <div class="monitoring-card" style="margin-bottom: 24px;">
+                        <div class="header-controls" style="margin-bottom: 15px;">
+                            <h3 style="margin:0;"><i class="fas fa-chart-pie text-sub"></i> <span id="shReportTitle">Monthly Slaughter Report</span></h3>
+                            <div class="search-container" style="align-items: center; flex-wrap:wrap; gap: 10px;">
+                                <input type="text" id="shFilterClient" class="input-field" placeholder="Search Client ID or Name..." style="padding: 4px 8px; width: 220px;" oninput="window.app.renderSlaughterReport()">
+                                <input type="month" id="shFilterMonth" class="input-field" style="padding: 4px 8px; width: auto;" onchange="window.app.renderSlaughterReport()">
+                                <button class="btn btn-primary btn-sm" onclick="window.app.printSlaughterReport()"><i class="fas fa-print"></i> Print</button>
+                            </div>
+                        </div>
+                        
+                        <div class="summary-grid" id="shSummaryCards"></div> <!-- Summary cards -->
+
+                        <div class="table-responsive" style="margin-top: 15px;">
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Client ID</th>
+                                        <th>Client Name</th>
+                                        <th>Contact No.</th>
+                                        <th>OR #</th>
+                                        <th>Status</th>
+                                        <th>Livestock</th>
+                                        <th>No. of Livestock</th>
+                                        <th>Amount (₱)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shReportTableBody">
+                                    <tr><td colspan="9" style="text-align:center;">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transport Terminal View -->
+            <div id="viewTransport" class="view-section">
+                <div class="card">
+                   <div class="header-controls" style="margin-bottom: 25px;">
+                      <h2 style="margin:0; font-size:1.5rem">Transport Terminal Management</h2>
+                   </div>
+                   
+                   <!-- Inner Tabs -->
+                   <div class="modal-tabs" style="margin-bottom: 24px; border-radius: var(--radius-md); overflow: hidden;">
+                       <div id="tabTodaList" class="modal-tab active" onclick="window.app.navigate('transport_toda')">List of TODA</div>
+                       <div id="tabTodaMembers" class="modal-tab" onclick="window.app.navigate('transport_members')">Members Profile</div>
+                       <div id="tabTodaReport" class="modal-tab" onclick="window.app.navigate('transport_report')">Report</div>
+                   </div>
+
+                   <!-- TODA LIST CONTAINER -->
+                   <div id="containerTodaList">
+                      <div class="monitoring-card" style="margin-bottom: 24px; background: var(--primary-light); border-color: var(--primary-color);">
+                          <h3 style="margin-top:0; color:var(--primary-dark);"><i class="fas fa-plus-circle"></i> Register New TODA</h3>
+                          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                              <div class="form-group" style="flex:1; min-width:150px;"><label>Registration #</label><input type="text" id="todaRegNo" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:200px;"><label>TODA Registered Name</label><input type="text" id="todaName" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:200px;"><label>Name of President</label><input type="text" id="todaPresident" class="input-field"></div>
+                          </div>
+                          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                              <div class="form-group" style="flex:1; min-width:150px;"><label>Contact No.</label><input type="text" id="todaContact" class="input-field"></div>
+                              <div class="form-group" style="flex:1; min-width:150px;"><label>Total No. of Members</label><input type="number" id="todaTotalMembers" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:200px;"><label>Address</label><input type="text" id="todaAddress" class="input-field"></div>
+                              <div class="form-group" style="display:flex; align-items:flex-end;">
+                                  <button class="btn btn-primary btn-full" onclick="window.app.saveToda()"><i class="fas fa-save"></i> Save TODA</button>
+                              </div>
+                          </div>
+                      </div>
+                      <div class="table-responsive">
+                          <table class="report-table">
+                              <thead><tr><th>Reg #</th><th>TODA Name</th><th>President</th><th>Contact</th><th>Members</th><th>Address</th></tr></thead>
+                              <tbody id="todaTableBody"></tbody>
+                          </table>
+                      </div>
+                   </div>
+
+                   <!-- MEMBERS PROFILE CONTAINER -->
+                   <div id="containerTodaMembers" class="hidden">
+                       <div class="search-container" style="justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap;">
+                          <select id="memberTodaSelect" class="input-field" style="max-width: 400px; flex:1;" onchange="window.app.renderMembersTable()">
+                             <option value="">Select TODA to view/add members...</option>
+                          </select>
+                          <button class="btn btn-primary" onclick="window.app.printTodaMembers()"><i class="fas fa-print"></i> Print Members</button>
+                       </div>
+
+                       <div id="memberFormCard" class="monitoring-card hidden" style="margin-bottom: 24px; background: var(--success-light); border-color: var(--success-color);">
+                          <h3 style="margin-top:0; color:var(--stall-occupied-text);"><i class="fas fa-user-plus"></i> Add Member to <span id="lblSelectedToda"></span></h3>
+                          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Last Name</label><input type="text" id="memLastName" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>First Name</label><input type="text" id="memFirstName" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Middle Name</label><input type="text" id="memMiddleName" class="input-field"></div>
+                              <div class="form-group" style="flex:1; min-width:80px;"><label>Ext.</label><input type="text" id="memExtName" class="input-field" placeholder="Jr, Sr"></div>
+                              <div class="form-group" style="flex:1; min-width:100px;"><label>Sex</label><select id="memSex" class="input-field"><option>Male</option><option>Female</option></select></div>
+                          </div>
+                          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Barangay</label><input type="text" id="memBarangay" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Municipality</label><input type="text" id="memMunicipality" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Contact Number</label><input type="text" id="memContact" class="input-field"></div>
+                          </div>
+                          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Type of ID</label><input type="text" id="memIdType" class="input-field" placeholder="Driver's License"></div>
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>ID Number</label><input type="text" id="memIdNumber" class="input-field"></div>
+                              <div class="form-group" style="flex:2; min-width:150px;"><label>Expiration Date</label><input type="date" id="memIdExpiry" class="input-field"></div>
+                              <div class="form-group" style="flex:1; display:flex; align-items:flex-end; min-width:120px;">
+                                  <button class="btn btn-success btn-full" onclick="window.app.saveMember()"><i class="fas fa-save"></i> Add Member</button>
+                              </div>
+                          </div>
+                       </div>
+
+                       <div class="table-responsive">
+                          <table class="report-table">
+                              <thead><tr><th>Name</th><th>Sex</th><th>Address</th><th>Contact</th><th>ID Details</th></tr></thead>
+                              <tbody id="memberTableBody"><tr><td colspan="5" style="text-align:center;">Select a TODA to view members</td></tr></tbody>
+                          </table>
+                       </div>
+                   </div>
+
+                   <!-- REPORT CONTAINER -->
+                   <div id="containerTodaReport" class="hidden">
+                        <div class="monitoring-card" style="margin-bottom: 24px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
+                                <h3 style="margin:0;"><i class="fas fa-chart-pie text-sub"></i> Transport Terminal Summary</h3>
+                                <button class="btn btn-primary btn-sm" onclick="window.app.printTodaReport()"><i class="fas fa-print"></i> Print Report</button>
+                            </div>
+                            
+                            <div class="summary-grid" id="todaSummaryCards">
+                                <!-- Summary cards dynamically injected here -->
+                            </div>
+
+                            <div class="table-responsive" style="margin-top: 15px;">
+                                <table class="report-table">
+                                    <thead>
+                                        <tr>
+                                            <th>TODA Name</th>
+                                            <th>President</th>
+                                            <th>Encoded Profiles</th>
+                                            <th>Male</th>
+                                            <th>Female</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="todaReportTableBody">
+                                        <tr><td colspan="5" style="text-align:center;">Loading report...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                   </div>
+                </div> <!-- [FIX] This closing div was previously missing! -->
+            </div>
+
+
+            <!-- Cemetery Management View -->
+            <div id="viewCemetery" class="view-section">
+                <div class="card">
+                   <div class="header-controls" style="margin-bottom: 25px;">
+                      <h2 style="margin:0; font-size:1.5rem">Cemetery Management</h2>
+                   </div>
+                   
+                   <div class="modal-tabs" style="margin-bottom: 24px; border-radius: var(--radius-md); overflow: hidden;">
+                       <div id="tabCemBooking" class="modal-tab active" onclick="window.app.navigate('cem_booking')">Booking Schedule for Burial</div>
+                       <div id="tabCemReport" class="modal-tab" onclick="window.app.navigate('cem_report')">Reports</div>
+                   </div>
+
+                   <!-- BOOKING SCHEDULE CONTAINER -->
+                  <div id="containerCemBooking">
+                      
+                      <!-- Full width Calendar -->
+                      <div class="card" style="padding: 15px; background: white; margin-bottom: 24px;">
+                          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                              <div>
+                                  <h3 style="margin:0; color:var(--primary-dark);"><i class="fas fa-calendar-alt"></i> Cemetery Booking Schedule</h3>
+                                  <p style="font-size: 0.85rem; color: var(--text-sub); margin: 0;">Click a date on the calendar to add a new booking.</p>
+                              </div>
+                              <button class="btn btn-primary btn-sm" onclick="window.app.openCemeteryModal()"><i class="fas fa-plus"></i> Manual Add</button>
+                          </div>
+                          <div id="cemeteryCalendar"></div>
+                      </div>
+
+                      <!-- Table below the Calendar -->
+                      <div class="table-responsive">
+                          <table class="report-table">
+                              <thead>
+                                  <tr>
+                                      <th>Name of the Deceased</th>
+                                      <th>Address</th>
+                                      <th>Phone number</th>
+                                      <th>Date of Burial</th>
+                                      <th>Burial Type</th>
+                                      <th>Amount (₱)</th>
+                                      <th style="width: 50px; text-align: center;">Action</th>
+                                  </tr>
+                              </thead>
+                              <tbody id="cemBookingTableBody"></tbody>
+                          </table>
+                      </div>
+
+                      <!-- Cemetery Booking Modal (Hidden by Default) -->
+                      <div id="cemModalOverlay" class="modal-overlay">
+                        <div class="modal-content" style="max-width: 500px;">
+                            <div class="modal-header">
+                              <div class="flex-row"><i class="fas fa-plus-circle text-sub"></i> <h3 style="margin:0;">New Burial Booking</h3></div>
+                              <button class="btn-ghost" style="padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" onclick="window.app.closeCemeteryModal()"><i class="fas fa-times" style="font-size: 1.2rem;"></i></button>
+                            </div>
+                            
+                            <div class="modal-body">
+                               <div style="display: flex; gap: 10px;">
+                                  <div class="form-group" style="flex: 1;"><label>Date of Burial</label><input type="date" id="cemDate" class="input-field"></div>
+                                  <div class="form-group" style="flex: 1;"><label>Time</label><input type="time" id="cemTime" class="input-field"></div></div>
+                                <div class="form-group"><label>Name of the Deceased</label><input type="text" id="cemDeceased" class="input-field"></div>
+                                <div class="form-group"><label>Address (Barangay)</label><input type="text" id="cemAddress" class="input-field" placeholder="e.g. Poblacion"></div>
+                                <div class="form-group"><label>Phone number</label><input type="text" id="cemPhone" class="input-field"></div>
+                                <div class="form-group">
+                                  <label>Burial Type</label>
+                                  <select id="cemType" class="input-field">
+                                      <option>Apartment</option>
+                                      <option>Bone Vault</option>
+                                      <option>Ground</option>
+                                      <option>Mausoleum</option>
+                                      <option>Transfer of Cadaver</option>
+                                      <option>Exhumation/Removal</option>
+                                      <option>Renewal</option>
+                                  </select>
+                              </div>
+                                <div class="form-group"><label>Amount (₱)</label><input type="number" id="cemAmount" class="input-field" placeholder="0.00"></div>
+                            </div>
+
+                            <div class="modal-footer">
+                              <button class="btn btn-ghost" onclick="window.app.closeCemeteryModal()">Cancel</button>
+                              <button id="btnSaveCemModal" class="btn btn-primary" onclick="window.app.saveCemeteryBooking()"><i class="fas fa-save"></i> Save Booking</button>
+                            </div>
+                        </div>
+                      </div>
+                  </div>
+
+                   <!--CEM REPORT CONTAINER -->
+                   <div id="containerCemReport" class="hidden">
+                        <div class="monitoring-card" style="margin-bottom: 24px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
+                                <h3 style="margin:0;"><i class="fas fa-chart-pie text-sub"></i> Monthly Cemetery Report</h3>
+                                <div style="display: flex; gap: 10px; align-items: center; flex-wrap:wrap;">
+                                    <input type="month" id="cemFilterMonth" class="input-field" style="padding: 4px 8px; width: auto;" onchange="window.app.renderCemeteryReport()">
+                                    <button class="btn btn-primary btn-sm" onclick="window.app.printCemReport()"><i class="fas fa-print"></i> Print Report</button>
+                                </div>
+                            </div>
+                            
+                            <div class="summary-grid" id="cemSummaryCards"></div>
+                            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px; margin-bottom: 25px;">
+                                <div id="cemBrgySummaryContainer" style="flex: 1; min-width: 300px;"></div>
+                                <div id="cemTypeSummaryContainer" style="flex: 1; min-width: 300px;"></div>
+                            </div>
+                            <div class="table-responsive" style="margin-top: 15px;">
+                                <table class="report-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name of the Deceased</th>
+                                            <th>Address</th>
+                                            <th>Phone number</th>
+                                            <th>Date of Burial</th>
+                                            <th>Burial Type</th>
+                                            <th>Amount (₱)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cemReportTableBody"><tr><td colspan="6" style="text-align:center;">Loading report...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                   </div>
+                </div>
+            </div>
+
+            <!-- OPIF Report View (Standalone) -->
+            <div id="viewOpif" class="view-section">
+                <div class="card">
+                   <h2 style="margin-top:0; margin-bottom:24px; font-size:1.5rem">Organizational Performance Indicator Framework (OPIF)</h2>
+                   <div id="opifContentArea"></div>
+                </div>
+            </div>
+
+            <!-- Peace & Order (CSU) View -->
+            <div id="viewCsu" class="view-section">
+                <div class="card" id="csuReportContainer">
+                    
+                    <div class="header-controls no-print" style="margin-bottom: 25px;">
+                        <h2 style="margin:0; font-size:1.5rem">Peace & Order Management</h2>
+                    </div>
+
+                    <!-- Inner Tabs for Form vs Calendar -->
+                    <div class="modal-tabs no-print" style="margin-bottom: 24px; border-radius: var(--radius-md); overflow: hidden;">
+                        <div id="tabCsuForm" class="modal-tab active" onclick="window.app.csu.switchTab('form')">Daily Report Form</div>
+                        <div id="tabCsuCalendar" class="modal-tab" onclick="window.app.csu.switchTab('calendar')">History & Print by Guard</div>
+                    </div>
+
+                    <!-- FORM CONTAINER -->
+                    <div id="containerCsuForm">
+                        <div class="header-controls no-print" style="margin-bottom: 25px;">
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="btn btn-danger btn-sm" onclick="window.app.csu.clearData()"><i class="fas fa-trash"></i> Clear</button>
+                                <button class="btn btn-primary btn-sm" onclick="window.app.csu.printReport()"><i class="fas fa-print"></i> Print / PDF</button>
+                                <button id="btnSubmitCsu" class="btn btn-success btn-sm" onclick="window.app.csu.submitReport()"><i class="fas fa-cloud-upload-alt"></i> Save to Database</button>
+                            </div>
+                        </div>
+
+                        <!-- Printable Header -->
+                        <div style="text-align: center; border-bottom: 2px solid var(--text-main); padding-bottom: 20px; margin-bottom: 30px;">
+                            <h1 style="font-size: 1.6rem; font-weight: 900; text-transform: uppercase; margin:0;">Market Guard Daily Report</h1>
+                            <p style="color: var(--text-sub); font-style: italic; margin-top: 5px;">Document daily activities, incidents, and important notes.</p>
+                        </div>
+
+                        <form id="csuReportForm">
+                            <!-- 1. Basic Information -->
+                            <h3 class="csu-section-title">1. Basic Information</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                                <div class="form-group" style="margin:0;"><label>Date</label><input type="date" id="csu-date" class="input-field csu-input" onchange="window.app.csu.autoFillDay(); window.app.csu.saveData()"></div>
+                                <div class="form-group" style="margin:0;"><label>Day</label><input type="text" id="csu-day" class="input-field csu-input" readonly placeholder="Auto-filled"></div>
+                                <div class="form-group" style="margin:0;"><label>Shift</label><input type="text" id="csu-shift" class="input-field csu-input" placeholder="e.g. 1st Shift (0600H - 1400H)" oninput="window.app.csu.saveData()"></div>
+                                <div class="form-group" style="grid-column: 1 / -1; margin:0;"><label>Area Covered</label><input type="text" id="csu-area" class="input-field csu-input" placeholder="e.g. Main Building and Perimeter" oninput="window.app.csu.saveData()"></div>
+                            </div>
+
+                            <!-- 2. Personnel Deployment -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">
+                                <h3 style="color: var(--primary-dark); font-size: 1.1rem; font-weight: 700; margin:0;">2. Personnel Deployment</h3>
+                                <button type="button" class="btn btn-ghost btn-sm no-print" style="border: 1px solid var(--border-color);" onclick="window.app.csu.addTableRow('csu-personnel-body', 'personnel')">+ Add Guard</button>
+                            </div>
+                            <div class="table-responsive" style="margin-bottom: 30px; overflow: visible;">
+                                <table class="report-table">
+                                    <thead><tr><th style="width:15%">Guard ID</th><th style="width:20%">Guard Name</th><th style="width:20%">Assigned Area</th><th style="width:12%">Time In</th><th style="width:12%">Time Out</th><th>Remarks</th><th class="no-print" style="width:40px"></th></tr></thead>
+                                    <tbody id="csu-personnel-body"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- 3. Summary of Activities -->
+                            <h3 class="csu-section-title">3. Summary of Activities</h3>
+                            <textarea id="csu-summary-activities" class="input-field csu-input csu-textarea" style="width: 100%; margin-bottom: 30px;" placeholder="Write in paragraph form including patrols, monitoring, assistance, and enforcement..." oninput="window.app.csu.autoResize(this); window.app.csu.saveData()"></textarea>
+
+                            <!-- 4. Incident Report -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">
+                                <h3 style="color: var(--primary-dark); font-size: 1.1rem; font-weight: 700; margin:0;">4. Incident Report</h3>
+                                <button type="button" class="btn btn-ghost btn-sm no-print" style="border: 1px solid var(--border-color);" onclick="window.app.csu.addTableRow('csu-incident-body', 'incident')">+ Add Incident</button>
+                            </div>
+                            <div class="table-responsive" style="margin-bottom: 30px; overflow: visible;">
+                                <table class="report-table">
+                                    <thead><tr><th style="width:12%">Time</th><th style="width:20%">Location</th><th style="width:15%">Type</th><th>Description & Action Taken</th><th style="width:15%">Status</th><th class="no-print" style="width:40px"></th></tr></thead>
+                                    <tbody id="csu-incident-body"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- 5. Violations -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">
+                                <h3 style="color: var(--primary-dark); font-size: 1.1rem; font-weight: 700; margin:0;">5. Violations / Apprehensions</h3>
+                                <button type="button" class="btn btn-ghost btn-sm no-print" style="border: 1px solid var(--border-color);" onclick="window.app.csu.addTableRow('csu-violations-body', 'violations')">+ Add Violation</button>
+                            </div>
+                            <div class="table-responsive" style="margin-bottom: 30px; overflow: visible;">
+                                <table class="report-table">
+                                    <thead><tr><th>Name / Identifier</th><th>Violation</th><th>Action Taken</th><th>Remarks</th><th class="no-print" style="width:40px"></th></tr></thead>
+                                    <tbody id="csu-violations-body"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- 6. Lost and Found -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;">
+                                <h3 style="color: var(--primary-dark); font-size: 1.1rem; font-weight: 700; margin:0;">6. Lost and Found</h3>
+                                <button type="button" class="btn btn-ghost btn-sm no-print" style="border: 1px solid var(--border-color);" onclick="window.app.csu.addTableRow('csu-lostfound-body', 'lostfound')">+ Add Item</button>
+                            </div>
+                            <div class="table-responsive" style="margin-bottom: 30px; overflow: visible;">
+                                <table class="report-table">
+                                    <thead><tr><th>Item Description</th><th>Found By</th><th>Claimed By</th><th>Status</th><th class="no-print" style="width:40px"></th></tr></thead>
+                                    <tbody id="csu-lostfound-body"></tbody>
+                                </table>
+                            </div>
+
+                            <!-- 7. Turnover Notes -->
+                            <h3 class="csu-section-title">7. Turnover Notes</h3>
+                            <textarea id="csu-text-turnover" class="input-field csu-input csu-textarea" style="width: 100%; margin-bottom: 40px;" placeholder="Include reminders for the next shift..." oninput="window.app.csu.autoResize(this); window.app.csu.saveData()"></textarea>
+
+                            <!-- 8. Signatures -->
+                            <h3 class="csu-section-title" style="page-break-before: avoid;">8. Prepared and Noted By</h3>
+                            <div style="display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-top: 50px; text-align: center; page-break-inside: avoid;">
+                                <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center;">
+                                    <div style="width: 90%; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 5px;">
+                                        <input type="text" id="csu-sig-prep-name" class="csu-table-input csu-input" style="text-align: center; font-weight: bold;" placeholder="Officer Name" oninput="window.app.csu.saveData()">
+                                    </div>
+                                    <input type="text" id="csu-sig-prep-title" class="csu-table-input csu-input" style="text-align: center; font-size: 0.8rem; color: var(--text-sub);" placeholder="Duty Guard / Prepared By" oninput="window.app.csu.saveData()">
+                                </div>
+                                <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center;">
+                                    <div style="width: 90%; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 5px;">
+                                        <input type="text" id="csu-sig-ver-name" class="csu-table-input csu-input" style="text-align: center; font-weight: bold;" placeholder="Team Leader Name" oninput="window.app.csu.saveData()">
+                                    </div>
+                                    <input type="text" id="csu-sig-ver-title" class="csu-table-input csu-input" style="text-align: center; font-size: 0.8rem; color: var(--text-sub);" placeholder="Team Leader on Duty" oninput="window.app.csu.saveData()">
+                                </div>
+                                <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column; align-items: center;">
+                                    <div style="width: 90%; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 5px;">
+                                        <input type="text" id="csu-sig-app-name" class="csu-table-input csu-input" style="text-align: center; font-weight: bold;" placeholder="Admin Name" oninput="window.app.csu.saveData()">
+                                    </div>
+                                    <input type="text" id="csu-sig-app-title" class="csu-table-input csu-input" style="text-align: center; font-size: 0.8rem; color: var(--text-sub);" placeholder="Market Administrator" oninput="window.app.csu.saveData()">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- CALENDAR & HISTORY CONTAINER -->
+                    <div id="containerCsuCalendar" class="hidden">
+                        <div style="padding: 15px; background: var(--primary-light); border: 1px solid var(--primary-color); border-radius: var(--radius-md); margin-bottom: 24px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <div>
+                                    <h3 style="margin:0; color:var(--primary-dark);"><i class="fas fa-calendar-alt"></i> Report History</h3>
+                                    <p style="font-size: 0.85rem; color: var(--primary-dark); margin: 0;">Click an event on the calendar to load past reports.</p>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="text" id="csuPrintGuardId" class="input-field" placeholder="Enter Guard ID..." style="width: 180px; padding: 6px;">
+                                    <button class="btn btn-primary" onclick="window.app.csu.printGuardReport()"><i class="fas fa-user-shield"></i> Print Guard History</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="csuCalendar"></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- User Management View -->
+            <div id="viewUsers" class="view-section">
+                <div class="card">
+                    <div class="header-controls">
+                        <h2 style="margin:0; font-size: 1.5rem;">User Management</h2>
+                        <button class="btn btn-primary btn-sm" onclick="window.app.loadUsers()"><i class="fas fa-sync"></i> Refresh List</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="user-table">
+                            <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                            <tbody id="userTableBody"><tr><td colspan="4" style="text-align:center; padding: 20px;">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal (Stall Details) -->
+    <div id="modalOverlay" class="modal-overlay">
+       <div class="modal-content">
+          <div class="modal-header">
+             <div class="flex-row"><i class="fas fa-store text-sub"></i> <h3>Stall <span id="modalStallLabel"></span></h3></div>
+             <button class="btn-ghost" style="padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;" onclick="window.app.closeModal()"><i class="fas fa-times" style="font-size: 1.2rem;"></i></button>
+          </div>
+
+          <div class="modal-tabs">
+             <div class="modal-tab active" onclick="window.app.switchModalTab('current')">Details</div>
+             <div class="modal-tab" onclick="window.app.switchModalTab('documents')">Documents</div>
+             <div class="modal-tab" onclick="window.app.switchModalTab('history')">History</div>
+          </div>
+          
+          <div class="modal-body">
+             <div id="tabCurrent" class="tab-content active">
+                <div class="modal-grid">
+                    <div class="modal-form-side">
+                        <div class="form-group"><label>Compliance Status</label><span id="displayStatus" class="status-badge status-non-compliant">Checking...</span></div>
+                        <div class="form-group"><label>Stall Owner</label><input id="inputOwner" class="input-field" readonly></div>
+                        <div class="form-group"><label>Operator</label><input id="inputOperator" class="input-field" readonly></div>
+                        <div class="form-group"><label>Line of Business</label><input id="inputLOB" class="input-field" readonly></div>
+                        <div class="form-group"><label>Period Index</label><input id="inputPeriod" class="input-field" readonly></div>
+                        <div class="form-group"><label id="lblColI">Additional Info</label><input id="inputColI" class="input-field" readonly></div>
+                    </div>
+                    <div class="modal-profile-side">
+                        <div class="profile-img-container">
+                            <img id="profileImage" class="profile-img" src="" style="display:none">
+                            <div id="profilePlaceholder" class="profile-img-placeholder"><i class="fas fa-user" style="font-size: 4rem;"></i></div>
+                            <div id="uploadBtn" class="upload-overlay hidden" onclick="document.getElementById('fileInput').click()"><i class="fas fa-camera"></i></div>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="window.app.handleFileSelect(this)">
+                    </div>
+                </div>
+                <div id="viewActions" class="modal-actions">
+                    <button class="btn btn-primary" onclick="window.app.enableEditMode()">Edit Details</button>
+                    <button class="btn btn-success" onclick="window.app.enableAddMode()">Add Owner</button>
+                </div>
+             </div>
+
+             <div id="tabDocuments" class="tab-content">
+                 <div class="doc-card">
+                     <div class="doc-header">
+                         <span class="doc-title"><i class="fas fa-file-contract text-sub"></i> Contract of Lease</span>
+                         <button class="btn btn-primary btn-sm" onclick="document.getElementById('uploadLease').click()">Upload New</button>
+                         <input type="file" id="uploadLease" style="display:none" accept="application/pdf" onchange="window.app.handleDocUpload(this, 'Lease')">
+                     </div>
+                     <iframe id="iframeLease" class="doc-viewer" src=""></iframe>
+                     <div id="noLease" class="doc-viewer"><i class="fas fa-folder-open" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.5;"></i><br>No Document Submitted</div>
+                 </div>
+                 <div class="doc-card">
+                     <div class="doc-header">
+                         <span class="doc-title"><i class="fas fa-id-card text-sub"></i> Business Permit</span>
+                         <button class="btn btn-primary btn-sm" onclick="document.getElementById('uploadPermit').click()">Upload New</button>
+                         <input type="file" id="uploadPermit" style="display:none" accept="application/pdf" onchange="window.app.handleDocUpload(this, 'Permit')">
+                     </div>
+                     <iframe id="iframePermit" class="doc-viewer" src=""></iframe>
+                     <div id="noPermit" class="doc-viewer"><i class="fas fa-folder-open" style="font-size: 2rem; margin-bottom: 10px; opacity: 0.5;"></i><br>No Document Submitted</div>
+                 </div>
+             </div>
+
+             <div id="tabHistory" class="tab-content">
+                <div class="table-responsive">
+                    <table class="history-table" style="width: 100%;">
+                       <thead><tr><th>Year</th><th>Owner</th><th>Operator</th><th>Business</th></tr></thead>
+                       <tbody id="ownerHistoryTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="noHistoryMsg" style="text-align:center; padding:40px; color:var(--text-muted); display:none;">
+                    <i class="fas fa-history" style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;"></i><br>No history available
+                </div>
+             </div>
+          </div>
+
+          <div class="modal-footer">
+             <button id="btnClose" class="btn btn-ghost" onclick="window.app.closeModal()">Close</button>
+             <button id="btnCancel" class="btn btn-ghost hidden" onclick="window.app.cancelEdit()">Cancel</button>
+             <button id="btnSaveUpdate" class="btn btn-primary hidden" onclick="window.app.saveStall('update')">Save Changes</button>
+             <button id="btnSaveNew" class="btn btn-success hidden" onclick="window.app.saveStall('new')">Save Entry</button>
+          </div>
+       </div>
+    </div>
+
+    <!-- Include the JS File -->
+    <?!= HtmlService.createHtmlOutputFromFile('map_js').getContent(); ?>
+  </body>
+</html>
