@@ -162,7 +162,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window !== 'undefined') {
       try {
         // One-time wipe of old mock data from previous demo sessions
-        if (localStorage.getItem('meedo_clean_slate_v3') !== 'true') {
+        if (localStorage.getItem('meedo_clean_slate_v4') !== 'true') {
           localStorage.removeItem('meedo_stalls');
           localStorage.removeItem('meedo_bills');
           localStorage.removeItem('meedo_slaughter');
@@ -176,7 +176,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           localStorage.removeItem('meedo_inventory_transactions');
           localStorage.removeItem('meedo_butchers');
           localStorage.removeItem('meedo_users');
-          localStorage.setItem('meedo_clean_slate_v3', 'true');
+          localStorage.setItem('meedo_clean_slate_v4', 'true');
         }
 
         const savedUser = localStorage.getItem('meedo_current_user');

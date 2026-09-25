@@ -180,6 +180,7 @@ export interface TodaMember {
   barangay: string;
   municipality: string;
   contact_no?: string;
+  contact_number?: string;
   id_type?: string;
   id_number?: string;
   id_expiry?: string;
