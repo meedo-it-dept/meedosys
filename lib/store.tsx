@@ -500,9 +500,40 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         return s;
       });
-      localStorage.setItem('meedo_stalls', JSON.stringify(updated));
+      try {
+        localStorage.setItem('meedo_stalls', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('localStorage quota reached, retaining tenant metadata:', err);
+      }
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('stall_tenants').upsert(
+            {
+              stall_no: stallNo,
+              stall_owner: updates.stall_owner || 'Registered Tenant',
+              operator: updates.operator || null,
+              line_of_business: updates.line_of_business || null,
+              period_index: updates.period_index || 1,
+              year: updates.year || new Date().getFullYear(),
+              compliance_status: updates.compliance_status || 'Non-Compliant',
+              photo_url: updates.photo_url || null,
+              lease_doc_url: updates.lease_doc_url || null,
+              permit_doc_url: updates.permit_doc_url || null,
+              additional_info: updates.additional_info || null,
+              is_current: true,
+            },
+            { onConflict: 'stall_no' }
+          );
+        } catch (e) {
+          console.warn('Supabase tenant update notice:', e);
+        }
+      })();
+    }
   };
 
   const addStallTenant = (stallNo: string, tenant: StallTenant) => {
@@ -521,9 +552,40 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         return s;
       });
-      localStorage.setItem('meedo_stalls', JSON.stringify(updated));
+      try {
+        localStorage.setItem('meedo_stalls', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('localStorage quota notice:', err);
+      }
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('stall_tenants').upsert(
+            {
+              stall_no: stallNo,
+              stall_owner: tenant.stall_owner,
+              operator: tenant.operator || null,
+              line_of_business: tenant.line_of_business || null,
+              period_index: tenant.period_index || 1,
+              year: tenant.year || new Date().getFullYear(),
+              compliance_status: tenant.compliance_status || 'Non-Compliant',
+              photo_url: tenant.photo_url || null,
+              lease_doc_url: tenant.lease_doc_url || null,
+              permit_doc_url: tenant.permit_doc_url || null,
+              additional_info: tenant.additional_info || null,
+              is_current: true,
+            },
+            { onConflict: 'stall_no' }
+          );
+        } catch (e) {
+          console.warn('Supabase tenant add notice:', e);
+        }
+      })();
+    }
   };
 
   const addElectricBill = (bill: ElectricBill) => {

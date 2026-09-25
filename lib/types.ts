@@ -38,6 +38,8 @@ export interface StallTenant {
   photo_url?: string | null;
   lease_doc_url?: string | null;
   permit_doc_url?: string | null;
+  lease_doc_name?: string | null;
+  permit_doc_name?: string | null;
   additional_info?: string | null;
   is_current?: boolean;
 }
