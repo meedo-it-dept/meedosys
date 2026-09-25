@@ -512,23 +512,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const client = supabase;
       (async () => {
         try {
-          await client.from('stall_tenants').upsert(
-            {
-              stall_no: stallNo,
-              stall_owner: updates.stall_owner || 'Registered Tenant',
-              operator: updates.operator || null,
-              line_of_business: updates.line_of_business || null,
-              period_index: updates.period_index || 1,
-              year: updates.year || new Date().getFullYear(),
-              compliance_status: updates.compliance_status || 'Non-Compliant',
-              photo_url: updates.photo_url || null,
-              lease_doc_url: updates.lease_doc_url || null,
-              permit_doc_url: updates.permit_doc_url || null,
-              additional_info: updates.additional_info || null,
-              is_current: true,
-            },
-            { onConflict: 'stall_no' }
-          );
+          const payload: Record<string, any> = {};
+          if (updates.stall_owner !== undefined) payload.stall_owner = updates.stall_owner;
+          if (updates.operator !== undefined) payload.operator = updates.operator;
+          if (updates.line_of_business !== undefined) payload.line_of_business = updates.line_of_business;
+          if (updates.period_index !== undefined) payload.period_index = updates.period_index;
+          if (updates.year !== undefined) payload.year = updates.year;
+          if (updates.compliance_status !== undefined) payload.compliance_status = updates.compliance_status;
+          if (updates.photo_url !== undefined) payload.photo_url = updates.photo_url;
+          if (updates.lease_doc_url !== undefined) payload.lease_doc_url = updates.lease_doc_url;
+          if (updates.permit_doc_url !== undefined) payload.permit_doc_url = updates.permit_doc_url;
+          if (updates.additional_info !== undefined) payload.additional_info = updates.additional_info;
+          payload.is_current = true;
+
+          const res = await client
+            .from('stall_tenants')
+            .update(payload)
+            .eq('stall_no', stallNo);
+
+          if (res.error) {
+            console.warn('Supabase tenant update error:', res.error.message);
+          } else {
+            console.log('Saved to Supabase stall_tenants for stall:', stallNo);
+          }
         } catch (e) {
           console.warn('Supabase tenant update notice:', e);
         }
@@ -564,23 +570,21 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const client = supabase;
       (async () => {
         try {
-          await client.from('stall_tenants').upsert(
-            {
-              stall_no: stallNo,
-              stall_owner: tenant.stall_owner,
-              operator: tenant.operator || null,
-              line_of_business: tenant.line_of_business || null,
-              period_index: tenant.period_index || 1,
-              year: tenant.year || new Date().getFullYear(),
-              compliance_status: tenant.compliance_status || 'Non-Compliant',
-              photo_url: tenant.photo_url || null,
-              lease_doc_url: tenant.lease_doc_url || null,
-              permit_doc_url: tenant.permit_doc_url || null,
-              additional_info: tenant.additional_info || null,
-              is_current: true,
-            },
-            { onConflict: 'stall_no' }
-          );
+          const res = await client.from('stall_tenants').insert({
+            stall_no: stallNo,
+            stall_owner: tenant.stall_owner,
+            operator: tenant.operator || null,
+            line_of_business: tenant.line_of_business || null,
+            period_index: tenant.period_index || 1,
+            year: tenant.year || new Date().getFullYear(),
+            compliance_status: tenant.compliance_status || 'Non-Compliant',
+            photo_url: tenant.photo_url || null,
+            lease_doc_url: tenant.lease_doc_url || null,
+            permit_doc_url: tenant.permit_doc_url || null,
+            additional_info: tenant.additional_info || null,
+            is_current: true,
+          });
+          if (res.error) console.warn('Supabase tenant insert error:', res.error.message);
         } catch (e) {
           console.warn('Supabase tenant add notice:', e);
         }

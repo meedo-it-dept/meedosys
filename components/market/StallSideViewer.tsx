@@ -199,6 +199,9 @@ export const StallSideViewer: React.FC<StallSideViewerProps> = ({ stall, isOpen,
           setPhotoSize(file.size);
           if (stall) {
             storeDocumentInDB(`photo_${stall.stall_no}`, compressedData);
+            updateStallTenant(stall.stall_no, { photo_url: compressedData });
+            setSaveSuccess(true);
+            setTimeout(() => setSaveSuccess(false), 3000);
           }
         }
       };
@@ -228,6 +231,9 @@ export const StallSideViewer: React.FC<StallSideViewerProps> = ({ stall, isOpen,
       setLeaseDocSize(size);
       if (stall) {
         storeDocumentInDB(`lease_${stall.stall_no}`, dataUrl);
+        updateStallTenant(stall.stall_no, { lease_doc_url: dataUrl, lease_doc_name: name });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
       }
     } catch {
       setLeaseDocError('Failed to process PDF document. Please try again.');
@@ -255,6 +261,9 @@ export const StallSideViewer: React.FC<StallSideViewerProps> = ({ stall, isOpen,
       setPermitDocSize(size);
       if (stall) {
         storeDocumentInDB(`permit_${stall.stall_no}`, dataUrl);
+        updateStallTenant(stall.stall_no, { permit_doc_url: dataUrl, permit_doc_name: name });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
       }
     } catch {
       setPermitDocError('Failed to process PDF document. Please try again.');
@@ -447,6 +456,10 @@ export const StallSideViewer: React.FC<StallSideViewerProps> = ({ stall, isOpen,
                     onClick={() => {
                       setPhotoUrl(null);
                       setPhotoSize(null);
+                      if (stall) {
+                        updateStallTenant(stall.stall_no, { photo_url: null });
+                        storeDocumentInDB(`photo_${stall.stall_no}`, '');
+                      }
                     }}
                     className="text-[11px] text-slate-400 hover:text-rose-600 px-1.5 py-1 transition-colors"
                     title="Remove Photo"
