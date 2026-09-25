@@ -157,115 +157,144 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
   const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>(initialInventoryTransactions);
 
-  // Initialize from LocalStorage for demo persistence
+  // Initialize from Supabase and clean up legacy mock data
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
+        // One-time wipe of old mock data from previous demo sessions
+        if (localStorage.getItem('meedo_clean_slate_v3') !== 'true') {
+          localStorage.removeItem('meedo_stalls');
+          localStorage.removeItem('meedo_bills');
+          localStorage.removeItem('meedo_slaughter');
+          localStorage.removeItem('meedo_cemetery');
+          localStorage.removeItem('meedo_todas');
+          localStorage.removeItem('meedo_members');
+          localStorage.removeItem('meedo_opif');
+          localStorage.removeItem('meedo_csu');
+          localStorage.removeItem('meedo_guards');
+          localStorage.removeItem('meedo_inventory_items');
+          localStorage.removeItem('meedo_inventory_transactions');
+          localStorage.removeItem('meedo_butchers');
+          localStorage.removeItem('meedo_users');
+          localStorage.setItem('meedo_clean_slate_v3', 'true');
+        }
+
         const savedUser = localStorage.getItem('meedo_current_user');
         if (savedUser) setCurrentUser(JSON.parse(savedUser));
 
-        const savedStalls = localStorage.getItem('meedo_stalls');
-        if (savedStalls) setStalls(JSON.parse(savedStalls));
+        if (isSupabaseConfigured && supabase) {
+          // Fetch live production data from Supabase
+          const fetchSupabase = async () => {
+            const client = supabase;
+            if (!client) return;
+            try {
+              const [
+                tenantsRes,
+                billsRes,
+                slaughterRes,
+                cemRes,
+                todasRes,
+                membersRes,
+                opifRes,
+                csuRes,
+                invItemsRes,
+                invTxRes,
+                butchersRes,
+                profilesRes,
+              ] = await Promise.all([
+                client.from('stall_tenants').select('*'),
+                client.from('electric_bills').select('*'),
+                client.from('slaughter_records').select('*'),
+                client.from('cemetery_bookings').select('*'),
+                client.from('todas').select('*'),
+                client.from('toda_members').select('*'),
+                client.from('opif_indicators').select('*'),
+                client.from('csu_daily_reports').select('*'),
+                client.from('inventory_items').select('*'),
+                client.from('inventory_transactions').select('*'),
+                client.from('butchers').select('*'),
+                client.from('profiles').select('*'),
+              ]);
 
-        const savedBills = localStorage.getItem('meedo_bills');
-        if (savedBills) setElectricBills(JSON.parse(savedBills));
+              if (billsRes.data) setElectricBills(billsRes.data);
+              if (slaughterRes.data) setSlaughterRecords(slaughterRes.data);
+              if (cemRes.data) setCemeteryBookings(cemRes.data);
+              if (todasRes.data) setTodas(todasRes.data);
+              if (membersRes.data) setTodaMembers(membersRes.data);
+              if (opifRes.data) setOpifIndicators(opifRes.data);
+              if (csuRes.data) setCsuReports(csuRes.data);
+              if (invItemsRes.data) setInventoryItems(invItemsRes.data);
+              if (invTxRes.data) setInventoryTransactions(invTxRes.data);
+              if (butchersRes.data) setButchers(butchersRes.data);
 
-        const savedSlaughter = localStorage.getItem('meedo_slaughter');
-        if (savedSlaughter) setSlaughterRecords(JSON.parse(savedSlaughter));
+              if (tenantsRes.data) {
+                const tenantMap = new Map();
+                tenantsRes.data.forEach((t: any) => {
+                  if (t.is_current) tenantMap.set(t.stall_no, t);
+                });
+                setStalls((prev) =>
+                  prev.map((s) => ({
+                    ...s,
+                    status: (tenantMap.has(s.stall_no) ? 'Occupied' : 'Vacant') as any,
+                    current_tenant: tenantMap.get(s.stall_no) || null,
+                  }))
+                );
+              }
 
-        const savedCem = localStorage.getItem('meedo_cemetery');
-        if (savedCem) setCemeteryBookings(JSON.parse(savedCem));
-
-        const savedTodas = localStorage.getItem('meedo_todas');
-        if (savedTodas) setTodas(JSON.parse(savedTodas));
-
-        const savedMembers = localStorage.getItem('meedo_members');
-        if (savedMembers) setTodaMembers(JSON.parse(savedMembers));
-
-        const savedOpif = localStorage.getItem('meedo_opif');
-        if (savedOpif) {
-          const parsed = JSON.parse(savedOpif);
-          if (Array.isArray(parsed) && parsed.length > 0 && ('col3' in parsed[0] || 'col4' in parsed[0])) {
-            setOpifIndicators(parsed);
-          } else {
-            setOpifIndicators(initialOpifIndicators);
-            localStorage.setItem('meedo_opif', JSON.stringify(initialOpifIndicators));
-          }
-        }
-
-        const savedCsu = localStorage.getItem('meedo_csu');
-        if (savedCsu) setCsuReports(JSON.parse(savedCsu));
-
-        const savedGuards = localStorage.getItem('meedo_guards');
-        if (savedGuards) {
-          try {
-            setGuards(JSON.parse(savedGuards));
-          } catch (e) {
-            setGuards(initialMarketGuards);
-          }
-        }
-
-        const savedInvItems = localStorage.getItem('meedo_inventory_items');
-        if (savedInvItems) {
-          try {
-            const parsed = JSON.parse(savedInvItems);
-            if (Array.isArray(parsed) && parsed.some((x: any) => x.id === 'inv_001' || x.item === 'Bond Paper A4')) {
-              localStorage.removeItem('meedo_inventory_items');
-              localStorage.removeItem('meedo_inventory_transactions');
-              setInventoryItems([]);
-              setInventoryTransactions([]);
-            } else {
-              setInventoryItems(parsed);
+              if (profilesRes.data && profilesRes.data.length > 0) {
+                const userMap = new Map<string, UserProfile>();
+                initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
+                profilesRes.data.forEach((u: any) => userMap.set(u.username.toLowerCase(), u));
+                setUsers(Array.from(userMap.values()));
+              }
+            } catch (err) {
+              console.warn('Supabase sync note:', err);
             }
-          } catch (e) {
-            setInventoryItems(initialInventoryItems);
-          }
-        }
+          };
+          fetchSupabase();
+        } else {
+          // Local storage fallback if offline
+          const savedStalls = localStorage.getItem('meedo_stalls');
+          if (savedStalls) setStalls(JSON.parse(savedStalls));
 
-        const savedInvTx = localStorage.getItem('meedo_inventory_transactions');
-        if (savedInvTx && localStorage.getItem('meedo_inventory_items')) {
-          try {
-            const parsedTx = JSON.parse(savedInvTx);
-            if (Array.isArray(parsedTx) && parsedTx.some((x: any) => x.id === 'tx_001' || x.item_name === 'Bond Paper A4')) {
-              localStorage.removeItem('meedo_inventory_transactions');
-              setInventoryTransactions([]);
-            } else {
-              setInventoryTransactions(parsedTx);
-            }
-          } catch (e) {
-            setInventoryTransactions(initialInventoryTransactions);
-          }
-        }
+          const savedBills = localStorage.getItem('meedo_bills');
+          if (savedBills) setElectricBills(JSON.parse(savedBills));
 
-        const savedButchers = localStorage.getItem('meedo_butchers');
-        if (savedButchers) {
-          try {
-            const parsed = JSON.parse(savedButchers);
-            if (Array.isArray(parsed) && parsed.some((b: any) => b.id === 'btc_001' || b.name?.includes('Danilo') || b.butcher_code === 'BTC-001')) {
-              localStorage.removeItem('meedo_butchers');
-              setButchers([]);
-            } else {
-              setButchers(parsed);
-            }
-          } catch (e) {
-            setButchers(initialButchers);
-          }
-        }
+          const savedSlaughter = localStorage.getItem('meedo_slaughter');
+          if (savedSlaughter) setSlaughterRecords(JSON.parse(savedSlaughter));
 
-        const savedUsers = localStorage.getItem('meedo_users');
-        if (savedUsers) {
-          try {
-            const parsedUsers: UserProfile[] = JSON.parse(savedUsers);
-            const userMap = new Map<string, UserProfile>();
-            initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
-            parsedUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
-            setUsers(Array.from(userMap.values()));
-          } catch (e) {
-            setUsers(initialUsers);
-          }
+          const savedCem = localStorage.getItem('meedo_cemetery');
+          if (savedCem) setCemeteryBookings(JSON.parse(savedCem));
+
+          const savedTodas = localStorage.getItem('meedo_todas');
+          if (savedTodas) setTodas(JSON.parse(savedTodas));
+
+          const savedMembers = localStorage.getItem('meedo_members');
+          if (savedMembers) setTodaMembers(JSON.parse(savedMembers));
+
+          const savedOpif = localStorage.getItem('meedo_opif');
+          if (savedOpif) setOpifIndicators(JSON.parse(savedOpif));
+
+          const savedCsu = localStorage.getItem('meedo_csu');
+          if (savedCsu) setCsuReports(JSON.parse(savedCsu));
+
+          const savedGuards = localStorage.getItem('meedo_guards');
+          if (savedGuards) setGuards(JSON.parse(savedGuards));
+
+          const savedInvItems = localStorage.getItem('meedo_inventory_items');
+          if (savedInvItems) setInventoryItems(JSON.parse(savedInvItems));
+
+          const savedInvTx = localStorage.getItem('meedo_inventory_transactions');
+          if (savedInvTx) setInventoryTransactions(JSON.parse(savedInvTx));
+
+          const savedButchers = localStorage.getItem('meedo_butchers');
+          if (savedButchers) setButchers(JSON.parse(savedButchers));
+
+          const savedUsers = localStorage.getItem('meedo_users');
+          if (savedUsers) setUsers(JSON.parse(savedUsers));
         }
       } catch (e) {
-        console.error('Failed to load saved state from localStorage:', e);
+        console.error('Failed to load saved state:', e);
       } finally {
         setAuthLoading(false);
       }

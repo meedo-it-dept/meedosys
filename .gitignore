@@ -21,8 +21,9 @@
 .env*.local
 .env
 
-# Vercel
+# Vercel & Firebase
 .vercel
+/.firebase/
 
 # TypeScript
 *.tsbuildinfo

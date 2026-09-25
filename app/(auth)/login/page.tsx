@@ -9,51 +9,11 @@ import { Store, ShieldCheck, ArrowRight, Sparkles, KeyRound } from 'lucide-react
 const DEMO_ACCOUNTS = [
   {
     username: 'admin',
-    label: 'Administrator (Superuser)',
+    label: 'Municipal Administrator (Superuser)',
     badge: '👑 ALL SECTIONS',
-    desc: 'Unrestricted access across all 6 sections & User Management',
+    desc: 'Unrestricted municipal access across all 6 enterprise sections & User Management',
     border: 'border-purple-200 hover:border-purple-500 hover:bg-purple-50/40',
     badgeClass: 'bg-purple-100 text-purple-800 border-purple-200',
-  },
-  {
-    username: 'market_staff',
-    label: 'Public Market Staff',
-    badge: '🏬 Section A',
-    desc: 'Stall locator, tenancy masterlist, electric meter reading & billing',
-    border: 'border-blue-200 hover:border-blue-500 hover:bg-blue-50/40',
-    badgeClass: 'bg-blue-100 text-blue-800 border-blue-200',
-  },
-  {
-    username: 'slaughter_staff',
-    label: 'Slaughterhouse Staff',
-    badge: '🥩 Section B',
-    desc: 'Livestock transactions, ante/post-mortem & condemnation logs',
-    border: 'border-rose-200 hover:border-rose-500 hover:bg-rose-50/40',
-    badgeClass: 'bg-rose-100 text-rose-800 border-rose-200',
-  },
-  {
-    username: 'cemetery_staff',
-    label: 'Public Cemetery Staff',
-    badge: '⚰️ Section C',
-    desc: 'Burial bookings, niche ledger & deceased internment records',
-    border: 'border-violet-200 hover:border-violet-500 hover:bg-violet-50/40',
-    badgeClass: 'bg-violet-100 text-violet-800 border-violet-200',
-  },
-  {
-    username: 'transport_staff',
-    label: 'Transport Terminal Staff',
-    badge: '🚐 Section D',
-    desc: 'Overland transport, TODA associations & tricycle operators',
-    border: 'border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50/40',
-    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  },
-  {
-    username: 'guard_market',
-    label: 'Market Guard Desk (G-101)',
-    badge: '🛡️ Section F',
-    desc: 'Market Guard digital logbook, blotter incidents & guard ID login',
-    border: 'border-amber-200 hover:border-amber-500 hover:bg-amber-50/40',
-    badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
   },
 ];
 
@@ -215,18 +175,18 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Right Column: 1-Click Quick Section Login for Testing RBAC */}
-          <div className="lg:col-span-7">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-amber-500" /> Quick Demo Sign-In (RBAC Testing)
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Click any account below to instantly sign in and test departmental role access:
-                </p>
+            {/* Right Column: Administrator Quick Sign-In */}
+            <div className="lg:col-span-7">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-500" /> Administrator Quick Sign-In
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Sign in with the default Municipal Administrator credentials or use registered credentials on the left:
+                  </p>
+                </div>
               </div>
-            </div>
 
             <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
               {DEMO_ACCOUNTS.map((acc) => {
