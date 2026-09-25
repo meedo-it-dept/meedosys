@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMeedo } from '@/lib/store';
+import { SECTIONS_META } from '@/lib/rbac';
+import { UserSection } from '@/lib/types';
 import {
   Store,
   MapPin,
@@ -22,6 +24,8 @@ import {
   LogOut,
   RefreshCw,
   Building2,
+  Package,
+  UserCheck,
 } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
@@ -33,17 +37,20 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
-  const { currentUser, logout, isLiveSupabase } = useMeedo();
+  const router = useRouter();
+  const { currentUser, logout, isLiveSupabase, switchSectionUser } = useMeedo();
 
   const [marketOpen, setMarketOpen] = useState(true);
+  const [slaughterOpen, setSlaughterOpen] = useState(true);
   const [transportOpen, setTransportOpen] = useState(true);
   const [cemeteryOpen, setCemeteryOpen] = useState(true);
 
-  const role = currentUser?.role || 'Admin';
-  const section = currentUser?.section || 'ALL';
+  const role = currentUser?.role;
+  const section = currentUser?.section;
 
   // Role-Based Section Visibility
   const canAccessSection = (sec: string) => {
+    if (!currentUser) return false;
     if (role === 'Admin' || section === 'ALL') return true;
     return section === sec;
   };
@@ -150,6 +157,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   >
                     <LineChart className="w-4 h-4" /> Reports & CSV
                   </Link>
+                  <Link
+                    href="/market/opif"
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors',
+                      { 'bg-blue-50 text-blue-600 font-medium': isActive('/market/opif') }
+                    )}
+                  >
+                    <BarChart3 className="w-4 h-4 text-blue-500" /> OPIF Scorecard
+                  </Link>
                 </div>
               )}
             </div>
@@ -157,16 +174,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           {/* Section B: Slaughterhouse */}
           {canAccessSection('B') && (
-            <Link
-              href="/slaughterhouse"
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
-                { 'bg-blue-50 text-blue-600 font-semibold': isActive('/slaughterhouse') }
+            <div>
+              <button
+                onClick={() => setSlaughterOpen(!slaughterOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Beef className="w-4 h-4 text-rose-500" /> Slaughterhouse
+                </span>
+                <ChevronDown
+                  className={cn('w-4 h-4 text-slate-400 transition-transform', {
+                    '-rotate-90': !slaughterOpen,
+                  })}
+                />
+              </button>
+
+              {slaughterOpen && (
+                <div className="pl-6 pt-1 space-y-1">
+                  <Link
+                    href="/slaughterhouse"
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors',
+                      { 'bg-blue-50 text-blue-600 font-medium': isActive('/slaughterhouse') }
+                    )}
+                  >
+                    Operations &amp; Records
+                  </Link>
+                  <Link
+                    href="/slaughterhouse/butchers"
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors',
+                      { 'bg-blue-50 text-blue-600 font-medium': isActive('/slaughterhouse/butchers') }
+                    )}
+                  >
+                    <UserCheck className="w-4 h-4 text-rose-500" /> Butcher Profiles
+                  </Link>
+                  <Link
+                    href="/slaughterhouse/opif"
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors',
+                      { 'bg-blue-50 text-blue-600 font-medium': isActive('/slaughterhouse/opif') }
+                    )}
+                  >
+                    <BarChart3 className="w-4 h-4 text-rose-500" /> OPIF Scorecard
+                  </Link>
+                </div>
               )}
-            >
-              <Beef className="w-4 h-4 text-rose-500" /> Slaughterhouse
-            </Link>
+            </div>
           )}
 
           {/* Section C: Cemetery Management */}
@@ -207,6 +264,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     )}
                   >
                     Monthly Reports
+                  </Link>
+                  <Link
+                    href="/cemetery/opif"
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors',
+                      { 'bg-blue-50 text-blue-600 font-medium': isActive('/cemetery/opif') }
+                    )}
+                  >
+                    <BarChart3 className="w-4 h-4 text-purple-500" /> OPIF Scorecard
                   </Link>
                 </div>
               )}
@@ -262,24 +329,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   >
                     Demographic Reports
                   </Link>
+                  <Link
+                    href="/transport/opif"
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors',
+                      { 'bg-blue-50 text-blue-600 font-medium': isActive('/transport/opif') }
+                    )}
+                  >
+                    <BarChart3 className="w-4 h-4 text-emerald-500" /> OPIF Scorecard
+                  </Link>
                 </div>
               )}
             </div>
           )}
 
-          {/* Section E: OPIF Scorecard (All Enterprise Divisions) */}
-          <Link
-            href="/opif"
-            onClick={onClose}
-            className={cn(
-              'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
-              { 'bg-blue-50 text-blue-600 font-semibold': isActive('/opif') }
-            )}
-          >
-            <BarChart3 className="w-4 h-4 text-indigo-600" /> OPIF Scorecard
-          </Link>
-
-          {/* Section F: Peace & Order (CSU Desk) */}
+          {/* Section F: Peace & Order (Market Guard Desk) */}
           {canAccessSection('F') && (
             <Link
               href="/csu"
@@ -289,39 +354,93 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 { 'bg-blue-50 text-blue-600 font-semibold': isActive('/csu') }
               )}
             >
-              <ShieldAlert className="w-4 h-4 text-red-600" /> Peace & Order (CSU)
+              <ShieldAlert className="w-4 h-4 text-red-600" /> Peace & Order (Market Guard)
             </Link>
           )}
 
-          {/* User Management (Admin Only) */}
+          {/* Admin Management, Central OPIF & Municipal Inventory */}
           {role === 'Admin' && (
-            <Link
-              href="/admin/users"
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
-                { 'bg-blue-50 text-blue-600 font-semibold': isActive('/admin/users') }
-              )}
-            >
-              <UsersRound className="w-4 h-4 text-purple-600" /> User Management
-            </Link>
+            <div className="pt-2 mt-2 border-t border-slate-200/70 space-y-1">
+              <div className="px-3 mb-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Administration
+              </div>
+              <Link
+                href="/inventory"
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
+                  { 'bg-blue-50 text-blue-600 font-semibold': isActive('/inventory') }
+                )}
+              >
+                <Package className="w-4 h-4 text-amber-600" /> Inventory & Supplies
+              </Link>
+              <Link
+                href="/opif"
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
+                  { 'bg-blue-50 text-blue-600 font-semibold': pathname === '/opif' }
+                )}
+              >
+                <BarChart3 className="w-4 h-4 text-indigo-600" /> Central OPIF (Admin)
+              </Link>
+              <Link
+                href="/admin/users"
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
+                  { 'bg-blue-50 text-blue-600 font-semibold': isActive('/admin/users') }
+                )}
+              >
+                <UsersRound className="w-4 h-4 text-purple-600" /> User Management
+              </Link>
+            </div>
           )}
         </nav>
 
         {/* User Profile & Footer Controls */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex flex-col">
-              <span className="font-semibold text-xs text-slate-800">
-                {currentUser ? currentUser.username : 'Guest User'}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col min-w-0 pr-1">
+              <span className="font-semibold text-xs text-slate-800 truncate">
+                {currentUser ? (currentUser.full_name || currentUser.username) : 'Guest User'}
               </span>
-              <span className="text-[10px] text-slate-500 font-medium">
-                {role} • Section {section}
+              <span className="text-[10px] text-slate-500 font-medium truncate">
+                {currentUser?.section && SECTIONS_META[currentUser.section]
+                  ? `${SECTIONS_META[currentUser.section].badge} ${SECTIONS_META[currentUser.section].shortName}`
+                  : `${role || 'Staff'} • Section ${section || 'N/A'}`}
               </span>
             </div>
             <Badge variant={isLiveSupabase ? 'success' : 'neutral'}>
-              {isLiveSupabase ? 'Supabase Live' : 'Demo Local'}
+              {isLiveSupabase ? 'Live' : 'Demo'}
             </Badge>
+          </div>
+
+          {/* Quick RBAC Switcher for Fast Testing */}
+          <div className="my-2.5 pt-2 border-t border-slate-200/60">
+            <label className="text-[9px] uppercase tracking-wider font-bold text-slate-400 block mb-1">
+              Switch Test Section
+            </label>
+            <select
+              value={currentUser?.section || 'ALL'}
+              onChange={(e) => {
+                const targetSec = e.target.value as UserSection;
+                const ok = switchSectionUser(targetSec);
+                const meta = SECTIONS_META[targetSec as keyof typeof SECTIONS_META];
+                if (ok && meta) {
+                  router.push(meta.defaultPath);
+                  onClose();
+                }
+              }}
+              className="w-full text-[11px] bg-white border border-slate-200 rounded-md px-2 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer hover:border-slate-300"
+            >
+              <option value="ALL">👑 Admin (Central OPIF & All Access)</option>
+              <option value="A">🏬 Section A • Market Staff</option>
+              <option value="B">🥩 Section B • Slaughterhouse</option>
+              <option value="C">⚰️ Section C • Cemetery Staff</option>
+              <option value="D">🚐 Section D • Transport Staff</option>
+              <option value="F">🛡️ Section F • Market Guard</option>
+            </select>
           </div>
 
           <button

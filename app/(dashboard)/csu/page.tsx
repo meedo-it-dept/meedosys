@@ -25,13 +25,38 @@ import {
   History,
   FileText,
   Clock,
+  Shield,
+  UserPlus,
+  Sparkles,
+  Edit,
+  Radio,
+  Phone,
+  MapPin,
+  X,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { MarketGuard } from '@/lib/types';
 
 export default function CsuPage() {
-  const { csuReports, addCsuReport } = useMeedo();
+  const { csuReports, addCsuReport, guards, addGuard, updateGuard, deleteGuard, currentUser } = useMeedo();
 
-  const [activeTab, setActiveTab] = useState<'blotter' | 'guardHistory'>('blotter');
+  const [activeTab, setActiveTab] = useState<'blotter' | 'roster' | 'guardHistory'>('blotter');
+
+  // Guard Roster Management State
+  const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
+  const [editingGuardId, setEditingGuardId] = useState<string | null>(null);
+  const [guardForm, setGuardForm] = useState<MarketGuard>({
+    guard_id: '',
+    guard_name: '',
+    rank_title: 'Market Guard I',
+    default_area: 'Main Gate / Entrance',
+    contact_no: '',
+    radio_call_sign: '',
+    status: 'Active',
+  });
+  const [guardSearch, setGuardSearch] = useState('');
+  const [guardStatusFilter, setGuardStatusFilter] = useState('All');
+  const [guardAreaFilter, setGuardAreaFilter] = useState('All');
 
   // Form State
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
@@ -41,9 +66,9 @@ export default function CsuPage() {
   const [summary, setSummary] = useState('');
   const [turnover, setTurnover] = useState('');
   const [prepName, setPrepName] = useState('SO2 Roberto Alcantara');
-  const [prepTitle, setPrepTitle] = useState('Duty Guard / Prepared By');
+  const [prepTitle, setPrepTitle] = useState('Duty Market Guard / Prepared By');
   const [verName, setVerName] = useState('TL Marcos Dalisay');
-  const [verTitle, setVerTitle] = useState('Team Leader on Duty');
+  const [verTitle, setVerTitle] = useState('Market Guard Team Leader');
   const [appName, setAppName] = useState('Hon. Market Administrator');
   const [appTitle, setAppTitle] = useState('Market Administrator');
 
@@ -157,6 +182,70 @@ export default function CsuPage() {
     } catch (e) {}
   }, []);
 
+  // Auto-fill Prepared By with logged-in guard if available on first visit
+  useEffect(() => {
+    if (currentUser && (currentUser.section === 'F' || currentUser.guard_id)) {
+      const saved = localStorage.getItem('csu_daily_draft');
+      if (!saved) {
+        const nameWithRank = currentUser.rank_title
+          ? `${currentUser.rank_title} ${currentUser.full_name || currentUser.username}`
+          : (currentUser.full_name || currentUser.username);
+        setPrepName(nameWithRank);
+        setPrepTitle(currentUser.rank_title ? `${currentUser.rank_title} / Prepared By` : 'Duty Market Guard / Prepared By');
+      }
+    }
+  }, [currentUser]);
+
+  const handleUseLoggedInGuard = () => {
+    if (currentUser) {
+      const nameWithRank = currentUser.rank_title
+        ? `${currentUser.rank_title} ${currentUser.full_name || currentUser.username}`
+        : (currentUser.full_name || currentUser.username);
+      setPrepName(nameWithRank);
+      setPrepTitle(currentUser.rank_title ? `${currentUser.rank_title} / Prepared By` : 'Duty Market Guard / Prepared By');
+    }
+  };
+
+  const handleGuardIdChange = (idx: number, idVal: string) => {
+    const updated = [...personnel];
+    updated[idx].guard_id = idVal;
+    const match = guards.find(
+      (g) => g.guard_id.trim().toLowerCase() === idVal.trim().toLowerCase()
+    );
+    if (match) {
+      updated[idx].guard_name = match.guard_name;
+      if (!updated[idx].assigned_area && match.default_area) {
+        updated[idx].assigned_area = match.default_area;
+      }
+    }
+    setPersonnel(updated);
+  };
+
+  const handleAddGuardFromRoster = (guardId: string) => {
+    if (!guardId) return;
+    const match = guards.find((g) => g.guard_id.toUpperCase() === guardId.toUpperCase());
+    if (!match) return;
+
+    // Check if already in personnel
+    const exists = personnel.some((p) => p.guard_id.toUpperCase() === match.guard_id.toUpperCase());
+    if (exists) {
+      alert(`Guard ${match.guard_id} (${match.guard_name}) is already added to this shift.`);
+      return;
+    }
+
+    setPersonnel([
+      ...personnel,
+      {
+        guard_id: match.guard_id,
+        guard_name: match.guard_name,
+        assigned_area: match.default_area || 'Market General Patrol',
+        time_in: shift.includes('2nd') ? '14:00' : shift.includes('3rd') ? '22:00' : '06:00',
+        time_out: shift.includes('2nd') ? '22:00' : shift.includes('3rd') ? '06:00' : '14:00',
+        remarks: 'On duty',
+      },
+    ]);
+  };
+
   const handleAddPersonnel = () => {
     setPersonnel([
       ...personnel,
@@ -169,6 +258,63 @@ export default function CsuPage() {
         remarks: '',
       },
     ]);
+  };
+
+  const handleOpenAddGuard = () => {
+    setEditingGuardId(null);
+    const nextNum = guards.length + 1;
+    setGuardForm({
+      guard_id: `GRD-${String(nextNum).padStart(3, '0')}`,
+      guard_name: '',
+      rank_title: 'Market Guard I',
+      default_area: 'Main Gate / Entrance',
+      contact_no: '',
+      radio_call_sign: '',
+      status: 'Active',
+    });
+    setIsGuardModalOpen(true);
+  };
+
+  const handleOpenEditGuard = (guard: MarketGuard) => {
+    setEditingGuardId(guard.guard_id);
+    setGuardForm({
+      guard_id: guard.guard_id,
+      guard_name: guard.guard_name,
+      rank_title: guard.rank_title || 'Market Guard I',
+      default_area: guard.default_area || 'Main Gate / Entrance',
+      contact_no: guard.contact_no || '',
+      radio_call_sign: guard.radio_call_sign || '',
+      status: guard.status,
+    });
+    setIsGuardModalOpen(true);
+  };
+
+  const handleSaveGuard = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guardForm.guard_name.trim() || !guardForm.guard_id.trim()) return;
+
+    if (editingGuardId) {
+      updateGuard(editingGuardId, guardForm);
+    } else {
+      addGuard(guardForm);
+    }
+    setIsGuardModalOpen(false);
+  };
+
+  const handleDeleteGuard = (guardId: string, name: string) => {
+    if (confirm(`Are you sure you want to remove ${name} (${guardId}) from the guard roster?`)) {
+      deleteGuard(guardId);
+    }
+  };
+
+  const handleToggleGuardStatus = (guard: MarketGuard) => {
+    const nextStatus = guard.status === 'Active' ? 'Inactive' : 'Active';
+    updateGuard(guard.guard_id, { status: nextStatus });
+  };
+
+  const handleQuickDeploy = (guard: MarketGuard) => {
+    handleAddGuardFromRoster(guard.guard_id);
+    setActiveTab('blotter');
   };
 
   const handleAddIncident = () => {
@@ -272,6 +418,16 @@ export default function CsuPage() {
     });
   });
 
+  // Fallback to registered guards roster if no shift history yet
+  const matchedRosterGuard = guards.find(
+    (g) =>
+      g.guard_id.toLowerCase() === normalizedSearch ||
+      g.guard_name.toLowerCase().includes(normalizedSearch)
+  );
+  if (!matchedGuardName && matchedRosterGuard) {
+    matchedGuardName = matchedRosterGuard.guard_name;
+  }
+
   // Print official Guard Deployment Report window matching legacy map_js.html:3005-3055
   const handlePrintGuardReport = () => {
     if (!normalizedSearch) {
@@ -279,8 +435,8 @@ export default function CsuPage() {
       return;
     }
 
-    if (matchedDeployments.length === 0) {
-      alert(`No shift records found for Guard ID "${searchGuardId}".`);
+    if (matchedDeployments.length === 0 && !matchedRosterGuard) {
+      alert(`No records found for Guard ID "${searchGuardId}".`);
       return;
     }
 
@@ -330,7 +486,7 @@ export default function CsuPage() {
           <div class="header">
             <p class="lgu">Republic of the Philippines • Municipality of Malungon • Province of Sarangani</p>
             <h1>Market Guard Deployment Report</h1>
-            <p class="sub">Civil Security Unit (CSU) • Individual Personnel Daily Shift History Summary</p>
+            <p class="sub">Market Guard Security Desk • Individual Personnel Daily Shift History Summary</p>
           </div>
 
           <div class="info-grid">
@@ -352,18 +508,18 @@ export default function CsuPage() {
               </tr>
             </thead>
             <tbody>
-              ${rowsHtml}
+              ${rowsHtml || `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No shift entries logged yet for Guard ${searchGuardId.toUpperCase()}.</td></tr>`}
             </tbody>
           </table>
 
           <div class="sig-section">
             <div class="sig-box">
               <div class="sig-line">${matchedGuardName || 'Duty Guard'}</div>
-              <div class="sig-title">Guard on Record</div>
+              <div class="sig-title">Market Guard on Record</div>
             </div>
             <div class="sig-box">
               <div class="sig-line">TL Marcos Dalisay</div>
-              <div class="sig-title">CSU Supervisor / Team Leader</div>
+              <div class="sig-title">Market Guard Supervisor / Team Leader</div>
             </div>
             <div class="sig-box">
               <div class="sig-line">Hon. Market Administrator</div>
@@ -387,10 +543,10 @@ export default function CsuPage() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-blue-600" />
-            Peace & Order Desk (CSU Security Blotter)
+            Peace & Order Desk (Market Guard Blotter)
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Section F: 8-part digital security desk shift logbook with offline auto-save, tri-level sign-off, and guard performance history.
+            Section F: 8-part digital Market Guard shift logbook with offline auto-save, tri-level sign-off, and guard deployment history.
           </p>
         </div>
 
@@ -407,6 +563,16 @@ export default function CsuPage() {
             <FileText className="w-3.5 h-3.5" /> Daily Shift Blotter
           </button>
           <button
+            onClick={() => setActiveTab('roster')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'roster'
+                ? 'bg-white text-blue-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" /> Guard Profiles & Roster
+          </button>
+          <button
             onClick={() => setActiveTab('guardHistory')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'guardHistory'
@@ -414,7 +580,7 @@ export default function CsuPage() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <History className="w-3.5 h-3.5" /> History & Print by Guard
+            <History className="w-3.5 h-3.5" /> History & Shift Calendar
           </button>
         </div>
       </div>
@@ -461,7 +627,7 @@ export default function CsuPage() {
               Republic of the Philippines • Municipality of Malungon • Province of Sarangani
             </p>
             <h1 className="text-base font-bold uppercase tracking-wider text-slate-900 mt-1">
-              Civil Security Unit (CSU) & Market Security Desk
+              Market Security Desk & Enforcement Section
             </h1>
             <h2 className="text-lg font-black uppercase text-blue-900 mt-0.5">
               Market Guard Daily Shift Report
@@ -516,26 +682,63 @@ export default function CsuPage() {
 
           {/* 2. Personnel Deployment */}
           <Card>
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-2 mb-3">
               <div>
-                <h3 className="font-bold text-slate-800 text-sm">2. Personnel Deployment</h3>
-                <p className="text-[11px] text-slate-500">Guard ID, duty posts, and time-in/time-out verification.</p>
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <span>2. Personnel Deployment</span>
+                  <span className="text-[11px] font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-500" />
+                    Auto-fetch by Guard ID
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Select or type a Guard ID (e.g. G-101) to auto-fill Officer Name and assigned post.
+                </p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddPersonnel}
-                className="no-print"
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add Guard
-              </Button>
+              <div className="flex items-center gap-2 no-print">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleAddGuardFromRoster(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="text-xs border border-blue-200 rounded-lg px-2.5 py-1.5 bg-blue-50/60 hover:bg-blue-50 font-medium text-blue-900 transition-colors focus:ring-2 focus:ring-blue-500"
+                  defaultValue=""
+                >
+                  <option value="" disabled>+ Add from Guard Roster...</option>
+                  {guards.map((g) => (
+                    <option key={g.guard_id} value={g.guard_id}>
+                      {g.guard_id} - {g.guard_name} ({g.rank_title || 'Guard'})
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddPersonnel}
+                  className="no-print text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Custom Entry
+                </Button>
+              </div>
             </div>
+
+            {/* Datalist for fast auto-fill lookup */}
+            <datalist id="marketGuardList">
+              {guards.map((g) => (
+                <option key={g.guard_id} value={g.guard_id}>
+                  {g.guard_name} ({g.rank_title || 'Guard'}) - {g.default_area || 'Market'}
+                </option>
+              ))}
+            </datalist>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase">
-                    <th className="py-2 px-2" style={{ width: '15%' }}>Guard ID</th>
+                    <th className="py-2 px-2" style={{ width: '16%' }}>Guard ID</th>
                     <th className="py-2 px-2" style={{ width: '22%' }}>Guard Name</th>
                     <th className="py-2 px-2" style={{ width: '22%' }}>Assigned Area</th>
                     <th className="py-2 px-2" style={{ width: '12%' }}>Time In</th>
@@ -550,13 +753,11 @@ export default function CsuPage() {
                       <td className="py-1.5 px-2">
                         <input
                           type="text"
+                          list="marketGuardList"
                           value={p.guard_id}
-                          onChange={(e) => {
-                            const updated = [...personnel];
-                            updated[idx].guard_id = e.target.value;
-                            setPersonnel(updated);
-                          }}
-                          className="w-full px-2 py-1 border border-slate-200 rounded font-mono font-bold text-blue-700"
+                          onChange={(e) => handleGuardIdChange(idx, e.target.value)}
+                          placeholder="e.g. G-101"
+                          className="w-full px-2 py-1 border border-slate-200 rounded font-mono font-bold text-blue-700 uppercase"
                         />
                       </td>
                       <td className="py-1.5 px-2">
@@ -995,9 +1196,23 @@ export default function CsuPage() {
 
           {/* 8. Tri-Level Signatures */}
           <Card>
-            <div className="border-b border-slate-100 pb-2 mb-4">
-              <h3 className="font-bold text-slate-800 text-sm">8. Prepared and Noted By (Tri-Level Signatures)</h3>
-              <p className="text-[11px] text-slate-500">Official chain-of-command accountability signatures.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-4">
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm">8. Prepared and Noted By (Tri-Level Signatures)</h3>
+                <p className="text-[11px] text-slate-500">Official chain-of-command accountability signatures.</p>
+              </div>
+              {currentUser && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUseLoggedInGuard}
+                  className="no-print text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
+                >
+                  <UserCheck className="w-3.5 h-3.5 mr-1 text-blue-600" />
+                  Sign as {currentUser.full_name || currentUser.username} {currentUser.guard_id ? `(${currentUser.guard_id})` : ''}
+                </Button>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center text-xs">
               <div>
@@ -1057,7 +1272,376 @@ export default function CsuPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: HISTORY & PRINT BY GUARD ID                                        */}
+      {/* TAB 2: GUARD PROFILES & SHIFT ROSTER                                      */}
+      {/* ========================================================================= */}
+      {activeTab === 'roster' && (
+        <div className="space-y-6">
+          {/* Header Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-600" />
+                Market Guard Profiles & Roster Registry
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Accredited Civil Security Unit (CSU) personnel, radio call signs, assigned sectors, and deployment readiness.
+              </p>
+            </div>
+            <Button variant="primary" size="sm" onClick={handleOpenAddGuard}>
+              <UserPlus className="w-4 h-4 mr-1.5" /> Register Market Guard
+            </Button>
+          </div>
+
+          {/* 4 Summary KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-4">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Guards</span>
+              <div className="text-2xl font-black text-slate-900 mt-1">{guards.length}</div>
+              <span className="text-[11px] text-slate-400">Security Personnel Roster</span>
+            </Card>
+            <Card className="p-4 bg-emerald-50/50 border-emerald-200">
+              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Active on Duty</span>
+              <div className="text-2xl font-black text-emerald-700 mt-1">
+                {guards.filter((g) => g.status === 'Active').length}
+              </div>
+              <span className="text-[11px] text-emerald-600">Available for Deployment</span>
+            </Card>
+            <Card className="p-4 bg-slate-50 border-slate-200">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Off-Duty / Relievers</span>
+              <div className="text-2xl font-black text-slate-700 mt-1">
+                {guards.filter((g) => g.status !== 'Active').length}
+              </div>
+              <span className="text-[11px] text-slate-500">Standby / On-Leave</span>
+            </Card>
+            <Card className="p-4 bg-blue-50/50 border-blue-200">
+              <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider block">Call Signs Issued</span>
+              <div className="text-2xl font-black text-blue-700 mt-1">
+                {guards.filter((g) => !!g.radio_call_sign).length}
+              </div>
+              <span className="text-[11px] text-blue-600">Equipped with 2-Way Radios</span>
+            </Card>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <Card className="p-4 bg-slate-50/70 border-slate-200">
+            <div className="flex flex-col sm:flex-row gap-3 items-center">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={guardSearch}
+                  onChange={(e) => setGuardSearch(e.target.value)}
+                  placeholder="Search by Guard ID, Name, Rank, Sector, or Call Sign..."
+                  className="pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg bg-white w-full focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <select
+                  value={guardStatusFilter}
+                  onChange={(e) => setGuardStatusFilter(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Active">Active Only</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="On Leave">On Leave</option>
+                </select>
+                <select
+                  value={guardAreaFilter}
+                  onChange={(e) => setGuardAreaFilter(e.target.value)}
+                  className="text-xs border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium"
+                >
+                  <option value="All">All Sectors / Posts</option>
+                  <option value="Main Gate / Entrance">Main Gate / Entrance</option>
+                  <option value="Wet Market Perimeter">Wet Market Perimeter</option>
+                  <option value="Dry Goods & Fish Section">Dry Goods & Fish Section</option>
+                  <option value="Parking & Loading Bay">Parking & Loading Bay</option>
+                  <option value="Slaughterhouse Sector">Slaughterhouse Sector</option>
+                  <option value="Night Patrol / Perimeter">Night Patrol / Perimeter</option>
+                </select>
+              </div>
+            </div>
+          </Card>
+
+          {/* Guard Table */}
+          <Card className="overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Guard ID</th>
+                    <th className="p-3">Name & Rank</th>
+                    <th className="p-3">Assigned Sector / Post</th>
+                    <th className="p-3">Radio Call Sign</th>
+                    <th className="p-3">Contact</th>
+                    <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-right">Shifts Logged</th>
+                    <th className="p-3 text-center no-print">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-normal">
+                  {guards
+                    .filter((g) => {
+                      if (guardStatusFilter !== 'All' && g.status !== guardStatusFilter) return false;
+                      if (guardAreaFilter !== 'All' && g.default_area !== guardAreaFilter) return false;
+                      if (guardSearch.trim()) {
+                        const q = guardSearch.toLowerCase();
+                        const hay = `${g.guard_id} ${g.guard_name} ${g.rank_title || ''} ${g.default_area || ''} ${g.radio_call_sign || ''} ${g.contact_no || ''}`.toLowerCase();
+                        if (!hay.includes(q)) return false;
+                      }
+                      return true;
+                    })
+                    .map((g) => {
+                      let shiftsCount = 0;
+                      csuReports.forEach((r) => {
+                        if (r.personnel_data?.some((p) => p.guard_id.toUpperCase() === g.guard_id.toUpperCase())) {
+                          shiftsCount++;
+                        }
+                      });
+
+                      const isActive = g.status === 'Active';
+
+                      return (
+                        <tr key={g.guard_id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3 font-mono font-bold text-blue-700">{g.guard_id}</td>
+                          <td className="p-3">
+                            <span className="font-bold text-slate-900 block">{g.guard_name}</span>
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Shield className="w-3 h-3 text-slate-400" />
+                              {g.rank_title || 'Market Guard I'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium text-slate-700">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-blue-500" />
+                              {g.default_area || 'Main Gate / Entrance'}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {g.radio_call_sign ? (
+                              <Badge variant="neutral" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-mono text-[10px] flex items-center gap-1 w-max">
+                                <Radio className="w-3 h-3 text-indigo-500" /> {g.radio_call_sign}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-slate-600">
+                            {g.contact_no ? (
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3 h-3 text-slate-400" /> {g.contact_no}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <Badge
+                              variant={isActive ? 'success' : 'neutral'}
+                              className={isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}
+                            >
+                              {g.status}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right font-medium text-slate-700">
+                            <strong>{shiftsCount}</strong> <span className="text-[10px] text-slate-400">shifts</span>
+                          </td>
+                          <td className="p-3 text-center no-print">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                title="Deploy to Today's Shift"
+                                onClick={() => handleQuickDeploy(g)}
+                                className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                title="Edit Guard Profile"
+                                onClick={() => handleOpenEditGuard(g)}
+                                className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                title={isActive ? 'Deactivate Guard' : 'Activate Guard'}
+                                onClick={() => handleToggleGuardStatus(g)}
+                                className={`h-7 w-7 p-0 ${isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                              >
+                                <Shield className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                title="Remove Guard"
+                                onClick={() => handleDeleteGuard(g.guard_id, g.guard_name)}
+                                className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Add / Edit Guard Modal */}
+          {isGuardModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+              <Card className="w-full max-w-lg bg-white shadow-2xl p-6 relative">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-blue-600" />
+                    {editingGuardId ? 'Edit Guard Profile' : 'Register Market Guard'}
+                  </h3>
+                  <button
+                    onClick={() => setIsGuardModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveGuard} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                        Guard ID / Badge #
+                      </label>
+                      <input
+                        type="text"
+                        value={guardForm.guard_id}
+                        onChange={(e) => setGuardForm({ ...guardForm, guard_id: e.target.value.toUpperCase() })}
+                        placeholder="e.g. GRD-001"
+                        required
+                        disabled={!!editingGuardId}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono uppercase focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                        Rank / Designation
+                      </label>
+                      <select
+                        value={guardForm.rank_title}
+                        onChange={(e) => setGuardForm({ ...guardForm, rank_title: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Market Guard I">Market Guard I</option>
+                        <option value="Market Guard II">Market Guard II</option>
+                        <option value="Shift In-Charge / Team Leader">Shift In-Charge / Team Leader</option>
+                        <option value="Security Officer">Security Officer</option>
+                        <option value="Reliever / Auxiliary Guard">Reliever / Auxiliary Guard</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={guardForm.guard_name}
+                      onChange={(e) => setGuardForm({ ...guardForm, guard_name: e.target.value })}
+                      placeholder="e.g. Roberto Alcantara"
+                      required
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                        Radio Call Sign
+                      </label>
+                      <input
+                        type="text"
+                        value={guardForm.radio_call_sign || ''}
+                        onChange={(e) => setGuardForm({ ...guardForm, radio_call_sign: e.target.value })}
+                        placeholder="e.g. Echo 1 / Sierra 2"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                        Contact Number
+                      </label>
+                      <input
+                        type="text"
+                        value={guardForm.contact_no || ''}
+                        onChange={(e) => setGuardForm({ ...guardForm, contact_no: e.target.value })}
+                        placeholder="09xx-xxx-xxxx"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                        Default Sector / Post
+                      </label>
+                      <select
+                        value={guardForm.default_area}
+                        onChange={(e) => setGuardForm({ ...guardForm, default_area: e.target.value })}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Main Gate / Entrance">Main Gate / Entrance</option>
+                        <option value="Wet Market Perimeter">Wet Market Perimeter</option>
+                        <option value="Dry Goods & Fish Section">Dry Goods & Fish Section</option>
+                        <option value="Parking & Loading Bay">Parking & Loading Bay</option>
+                        <option value="Slaughterhouse Sector">Slaughterhouse Sector</option>
+                        <option value="Night Patrol / Perimeter">Night Patrol / Perimeter</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                        Duty Status
+                      </label>
+                      <select
+                        value={guardForm.status}
+                        onChange={(e) => setGuardForm({ ...guardForm, status: e.target.value as any })}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="On Leave">On Leave</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setIsGuardModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" variant="primary" size="sm">
+                      <Save className="w-4 h-4 mr-1.5" />
+                      {editingGuardId ? 'Update Guard' : 'Save Guard Profile'}
+                    </Button>
+                  </div>
+                </form>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: HISTORY & SHIFT CALENDAR                                           */}
       {/* ========================================================================= */}
       {activeTab === 'guardHistory' && (
         <div className="space-y-6">
@@ -1079,18 +1663,26 @@ export default function CsuPage() {
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
+                    list="registeredGuardsSearch"
                     value={searchGuardId}
                     onChange={(e) => setSearchGuardId(e.target.value)}
                     placeholder="Enter Guard ID (e.g. G-101)..."
-                    className="pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg bg-white w-48 font-mono focus:ring-2 focus:ring-blue-500/20"
+                    className="pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg bg-white w-52 font-mono uppercase focus:ring-2 focus:ring-blue-500/20"
                   />
+                  <datalist id="registeredGuardsSearch">
+                    {guards.map((g) => (
+                      <option key={g.guard_id} value={g.guard_id}>
+                        {g.guard_name} ({g.rank_title || 'Guard'})
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
 
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={handlePrintGuardReport}
-                  disabled={matchedDeployments.length === 0}
+                  disabled={matchedDeployments.length === 0 && !matchedRosterGuard}
                 >
                   <Printer className="w-4 h-4 mr-1.5" /> Print Guard History Report
                 </Button>
@@ -1099,18 +1691,19 @@ export default function CsuPage() {
 
             {/* Quick Filter Chips */}
             <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-blue-200/60 text-xs">
-              <span className="text-slate-500 font-semibold">Quick Lookup:</span>
-              {['G-101', 'G-102', 'G-104'].map((gid) => (
+              <span className="text-slate-500 font-semibold">Market Guards Roster:</span>
+              {guards.map((g) => (
                 <button
-                  key={gid}
-                  onClick={() => setSearchGuardId(gid)}
-                  className={`px-2.5 py-1 rounded-md font-mono text-xs transition-colors ${
-                    searchGuardId.toUpperCase() === gid
-                      ? 'bg-blue-700 text-white font-bold'
+                  key={g.guard_id}
+                  onClick={() => setSearchGuardId(g.guard_id)}
+                  className={`px-2.5 py-1 rounded-md font-mono text-xs transition-colors flex items-center gap-1.5 ${
+                    searchGuardId.toUpperCase() === g.guard_id.toUpperCase()
+                      ? 'bg-blue-700 text-white font-bold shadow-sm'
                       : 'bg-white text-slate-700 border border-slate-200 hover:bg-blue-100'
                   }`}
                 >
-                  {gid}
+                  <span>{g.guard_id}</span>
+                  <span className="text-[10px] opacity-75">({g.guard_name.split(' ')[0]})</span>
                 </button>
               ))}
             </div>
@@ -1120,13 +1713,13 @@ export default function CsuPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card>
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Security Officer
+                Market Security Officer
               </span>
               <h4 className="text-lg font-bold text-slate-900 mt-1">
-                {matchedGuardName || (matchedDeployments.length > 0 ? 'Officer On Record' : 'No Record Found')}
+                {matchedGuardName || matchedRosterGuard?.guard_name || (matchedDeployments.length > 0 ? 'Officer On Record' : 'No Record Found')}
               </h4>
               <p className="text-xs text-blue-600 font-mono mt-0.5">
-                ID: {searchGuardId.toUpperCase()}
+                ID: {searchGuardId.toUpperCase()} {matchedRosterGuard?.rank_title ? `• Rank: ${matchedRosterGuard.rank_title}` : ''}
               </p>
             </Card>
 
@@ -1137,18 +1730,18 @@ export default function CsuPage() {
               <h4 className="text-2xl font-black text-slate-900 mt-1">
                 {matchedDeployments.length}
               </h4>
-              <p className="text-xs text-slate-500 mt-0.5">Logged across MEEDOSys blotters</p>
+              <p className="text-xs text-slate-500 mt-0.5">Logged across MEEDOSys shift blotters</p>
             </Card>
 
             <Card>
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Primary Post
+                Primary Post & Status
               </span>
               <h4 className="text-sm font-bold text-slate-900 mt-1 truncate">
-                {matchedDeployments[0]?.assignedArea || 'General Market Security'}
+                {matchedRosterGuard?.default_area || matchedDeployments[0]?.assignedArea || 'General Market Security'}
               </h4>
               <p className="text-xs text-emerald-600 font-medium mt-0.5">
-                {matchedDeployments.length > 0 ? 'Active Deployment' : 'No Active Assignment'}
+                {matchedRosterGuard?.status || (matchedDeployments.length > 0 ? 'Active Deployment' : 'No Active Assignment')} {matchedRosterGuard?.contact_no ? `• Tel: ${matchedRosterGuard.contact_no}` : ''}
               </p>
             </Card>
           </div>

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEEDOSys v1.18.8.4: Comprehensive Operational and Technical Manual</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #3b82f6;
+            --secondary: #475569;
+            --bg-color: #f1f5f9;
+            --surface: #ffffff;
+            --text-main: #334155;
+            --border-color: #e2e8f0;
+            --accent-bg: #eff6ff;
+            --warning-bg: #fff7ed;
+            --warning-border: #fed7aa;
+            --warning-text: #9a3412;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.7;
+            color: var(--text-main);
+            background-color: var(--bg-color);
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--surface);
+            padding: 3rem 4rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            border-top: 8px solid var(--primary);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .version-badge {
+            display: inline-block;
+            background-color: var(--primary-light);
+            color: white;
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            letter-spacing: 0.5px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+
+        h2 {
+            color: var(--primary);
+            font-size: 1.75rem;
+            margin: 2.5rem 0 1.25rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+        }
+
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background-color: var(--primary-light);
+            border-radius: 4px;
+            margin-right: 12px;
+            opacity: 0.8;
+        }
+
+        h3 {
+            color: var(--secondary);
+            font-size: 1.3rem;
+            margin: 1.8rem 0 1rem 0;
+        }
+
+        p {
+            margin-bottom: 1.2rem;
+            text-align: justify;
+        }
+
+        ul {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-box {
+            background-color: var(--accent-bg);
+            border-left: 4px solid var(--primary-light);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .highlight-box h4 {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background-color: #fcfcfc;
+        }
+
+        .qa-container {
+            display: grid;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .qa-card {
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: transform 0.2s;
+        }
+
+        .qa-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+
+        .qa-q {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+        }
+
+        .qa-a {
+            color: var(--secondary);
+        }
+        
+        .footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-style: italic;
+            color: var(--secondary);
+        }
+
+        @media print {
+            body { background-color: white; padding: 0; }
+            .container { box-shadow: none; border-top: none; padding: 0; }
+            h2 { page-break-after: avoid; }
+            p, h3, ul, .qa-card { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div class="header">
+            <div class="version-badge">Version 1.18.8.4</div>
+            <h1>MEEDOSys<br><span style="font-size: 1.5rem; font-weight: 400; color: var(--secondary);">Comprehensive Operational and Technical Manual</span></h1>
+        </div>
+
+        <div class="content">
+            <h2>1. Executive System Overview and Strategic Vision</h2>
+            <p>MEEDOSys represents a paradigm shift in municipal governance, serving as the unified, cloud-native enterprise management and monitoring platform for the Municipal Economic Enterprise Development Office (MEEDO) of Malungon. From an architectural standpoint, the system acts as a real-time command center, migrating the municipality from fragmented, paper-based workflows to a centralized "Single Source of Truth." This transition is not merely a digital upgrade but a strategic imperative to ensure that all municipal economic enterprises operate with maximum synergy and "Operational Velocity."</p>
+            <p>The core mission of MEEDOSys is to institutionalize transparency and efficiency while eliminating revenue leakage through rigorous automation. By interlinking daily operations, the platform provides leadership with the data-driven insights necessary for high-stakes decision-making and long-term economic development.</p>
+            
+            <div class="highlight-box">
+                <h4>Core Operational Units</h4>
+                <ul>
+                    <li><strong>Section A: Public Market Management</strong> – Orchestrates interactive stall mapping, tenancy compliance, and automated utility billing.</li>
+                    <li><strong>Section B: Municipal Slaughterhouse</strong> – Governs livestock intake, meat inspection certifications, and regulatory health logs.</li>
+                    <li><strong>Section C: Municipal Cemetery Management</strong> – Synchronizes burial scheduling through automated multi-channel notifications and Google Calendar integration.</li>
+                    <li><strong>Section D: Public Transport Terminal & TODA Governance</strong> – Manages association registries, driver profiling, and franchise renewal monitoring.</li>
+                    <li><strong>Section E: Administrative Services & OPIF</strong> – Monitors institutional performance via the Organizational Performance Indicator Framework scorecard.</li>
+                    <li><strong>Section F: Peace & Order / CSU</strong> – Digitizes the Civil Security Unit shift logs, incident reporting, and accountability chains through digital signatures.</li>
+                </ul>
+            </div>
+            <p><em>This integrated environment is supported by a sophisticated, "Zero-License" infrastructure designed for enterprise-grade reliability.</em></p>
+
+            <h2>2. System Architecture and "Zero-License" Infrastructure</h2>
+            <p>The architectural foundation of MEEDOSys is a strategic fiscal masterstroke for a Local Government Unit (LGU). By adopting a Google Workspace-native design, Malungon achieves 100% LGU ownership of its data while eliminating the recurring software licensing fees typically associated with enterprise resource planning (ERP) systems. This "Zero-License" model leverages the municipality's existing Google ecosystem to deliver a high-performance management suite.</p>
+            
+            <p>The system utilizes an <strong>Automation Layer</strong> comprised of four specialized engines that bridge the frontend experience with the cloud backend:</p>
+            <ul>
+                <li><strong>LockEngine:</strong> Manages concurrency and prevents data collisions.</li>
+                <li><strong>SyncEngine:</strong> Facilitates real-time data movement between specialized ledgers.</li>
+                <li><strong>NotifEngine:</strong> Dispatches automated email and calendar alerts.</li>
+                <li><strong>DocManager:</strong> Handles the ingestion and retrieval of digital media.</li>
+            </ul>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Technology</th>
+                        <th>Functional Role</th>
+                        <th>Strategic Application</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Google Apps Script</strong></td>
+                        <td>Backend Logic</td>
+                        <td>The primary engine for business logic, Automation Layer, and API management.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Google Sheets</strong></td>
+                        <td>Database</td>
+                        <td>A cloud-native, high-concurrency database for ledgers and audit trails.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Google Drive</strong></td>
+                        <td>Document Storage</td>
+                        <td>Secure archival for lease contracts, permits, and vendor photography.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Google Calendar</strong></td>
+                        <td>Resource Coordination</td>
+                        <td>Visual scheduling and automated guest invites for field personnel.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>HTML5/CSS3/JS</strong></td>
+                        <td>Frontend (SPA)</td>
+                        <td>Responsive Single Page Application providing a mobile-ready interface.</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>This architecture ensures that field officers and market inspectors can access the system via smartphones or tablets, maintaining operational continuity regardless of their physical location.</p>
+
+            <h2>3. Section A: Public Market Management and Interactive Billing</h2>
+            <p>Section A is engineered to maximize municipal revenue and ensure 100% tenancy compliance through visual administration and automated utility logic.</p>
+            
+            <h3>Interactive Stall Mapping and Profiling</h3>
+            <p>The system provides a visual layout of the market’s four primary zones: <strong>Wet Section, Dry Goods, Old Building, and the Triangular Section</strong>. Stalls are color-coded (Green for Occupied, Neutral for Vacant) to provide an instant heat map of occupancy. Each stall profile tracks the Owner, Operator, Line of Business, and a Period Index, supported by a Full Historical Ledger that maintains a trace of all previous stallholders by year.</p>
+
+            <h3>Cloud Document Vault</h3>
+            <p>To eliminate physical record decay, MEEDOSys utilizes a DocManager engine. It handles Base64 document payloads to securely upload and link Contract of Leases, Business Permits, and Owner Photos directly to the cloud. This provides administrators with an instant digital audit of any stallholder's compliance status.</p>
+
+            <div class="highlight-box">
+                <h4>Automated Electric Billing & Two-Way Sync Engine</h4>
+                <p>The billing module automates complex meter encoding with "Smart Validation" logic that flags any reading lower than the previous month or consumption spikes exceeding 50%.</p>
+                <strong>Standard Operating Procedure for Billing:</strong>
+                <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                    <li><strong>Selection:</strong> Choose Single Stall or Batch Entry mode for rapid encoding.</li>
+                    <li><strong>Input:</strong> Staff enters current kWh; the system auto-populates previous readings and Arrears.</li>
+                    <li><strong>Calculation:</strong> Total is computed as (Current - Previous) × Rate + Arrears.</li>
+                    <li><strong>Two-Way Synchronization:</strong> When a bill is saved, the SyncEngine appends the record to the "electric_bills" ledger and simultaneously updates the "stall_data" database (Columns 24-26: Amount, Unpaid, and Due Date).</li>
+                </ol>
+            </div>
+            <p>To protect database integrity during high-volume periods, the system employs <strong>LockService Concurrency Protection</strong>, managing a 10-second queue to prevent race conditions during simultaneous writes.</p>
+
+            <h2>4. Section B: Municipal Slaughterhouse Operations</h2>
+            <p>The slaughterhouse module serves as a critical guardian of public health. By digitizing the intake process, the system ensures every animal processed is linked to professional meat inspection standards and official revenue records.</p>
+            
+            <h3>Livestock Logging Workflow:</h3>
+            <ul>
+                <li><strong>Smart Client Auto-Lookup:</strong> The system auto-generates unique Client IDs in the C-XXXXXX format or retrieves profiles for returning clients.</li>
+                <li><strong>Regulatory Documentation:</strong> Staff must log ante-mortem and post-mortem inspections before certifications are issued.</li>
+                <li><strong>Revenue Linkage:</strong> Every transaction must be linked to an Official Receipt (OR) from the municipal treasury to prevent off-book activity.</li>
+            </ul>
+            <p>Data is categorized by animal type—Hogs, Cattle/Cow, Goat, and Chicken—and segmented by sector (Private vs. Public). This allows for the generation of monthly volume summaries that provide essential analytics for health oversight and revenue forecasting.</p>
+
+            <h2>5. Section C: Municipal Cemetery Management & Live Synchronization</h2>
+            <p>Given the logistical sensitivities of cemetery management, Section C focuses on zero-latency dispatch between administrators and ground crews.</p>
+            <p>The Interactive FullCalendar serves as the visual command center for all burials. When a booking is finalized, the NotifEngine triggers a dual-path workflow:</p>
+            <ul>
+                <li><strong>MailApp Notification:</strong> Instant email alerts containing deceased records and fee assessments are dispatched to ground staff.</li>
+                <li><strong>Google Calendar API:</strong> A calendar event is created with automated guest invites for management, ensuring the schedule appears on the personal mobile devices of all relevant personnel.</li>
+            </ul>
+            <p>The system supports diverse burial types—including Apartment, Bone Vault, Ground, Mausoleum, Cadaver Transfer, Exhumation/Removal, and Renewal—and provides "Barangay-level" analytics to track demographic service distribution across the municipality.</p>
+
+            <h2>6. Section D: Transport Terminal and TODA Governance</h2>
+            <p>Section D provides a regulatory framework for the public utility workforce, ensuring that all tricycle operations and terminal activities are accounted for through demographic profiling.</p>
+
+            <h3>TODA Registry and Driver Profiling</h3>
+            <p>The system maintains a comprehensive database of associations and members to facilitate systematic franchise renewals.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Key Data Fields</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Credential Tracking / Association Data</strong></td>
+                        <td>Reg. No, TODA Name, President, Member Count, Route/Terminal Address</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Driver Profiling</strong></td>
+                        <td>Full Name, Gender, Residential Barangay, Contact Number</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Compliance</strong></td>
+                        <td>ID Type (License/Gov ID), ID Number, ID Expiration Date</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>By analyzing Expected vs. Actual encoded profiles, MEEDO can monitor the progress of driver registrations and identify associations lagging in compliance, ensuring the transport sector remains organized and regulated.</p>
+
+            <h2>7. Section E: Administrative Services & OPIF Executive Scorecard</h2>
+            <p>The Organizational Performance Indicator Framework (OPIF) module is the primary engine of LGU accountability. It maps operational outputs to the specific performance targets mandated for Malungon’s enterprises.</p>
+            
+            <h3>The Unified MEEDO Scorecard</h3>
+            <ul>
+                <li><strong>Market:</strong> Hygiene/zoning inspections and prevailing market price surveys.</li>
+                <li><strong>Slaughterhouse:</strong> Ante-mortem checks and butcher sanitation seminars.</li>
+                <li><strong>Cemetery:</strong> Land maintenance and graveyard allocation rates.</li>
+                <li><strong>Terminal:</strong> Parking fee monitoring and Information Education Campaigns (IEC).</li>
+                <li><strong>Administrative:</strong> APP/PPMP compliance, travel liquidations, and 5S workplace compliance.</li>
+            </ul>
+            <p>Role-based restrictions ensure that once quarterly targets are set, they cannot be modified by unauthorized staff, preserving the integrity of the performance data during executive reviews.</p>
+
+            <h2>8. Section F: Peace & Order / CSU Shift Logging</h2>
+            <p>Section F modernizes the Civil Security Unit (CSU) by replacing physical logbooks with a digital desk that enforces a "Tri-Level Digital Verification" process.</p>
+            
+            <h3>The 8 Core Report Sections of the Daily Log:</h3>
+            <ol>
+                <li><strong>Basic Information:</strong> Date and auto-calculated Shift timing.</li>
+                <li><strong>Personnel Deployment:</strong> Specific Guard IDs and assigned patrol areas.</li>
+                <li><strong>Summary of Activities:</strong> A comprehensive patrol narrative.</li>
+                <li><strong>Incident Reports:</strong> Categorization of location, type, and resolution.</li>
+                <li><strong>Violations/Apprehensions:</strong> Registry of vendor or individual misconduct.</li>
+                <li><strong>Lost & Found:</strong> Item description and return status.</li>
+                <li><strong>Turnover Notes:</strong> Essential priorities for the incoming shift.</li>
+                <li><strong>Verification Block:</strong> Sign-off sequence: Prepared By (Duty Guard) > Verified By (Team Leader) > Approved By (Market Administrator).</li>
+            </ol>
+            <p>The module features <strong>Operational Redundancy</strong> via the browser’s localStorage. In the event of an internet outage, guards can continue logging; the system caches the data locally and syncs it to the cloud once connectivity is restored.</p>
+
+            <h2>9. Security, RBAC, and Concurrency Protection</h2>
+            <p>To maintain departmental isolation and data integrity, MEEDOSys utilizes a layered security framework.</p>
+            
+            <h3>Role-Based Access Control (RBAC)</h3>
+            <p>User access is strictly siloed. While an Administrator has a global view of all six sections, Section-specific staff are restricted to their assigned modules. For example, Slaughterhouse staff cannot access Market billing records or CSU incident logs, ensuring privacy and preventing unauthorized data manipulation.</p>
+
+            <h3>Technical Concurrency & Auditing</h3>
+            <p>The system handles simultaneous traffic through the LockService Concurrency Protection, which places all write requests into a 10-second queue. This prevents "race conditions" where two users might attempt to update the same record at once. Additionally, an <strong>Immutable Audit Trail</strong> logs every login, edit, and deletion, attaching a permanent timestamp and username to every event in the system ledger.</p>
+
+            <h2>10. Stakeholder Operational Q&A</h2>
+            <div class="qa-container">
+                <div class="qa-card">
+                    <div class="qa-q">Q: What happens if our internet connection drops while encoding a long report?</div>
+                    <div class="qa-a">The system is built for resilience. For intensive entries like the CSU Daily Logs, data is auto-saved to the browser's encrypted localStorage. Once the connection is restored, the staff can sync the data to the cloud with a single click, ensuring zero data loss.</div>
+                </div>
+                
+                <div class="qa-card">
+                    <div class="qa-q">Q: Can unauthorized staff alter stall ownership or billing records?</div>
+                    <div class="qa-a">No. Strict RBAC protocols isolate each department. Furthermore, any modification to a record is captured in the immutable audit log, providing a transparent history of who changed what and when.</div>
+                </div>
+
+                <div class="qa-card">
+                    <div class="qa-q">Q: What are the ongoing maintenance costs for the municipality?</div>
+                    <div class="qa-a">The maintenance cost is zero. MEEDOSys runs on the municipality’s existing Google Workspace infrastructure. There are no third-party database fees or specialized server costs, ensuring 100% LGU ownership of the technology.</div>
+                </div>
+
+                <div class="qa-card">
+                    <div class="qa-q">Q: How does this support COA and OPIF compliance?</div>
+                    <div class="qa-a">The system is pre-mapped to all OPIF indicators, from rental collections to sanitation seminars. This allows for the generation of print-ready, COA-compliant reports in seconds, drastically reducing the time spent on manual consolidation at the end of each quarter.</div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p><strong>Final Statement:</strong> MEEDOSys v1.18.8.4 is the definitive platform for Malungon’s economic development. By integrating cloud-native architecture with rigorous administrative logic, it provides the municipality with a secure, scalable, and transparent tool for modern governance.</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

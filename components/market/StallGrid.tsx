@@ -3,39 +3,46 @@
 import React, { useState } from 'react';
 import { Stall, StallZone } from '@/lib/types';
 import { useMeedo } from '@/lib/store';
-import { Search, Filter, Store, User } from 'lucide-react';
-import { StallModal } from './StallModal';
+import { User, Search } from 'lucide-react';
+import { StallSideViewer } from './StallSideViewer';
 
 export const StallGrid: React.FC = () => {
   const { stalls } = useMeedo();
 
-  const [activeZone, setActiveZone] = useState<StallZone>('wet');
+  const [activeZone, setActiveZone] = useState<StallZone>('triangular');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Occupied' | 'Vacant'>('all');
   const [selectedStall, setSelectedStall] = useState<Stall | null>(null);
+
+  // Keep selected stall in sync with store updates
+  const activeStall = selectedStall
+    ? stalls.find((s) => s.stall_no === selectedStall.stall_no) || selectedStall
+    : null;
 
   const zones: { id: StallZone; label: string }[] = [
     { id: 'wet', label: 'Wet Section' },
     { id: 'dry', label: 'Dry Goods' },
     { id: 'old', label: 'Old Building' },
-    { id: 'triangular', label: 'Triangular Area' },
+    { id: 'triangular', label: 'Triangular' },
   ];
 
-  // Helper to render an individual stall button matching legacy behavior
+  // Helper to render an individual stall matching legacy HTML/CSS exactly
   const renderStall = (
     id: string,
     customClass = '',
     style?: React.CSSProperties
   ) => {
+    const isSpecial = id === 'LAND-BANK' || id === 'MEEDO';
     const stall = stalls.find((s) => s.stall_no === id);
     const isOccupied = stall?.status === 'Occupied';
     const owner = stall?.current_tenant?.stall_owner || '';
 
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
+    const safeOwner = owner.toLowerCase();
     const matchesSearch =
       term === '' ||
       id.toLowerCase().includes(term) ||
-      owner.toLowerCase().includes(term);
+      safeOwner.includes(term);
     const matchesFilter =
       filterStatus === 'all' ||
       (filterStatus === 'Occupied' && isOccupied) ||
@@ -45,14 +52,52 @@ export const StallGrid: React.FC = () => {
       (!matchesSearch || !matchesFilter) &&
       (term !== '' || filterStatus !== 'all');
 
+    if (isSpecial) {
+      return (
+        <button
+          key={id}
+          type="button"
+          onClick={() => {
+            if (stall) {
+              setSelectedStall(stall);
+            } else {
+              setSelectedStall({
+                stall_no: id,
+                zone: 'wet',
+                status: 'Occupied',
+                current_tenant: {
+                  stall_no: id,
+                  stall_owner: id,
+                  operator: id,
+                  line_of_business: 'Financial / Municipal Office',
+                  period_index: 1,
+                  year: 2026,
+                  compliance_status: 'Compliant',
+                },
+              });
+            }
+          }}
+          title={id}
+          style={style}
+          className={`w-[170px] h-[170px] bg-[#e0e7ff] border-2 border-[#a5b4fc] text-[#4338ca] font-extrabold text-base rounded-md flex items-center justify-center transition-all hover:shadow-md select-none ${
+            isDimmed ? 'opacity-25 grayscale' : ''
+          } ${customClass}`}
+        >
+          {id}
+        </button>
+      );
+    }
+
+    const isSelected = selectedStall?.stall_no === id;
+
     return (
       <button
         key={id}
+        type="button"
         onClick={() => {
           if (stall) {
             setSelectedStall(stall);
           } else {
-            // Virtual stall creation
             setSelectedStall({
               stall_no: id,
               zone: activeZone,
@@ -61,33 +106,41 @@ export const StallGrid: React.FC = () => {
             });
           }
         }}
-        title={isOccupied ? `Occupied by: ${owner}` : `${id} (Vacant)`}
+        title={isOccupied ? `${id} - Occupied by ${owner}` : `${id} (Vacant)`}
         style={style}
-        className={`min-h-[44px] p-1.5 rounded-lg border text-center transition-all flex flex-col items-center justify-center font-bold text-xs relative ${
+        className={`min-h-[44px] px-2 py-1 rounded-[6px] border text-center transition-all flex flex-col items-center justify-center font-bold text-xs relative select-none hover:-translate-y-0.5 hover:shadow-sm ${
           isOccupied
-            ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 hover:border-emerald-500 hover:shadow-xs'
-            : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-blue-400 hover:bg-white'
-        } ${isDimmed ? 'opacity-30 grayscale' : ''} ${customClass}`}
+            ? 'bg-[#d1fae5] border-[#34d399] text-[#064e3b]'
+            : 'bg-white border-[#d1d5db] text-[#64748b]'
+        } ${isSelected ? 'ring-2 ring-blue-600 ring-offset-1 shadow-md z-10 scale-[1.03]' : ''} ${
+          isDimmed ? 'opacity-25 grayscale' : ''
+        } ${customClass}`}
       >
-        <span className="leading-tight block truncate w-full px-1">{id}</span>
-        {isOccupied && <User className="w-3 h-3 text-emerald-600 mt-0.5" />}
+        <span className="leading-tight truncate w-full px-0.5">{id}</span>
+        {isOccupied && <User className="w-3.5 h-3.5 text-[#065f46] mt-0.5 flex-shrink-0" />}
       </button>
     );
   };
 
   return (
-    <div className="space-y-5">
-      {/* Zone Switcher & Filter Controls */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Zone Buttons */}
-        <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-lg w-full md:w-auto">
+    <div className="space-y-6">
+      {/* Top Header Controls Bar matching Legacy Index.html */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm flex flex-wrap gap-4 justify-between items-center">
+        {/* Title */}
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight m-0">
+          Market Layout
+        </h2>
+
+        {/* Tab Group matching .tab-group & .tab-btn */}
+        <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 inline-flex items-center gap-1 overflow-x-auto">
           {zones.map((z) => (
             <button
               key={z.id}
+              type="button"
               onClick={() => setActiveZone(z.id)}
-              className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${
                 activeZone === z.id
-                  ? 'bg-white text-blue-600 shadow-xs'
+                  ? 'bg-white text-blue-600 shadow-sm border border-slate-200/60'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -96,65 +149,45 @@ export const StallGrid: React.FC = () => {
           ))}
         </div>
 
-        {/* Search & Filter */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:w-60">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+        {/* Search & Status Filter matching #mainSearchContainer */}
+        <div className="flex items-center gap-2 flex-1 justify-end min-w-[280px]">
+          <div className="relative w-full max-w-[260px]">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search stall or tenant..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search stall or owner..."
+              className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder-slate-400"
             />
           </div>
 
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="text-xs border border-slate-300 rounded-md px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="all">All Statuses</option>
-            <option value="Occupied">Occupied Only</option>
-            <option value="Vacant">Vacant Only</option>
+            <option value="all">All Status</option>
+            <option value="Occupied">Occupied</option>
+            <option value="Vacant">Vacant</option>
           </select>
         </div>
       </div>
 
-      {/* Main Map Canvas */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto min-h-[500px]">
-        {/* Legend Header */}
-        <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Store className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-slate-800 capitalize text-sm">
-              {zones.find((z) => z.id === activeZone)?.label} Physical Map Layout
-            </h3>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-xs bg-emerald-100 border border-emerald-400"></span> Occupied
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-xs bg-slate-50 border border-slate-300"></span> Vacant
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-xs bg-indigo-100 border border-indigo-400"></span> Special Enterprise
-            </span>
-          </div>
-        </div>
-
-        {/* 1. WET SECTION PHYSICAL MAP */}
+      {/* Main Canvas Card */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm overflow-x-auto min-h-[520px]">
+        {/* ========================================================================= */}
+        {/* 1. WET SECTION PHYSICAL MAP                                              */}
+        {/* ========================================================================= */}
         {activeZone === 'wet' && (
-          <div className="min-w-[900px] space-y-8">
-            {/* Top 3 Section Blocks */}
+          <div className="min-w-[950px] space-y-7 p-2">
+            {/* Top 3 Section Boxes */}
             <div className="grid grid-cols-3 gap-6">
               {/* SECTION G */}
-              <div className="border border-slate-200 p-3.5 bg-slate-50/50 rounded-xl shadow-xs">
-                <div className="text-center font-bold text-slate-700 text-xs tracking-wider uppercase mb-3">
+              <div className="border border-slate-200/90 p-4 bg-white rounded-xl shadow-xs">
+                <div className="text-center font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-3.5">
                   SECTION G
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {renderStall('G-01-B')}
                   {renderStall('G-01-A')}
                   {renderStall('G-02')}
@@ -177,11 +210,11 @@ export const StallGrid: React.FC = () => {
               </div>
 
               {/* SECTION B & I */}
-              <div className="border border-slate-200 p-3.5 bg-slate-50/50 rounded-xl shadow-xs">
-                <div className="text-center font-bold text-slate-700 text-xs tracking-wider uppercase mb-3">
+              <div className="border border-slate-200/90 p-4 bg-white rounded-xl shadow-xs">
+                <div className="text-center font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-3.5">
                   SECTION B & I
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {renderStall('B-01-A')}
                   {renderStall('B-01-B')}
                   {renderStall('B-02')}
@@ -204,11 +237,11 @@ export const StallGrid: React.FC = () => {
               </div>
 
               {/* SECTION A & C */}
-              <div className="border border-slate-200 p-3.5 bg-slate-50/50 rounded-xl shadow-xs">
-                <div className="text-center font-bold text-slate-700 text-xs tracking-wider uppercase mb-3">
+              <div className="border border-slate-200/90 p-4 bg-white rounded-xl shadow-xs">
+                <div className="text-center font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-3.5">
                   SECTION A & C
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {renderStall('A-01-A')}
                   {renderStall('A-01-B')}
                   {renderStall('A-02')}
@@ -231,25 +264,25 @@ export const StallGrid: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Special Stalls & EF Grid */}
+            {/* Bottom Special Stalls, Utility Stack & EF Grid */}
             <div className="flex gap-6 items-start">
-              {renderStall('LAND-BANK', 'w-44 h-44 bg-indigo-50 border-indigo-300 text-indigo-900 font-extrabold text-sm')}
-              {renderStall('MEEDO', 'w-44 h-44 bg-indigo-50 border-indigo-300 text-indigo-900 font-extrabold text-sm')}
+              {renderStall('LAND-BANK')}
+              {renderStall('MEEDO')}
 
               {/* Utility Stack */}
-              <div className="flex flex-col gap-1.5 w-40">
-                {renderStall('E-08', 'h-14')}
-                {renderStall('E-09', 'h-14')}
-                <div className="h-10 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center font-bold text-xs text-slate-500">
+              <div className="flex flex-col gap-2 w-[150px]">
+                {renderStall('E-08', 'h-[46px]')}
+                {renderStall('E-09', 'h-[46px]')}
+                <div className="h-[44px] bg-[#f8fafc] border border-slate-300 rounded-[6px] flex items-center justify-center font-extrabold text-xs text-slate-600 select-none">
                   CR
                 </div>
-                <div className="h-10 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center font-bold text-[10px] text-slate-500">
+                <div className="h-[44px] bg-[#f8fafc] border border-slate-300 rounded-[6px] flex items-center justify-center font-extrabold text-[11px] text-slate-600 select-none">
                   ELECTRICAL
                 </div>
               </div>
 
               {/* EF Grid */}
-              <div className="flex-1 grid grid-cols-2 gap-1.5">
+              <div className="flex-1 grid grid-cols-2 gap-2">
                 {['01', '02', '03', '04', '05', '06', '07'].map((n) => (
                   <React.Fragment key={n}>
                     {renderStall(`E-${n}`)}
@@ -261,52 +294,67 @@ export const StallGrid: React.FC = () => {
           </div>
         )}
 
-        {/* 2. DRY GOODS PHYSICAL MAP */}
+        {/* ========================================================================= */}
+        {/* 2. DRY GOODS PHYSICAL MAP                                                */}
+        {/* ========================================================================= */}
         {activeZone === 'dry' && (
-          <div className="min-w-[850px] space-y-8">
+          <div className="min-w-[950px] space-y-9 p-2">
             {/* Second Floor */}
-            <div>
-              <div className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2">
-                Second Floor Wings
+            <div className="space-y-3">
+              <div className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                SECOND FLOOR
               </div>
-              <div className="space-y-2 bg-slate-50/60 p-4 rounded-xl border border-slate-200">
-                <div className="grid grid-cols-10 gap-1.5">
+              <div className="flex items-center gap-5">
+                {/* Left Wing D-19 to D-10 */}
+                <div className="flex gap-1.5 flex-1">
                   {['D-19', 'D-18', 'D-17', 'D-16', 'D-15', 'D-14', 'D-13', 'D-12', 'D-11', 'D-10'].map((id) =>
-                    renderStall(id)
+                    renderStall(id, 'flex-1 min-w-[48px]')
                   )}
                 </div>
-                <div className="grid grid-cols-9 gap-1.5">
+
+                {/* Right Wing D-09 to D-01 */}
+                <div className="flex gap-1.5 flex-1">
                   {['D-09', 'D-08', 'D-07', 'D-06', 'D-05', 'D-04', 'D-03', 'D-02', 'D-01'].map((id) =>
-                    renderStall(id)
+                    renderStall(id, 'flex-1 min-w-[48px]')
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="border-b-2 border-dashed border-slate-200 my-4" />
+            {/* Dashed Divider Line */}
+            <div className="border-b-2 border-dashed border-slate-200 my-6" />
 
             {/* First Floor */}
-            <div>
-              <div className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2">
-                First Floor Wings & Main Staircase
+            <div className="space-y-3">
+              <div className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                FIRST FLOOR
               </div>
-              <div className="flex items-center gap-4 bg-slate-50/60 p-4 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-4">
+                {/* Left Wing CR + J-08 to J-01 */}
                 <div className="flex gap-1.5 flex-1">
-                  <div className="w-14 min-h-[44px] bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center font-bold text-xs text-slate-500">
+                  <div className="w-12 min-h-[44px] bg-[#f8fafc] border border-slate-300 rounded-[6px] flex items-center justify-center font-extrabold text-xs text-slate-600 select-none flex-shrink-0">
                     CR
                   </div>
                   {['J-08', 'J-07', 'J-06', 'J-05', 'J-04', 'J-03', 'J-02', 'J-01'].map((id) =>
-                    renderStall(id)
+                    renderStall(id, 'flex-1 min-w-[44px]')
                   )}
                 </div>
 
-                <div className="w-14 py-2 bg-slate-200 border border-slate-300 rounded-lg text-center font-black text-xs text-slate-600 tracking-widest leading-4">
+                {/* Vertical Striped Stairs Block */}
+                <div
+                  className="w-12 py-2 bg-slate-100 border border-slate-300 rounded-[6px] text-center font-black text-xs text-slate-500 tracking-widest leading-4 select-none flex-shrink-0"
+                  style={{
+                    backgroundImage:
+                      'repeating-linear-gradient(0deg, transparent, transparent 4px, #e2e8f0 4px, #e2e8f0 8px)',
+                  }}
+                >
                   S<br />T<br />A<br />I<br />R<br />S
                 </div>
 
+                {/* Right Wing L-09 to L-01 */}
                 <div className="flex gap-1.5 flex-1">
                   {['L-09', 'L-08', 'L-07', 'L-06', 'L-05', 'L-04', 'L-03', 'L-02', 'L-01'].map((id) =>
-                    renderStall(id)
+                    renderStall(id, 'flex-1 min-w-[44px]')
                   )}
                 </div>
               </div>
@@ -314,16 +362,19 @@ export const StallGrid: React.FC = () => {
           </div>
         )}
 
-        {/* 3. OLD BUILDING PHYSICAL MAP */}
+        {/* ========================================================================= */}
+        {/* 3. OLD BUILDING PHYSICAL MAP                                             */}
+        {/* ========================================================================= */}
         {activeZone === 'old' && (
-          <div className="min-w-[950px] space-y-8">
-            <div className="flex gap-8">
+          <div className="min-w-[950px] space-y-9 p-2">
+            {/* Top Row: Food Terminal & Middle Complex */}
+            <div className="flex gap-8 items-start">
               {/* Food Terminal */}
-              <div className="w-72">
-                <div className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2 text-center">
+              <div className="w-[260px] flex-shrink-0">
+                <div className="font-extrabold text-slate-800 text-xs uppercase tracking-wider mb-2.5 text-center">
                   FOOD TERMINAL
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 bg-slate-50/60 p-3 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-4 gap-1.5">
                   {['HE-1', 'HE-3', 'HE-5', 'HE-7', 'HE-2', 'HE-4', 'HE-6', 'HE-8'].map((id) =>
                     renderStall(id)
                   )}
@@ -332,10 +383,7 @@ export const StallGrid: React.FC = () => {
 
               {/* Middle Complex */}
               <div className="flex-1">
-                <div className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-2 text-center">
-                  MIDDLE COMPLEX
-                </div>
-                <div className="grid grid-cols-3 gap-4 bg-slate-50/60 p-3 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-3 gap-6">
                   {/* Block 1 */}
                   <div className="grid grid-cols-2 gap-1.5">
                     {renderStall('HE-9', 'col-span-2')}
@@ -363,22 +411,25 @@ export const StallGrid: React.FC = () => {
               </div>
             </div>
 
-            {/* High-End Section (2nd & 1st Floor) */}
-            <div className="bg-slate-50/60 p-5 rounded-xl border border-slate-200">
-              <div className="text-center font-extrabold text-sm text-slate-900 mb-4">
-                OLD BUILDING - HIGH END
+            {/* High-End Section Card */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-xs">
+              <div className="text-center font-extrabold text-sm text-slate-900 tracking-wider mb-6">
+                OLD BUILDING-HIGH END
               </div>
 
-              <div className="space-y-6">
-                <div>
-                  <div className="text-xs font-bold text-slate-600 mb-2">2ND FLOOR</div>
-                  <div className="flex gap-2">
-                    <div className="flex gap-1.5 flex-1">
+              <div className="space-y-7">
+                {/* 2nd Floor */}
+                <div className="text-center">
+                  <div className="text-xs font-bold text-slate-700 mb-2.5 uppercase tracking-wider">
+                    2ND FLOOR
+                  </div>
+                  <div className="flex items-end justify-center gap-1.5">
+                    <div className="flex gap-1.5">
                       {['F-10-HE', 'F-09-HE', 'F-08-HE', 'F-07-HE', 'F-06-HE', 'F-05-HE'].map((id) =>
-                        renderStall(id)
+                        renderStall(id, 'w-[70px]')
                       )}
                     </div>
-                    <div className="flex flex-col gap-1.5 w-44">
+                    <div className="flex flex-col gap-1.5 w-[70px]">
                       {renderStall('F-01-HE')}
                       {renderStall('F-02-HE')}
                       {renderStall('F-03-04-HE')}
@@ -386,29 +437,39 @@ export const StallGrid: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <div className="text-xs font-bold text-slate-600 mb-2">1ST FLOOR</div>
-                  <div className="flex gap-4">
-                    <div className="w-40 flex flex-col gap-1.5">
+                {/* 1st Floor */}
+                <div className="text-center">
+                  <div className="text-xs font-bold text-slate-700 mb-2.5 uppercase tracking-wider">
+                    1ST FLOOR
+                  </div>
+                  <div className="flex items-start justify-center gap-8">
+                    {/* Block 1 */}
+                    <div className="w-[140px] flex flex-col gap-1.5">
                       <div className="grid grid-cols-2 gap-1.5">
                         {renderStall('F1-08-HE')}
-                        <div className="h-11 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center font-bold text-xs text-slate-500">
+                        <div className="min-h-[44px] bg-[#f8fafc] border border-slate-300 rounded-[6px] flex items-center justify-center font-bold text-xs text-slate-600 select-none">
                           CR-HE
                         </div>
                       </div>
                       {renderStall('F1-05-HE')}
                     </div>
 
-                    <div className="w-24 flex flex-col gap-1.5">
+                    {/* Block 2 */}
+                    <div className="w-[70px] flex flex-col gap-1.5">
                       {renderStall('F1-07-HE')}
                       {renderStall('F1-04-HE')}
                     </div>
 
-                    <div className="flex-1 grid grid-cols-2 gap-1.5">
-                      {renderStall('F1-06-HE')}
-                      {renderStall('F1-01-HE')}
-                      {renderStall('F1-03-HE')}
-                      {renderStall('F1-02-HE')}
+                    {/* Block 3 */}
+                    <div className="w-[140px] flex flex-col gap-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {renderStall('F1-06-HE')}
+                        {renderStall('F1-01-HE')}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {renderStall('F1-03-HE')}
+                        {renderStall('F1-02-HE')}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -417,57 +478,87 @@ export const StallGrid: React.FC = () => {
           </div>
         )}
 
-        {/* 4. TRIANGULAR AREA PHYSICAL MAP */}
+        {/* ========================================================================= */}
+        {/* 4. TRIANGULAR AREA PHYSICAL MAP (Pixel-perfect replica)                  */}
+        {/* ========================================================================= */}
         {activeZone === 'triangular' && (
-          <div className="min-w-[950px] flex gap-8">
-            {/* Left Column Utility & K-group */}
-            <div className="w-44 flex flex-col gap-4">
-              <div className="border border-slate-200 bg-white rounded-lg p-2 text-xs font-bold space-y-1 text-slate-600 text-center">
-                <div className="p-1 bg-slate-100 rounded">CR</div>
-                <div className="p-1 bg-slate-100 rounded text-[10px]">ELECTRIC ROOM</div>
-                <div className="p-1 bg-slate-100 rounded text-[10px]">GUARDS</div>
+          <div className="min-w-[980px] flex gap-7 p-2">
+            {/* Left Column: Utility + K-Group */}
+            <div className="w-[140px] flex flex-col gap-5 flex-shrink-0">
+              {/* Utility Box: CR + ELECTRIC ROOM + GUARDS */}
+              <div className="border border-slate-300 bg-white rounded-md grid grid-cols-[50px_1fr] grid-rows-2 h-[72px] overflow-hidden text-slate-700 select-none shadow-xs">
+                <div className="row-span-2 border-r border-slate-300 grid place-items-center font-bold text-xs bg-slate-50 text-slate-600">
+                  CR
+                </div>
+                <div className="flex items-center pl-2 font-extrabold text-[9.5px] text-slate-600 border-b border-slate-300 uppercase leading-none">
+                  ELECTRIC ROOM
+                </div>
+                <div className="flex items-center pl-2 font-extrabold text-[8.5px] text-slate-500 uppercase leading-none">
+                  GUARDS
+                </div>
               </div>
 
+              {/* K Stalls Group 1: K-01 to K-05 + K-06-07 */}
               <div className="flex flex-col gap-1.5">
                 {['K-01', 'K-02', 'K-03', 'K-04', 'K-05'].map((id) => renderStall(id))}
-                {renderStall('K-06-07', 'min-h-[60px]')}
+                {renderStall('K-06-07', 'h-[80px]')}
               </div>
 
-              <div className="flex flex-col gap-1.5 pt-2">
+              {/* K Stalls Group 2: K-08 to K-12 */}
+              <div className="flex flex-col gap-1.5 mt-3">
                 {['K-08', 'K-09', 'K-10', 'K-11', 'K-12'].map((id) => renderStall(id))}
               </div>
             </div>
 
-            {/* Main Diagonal Staircase Grid */}
-            <div className="flex-1 relative bg-slate-50/50 p-4 rounded-xl border border-slate-200">
-              <div className="grid grid-cols-11 gap-1.5 mb-8">
-                {['D-31', 'D-30', 'D-28-29', 'D-27', 'D-26', 'D-25', 'D-24', 'D-23', 'D-22', 'D-21', 'D-20'].map((id) =>
-                  renderStall(id, 'h-12')
-                )}
-              </div>
+            {/* Right Main Grid: Diagonal Staircase + Gate + Bottom H Stalls */}
+            <div
+              className="relative flex-1 min-w-[900px] pr-12"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(39, 1fr)',
+                gridTemplateRows: 'repeat(11, 44px) 210px 60px',
+                gap: '4px',
+              }}
+            >
+              {/* Diagonal Staircase Stalls D-31 to D-20 */}
+              {renderStall('D-31', '', { gridArea: '1 / 1 / 2 / 6' })}
+              {renderStall('D-30', '', { gridArea: '2 / 4 / 3 / 9' })}
+              {renderStall('D-28-29', '', { gridArea: '3 / 7 / 4 / 15' })}
+              {renderStall('D-27', '', { gridArea: '4 / 13 / 5 / 18' })}
+              {renderStall('D-26', '', { gridArea: '5 / 16 / 6 / 21' })}
+              {renderStall('D-25', '', { gridArea: '6 / 19 / 7 / 24' })}
+              {renderStall('D-24', '', { gridArea: '7 / 22 / 8 / 27' })}
+              {renderStall('D-23', '', { gridArea: '8 / 25 / 9 / 30' })}
+              {renderStall('D-22', '', { gridArea: '9 / 28 / 10 / 33' })}
+              {renderStall('D-21', '', { gridArea: '10 / 31 / 11 / 36' })}
+              {renderStall('D-20', '', { gridArea: '11 / 34 / 12 / 39' })}
 
-              {/* Gate Marker */}
-              <div className="absolute top-4 right-4 w-12 h-28 bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center font-black text-xs text-slate-400">
+              {/* Row 12 is transparent vertical spacing (210px) */}
+              <div style={{ gridArea: '12 / 1 / 13 / 40' }} />
+
+              {/* Row 13 is the bottom perimeter row of H stalls */}
+              {renderStall('H-01', '', { gridArea: '13 / 2 / 14 / 8' })}
+              {renderStall('H-02-03', '', { gridArea: '13 / 8 / 14 / 12' })}
+              {renderStall('H-04-05', '', { gridArea: '13 / 12 / 14 / 16' })}
+              {renderStall('H-06', '', { gridArea: '13 / 16 / 14 / 18' })}
+              {renderStall('H-07', '', { gridArea: '13 / 18 / 14 / 20' })}
+              {renderStall('H-08-09', '', { gridArea: '13 / 20 / 14 / 26' })}
+              {renderStall('H-10-11', '', { gridArea: '13 / 26 / 14 / 32' })}
+              {renderStall('H-12-13', '', { gridArea: '13 / 32 / 14 / 36' })}
+              {renderStall('H-14-15', '', { gridArea: '13 / 36 / 14 / 40' })}
+
+              {/* Gate Marker matching Legacy */}
+              <div className="absolute top-0 right-0 w-[42px] h-[120px] bg-slate-50 border-2 border-dashed border-slate-300 rounded-[6px] grid place-items-center font-black text-xs text-slate-400 tracking-widest select-none">
                 GATE
-              </div>
-
-              {/* Bottom Row H-01 to H-15 */}
-              <div className="pt-20 border-t border-slate-200">
-                <div className="font-bold text-slate-700 text-xs mb-2">PERIMETER SECTION H</div>
-                <div className="grid grid-cols-9 gap-1.5">
-                  {['H-01', 'H-02-03', 'H-04-05', 'H-06', 'H-07', 'H-08-09', 'H-10-11', 'H-12-13', 'H-14-15'].map((id) =>
-                    renderStall(id)
-                  )}
-                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Details Modal */}
-      <StallModal
-        stall={selectedStall}
+      {/* Tenancy & Stall Detail Side Viewer */}
+      <StallSideViewer
+        stall={activeStall}
         isOpen={Boolean(selectedStall)}
         onClose={() => setSelectedStall(null)}
       />

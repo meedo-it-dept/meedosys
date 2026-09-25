@@ -96,55 +96,55 @@ export default function MonthlyMonitoringPage() {
 
       {/* PRINTABLE ACKNOWLEDGEMENT RECEIPT */}
       {showAckReceipt && stall && (
-        <Card className="print-container border-2 border-slate-300 p-8 max-w-xl mx-auto bg-white shadow-lg">
+        <Card className="print-container border-2 border-slate-300 p-4 sm:p-8 max-w-xl mx-auto bg-white shadow-lg w-full min-w-0 overflow-hidden">
           <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
-            <h1 className="text-base font-bold uppercase tracking-wider text-slate-900">
+            <h1 className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900">
               Municipality of Malungon
             </h1>
-            <h2 className="text-xs font-semibold uppercase text-slate-600">
+            <h2 className="text-[11px] sm:text-xs font-semibold uppercase text-slate-600">
               Municipal Economic Enterprise Development Office (MEEDO)
             </h2>
-            <p className="text-lg font-black mt-2 text-blue-900 uppercase">
+            <p className="text-base sm:text-lg font-black mt-2 text-blue-900 uppercase">
               Acknowledgement Receipt
             </p>
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="flex justify-between border-b border-slate-100 py-1.5">
+            <div className="flex justify-between border-b border-slate-100 py-1.5 flex-wrap gap-1">
               <span className="text-slate-500 font-semibold">Date of Inspection:</span>
               <strong className="text-slate-800">{monDate}</strong>
             </div>
-            <div className="flex justify-between border-b border-slate-100 py-1.5">
+            <div className="flex justify-between border-b border-slate-100 py-1.5 flex-wrap gap-1">
               <span className="text-slate-500 font-semibold">Stall Number:</span>
               <strong className="text-slate-800">{stall.stall_no}</strong>
             </div>
-            <div className="flex justify-between border-b border-slate-100 py-1.5">
+            <div className="flex justify-between border-b border-slate-100 py-1.5 flex-wrap gap-1">
               <span className="text-slate-500 font-semibold">Stall Tenant / Owner:</span>
               <strong className="text-slate-800">{stall.current_tenant?.stall_owner || 'N/A'}</strong>
             </div>
-            <div className="flex justify-between border-b border-slate-100 py-1.5">
+            <div className="flex justify-between border-b border-slate-100 py-1.5 flex-wrap gap-1">
               <span className="text-slate-500 font-semibold">Line of Business:</span>
               <span className="text-slate-800">{stall.current_tenant?.line_of_business || 'N/A'}</span>
             </div>
-            <div className="flex justify-between border-b border-slate-100 py-1.5">
+            <div className="flex justify-between border-b border-slate-100 py-1.5 flex-wrap gap-1">
               <span className="text-slate-500 font-semibold">CLAYGO Compliance:</span>
               <Badge variant={claygo === 'Yes' ? 'success' : 'danger'}>{claygo || 'No'}</Badge>
             </div>
-            <div className="flex justify-between border-b border-slate-100 py-1.5">
+            <div className="flex justify-between border-b border-slate-100 py-1.5 flex-wrap gap-1">
               <span className="text-slate-500 font-semibold">Paleng-QR Ph Implemented:</span>
               <Badge variant={palengqr === 'Yes' ? 'success' : 'danger'}>{palengqr || 'No'}</Badge>
             </div>
           </div>
 
-          <div className="mt-12 pt-8 flex justify-between text-center text-xs">
+          <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between gap-6 text-center text-xs">
             <div>
-              <div className="w-40 border-b border-slate-800 pb-1 mx-auto mb-1">
+              <div className="w-36 sm:w-40 border-b border-slate-800 pb-1 mx-auto mb-1">
                 {stall.current_tenant?.stall_owner || 'Tenant'}
               </div>
               <span className="text-[10px] text-slate-500 font-semibold">Tenant Signature</span>
             </div>
             <div>
-              <div className="w-40 border-b border-slate-800 pb-1 mx-auto mb-1 font-bold">
+              <div className="w-36 sm:w-40 border-b border-slate-800 pb-1 mx-auto mb-1 font-bold">
                 MEEDO Inspector
               </div>
               <span className="text-[10px] text-slate-500 font-semibold">Inspecting Officer</span>
@@ -161,10 +161,10 @@ export default function MonthlyMonitoringPage() {
 
       {/* MONITORING FORM */}
       {selectedStallNo && (
-        <form onSubmit={handleSave} className="space-y-6 no-print">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <form onSubmit={handleSave} className="space-y-6 no-print w-full min-w-0 max-w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 min-w-0">
             {/* General Info */}
-            <Card>
+            <Card className="min-w-0 overflow-hidden">
               <h3 className="font-bold text-slate-800 text-sm mb-3">General Information</h3>
               <div className="space-y-3 text-xs">
                 <div>
@@ -174,7 +174,7 @@ export default function MonthlyMonitoringPage() {
                     value={monDate}
                     onChange={(e) => setMonDate(e.target.value)}
                     required
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
                   />
                 </div>
                 <div>
@@ -183,7 +183,7 @@ export default function MonthlyMonitoringPage() {
                     type="number"
                     value={goodwill}
                     onChange={(e) => setGoodwill(parseFloat(e.target.value) || 0)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
                   />
                 </div>
                 <div>
@@ -191,7 +191,7 @@ export default function MonthlyMonitoringPage() {
                   <select
                     value={opStatus}
                     onChange={(e) => setOpStatus(e.target.value as any)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
                   >
                     <option value="Operational">Operational</option>
                     <option value="Non-Operational">Non-Operational</option>
@@ -201,13 +201,13 @@ export default function MonthlyMonitoringPage() {
             </Card>
 
             {/* Compliance & Permits */}
-            <Card>
+            <Card className="min-w-0 overflow-hidden">
               <h3 className="font-bold text-slate-800 text-sm mb-3">Permits & Payments</h3>
               <div className="space-y-3 text-xs">
                 <div>
-                  <div className="flex justify-between items-center mb-1">
+                  <div className="flex justify-between items-center mb-1 flex-wrap gap-1">
                     <label className="font-semibold text-slate-700">Business Permit</label>
-                    <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer">
+                    <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={permitNone}
@@ -221,14 +221,14 @@ export default function MonthlyMonitoringPage() {
                     disabled={permitNone}
                     value={permitDate}
                     onChange={(e) => setPermitDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-1">
+                  <div className="flex justify-between items-center mb-1 flex-wrap gap-1">
                     <label className="font-semibold text-slate-700">Contract of Lease</label>
-                    <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer">
+                    <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={leaseNone}
@@ -242,14 +242,14 @@ export default function MonthlyMonitoringPage() {
                     disabled={leaseNone}
                     value={leaseDate}
                     onChange={(e) => setLeaseDate(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <div className="flex justify-between items-center mb-1">
+                  <div className="flex justify-between items-center mb-1 flex-wrap gap-1">
                     <label className="font-semibold text-slate-700">Stall Rental (O.R. No.)</label>
-                    <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer">
+                    <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={rentalNone}
@@ -264,14 +264,14 @@ export default function MonthlyMonitoringPage() {
                     value={rentalOr}
                     onChange={(e) => setRentalOr(e.target.value)}
                     placeholder="Official Receipt No."
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"
                   />
                 </div>
               </div>
             </Card>
 
             {/* Operational Checks */}
-            <Card>
+            <Card className="min-w-0 overflow-hidden">
               <h3 className="font-bold text-slate-800 text-sm mb-3">Operational Sanitation</h3>
               <div className="space-y-3 text-xs">
                 <div>
@@ -279,7 +279,7 @@ export default function MonthlyMonitoringPage() {
                   <select
                     value={claygo}
                     onChange={(e) => setClaygo(e.target.value as any)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
                   >
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
@@ -290,7 +290,7 @@ export default function MonthlyMonitoringPage() {
                   <select
                     value={cctv}
                     onChange={(e) => setCctv(e.target.value as any)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
                   >
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
@@ -301,7 +301,7 @@ export default function MonthlyMonitoringPage() {
                   <select
                     value={palengqr}
                     onChange={(e) => setPalengqr(e.target.value as any)}
-                    className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    className="w-full min-w-0 text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
                   >
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>

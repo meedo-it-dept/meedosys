@@ -12,6 +12,9 @@ export interface UserProfile {
   role: UserRole;
   section: UserSection;
   status: UserStatus;
+  guard_id?: string;
+  full_name?: string;
+  rank_title?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -21,7 +24,7 @@ export interface UserProfile {
 // -----------------------------------------------------------------------------
 export type StallZone = 'wet' | 'dry' | 'old' | 'triangular';
 export type StallStatus = 'Occupied' | 'Vacant';
-export type ComplianceStatus = 'Compliant' | 'Non-Compliant';
+export type ComplianceStatus = 'Compliant' | 'Lacking' | 'Non-Compliant';
 
 export interface StallTenant {
   id?: string;
@@ -96,12 +99,31 @@ export interface SlaughterRecord {
   id?: string;
   client_id: string;
   client_name: string;
+  address?: string;
   contact_no?: string;
   or_number?: string;
   status: SlaughterStatus;
   livestock_type: LivestockType;
   head_count: number;
+  kilos?: number;
   amount: number;
+  butcher_id?: string;
+  butcher_name?: string;
+  created_at?: string;
+}
+
+export interface ButcherProfile {
+  id: string;
+  butcher_code: string;
+  name: string;
+  contact_no?: string;
+  address_barangay?: string;
+  specialization: 'General' | 'Hogs / Swine' | 'Cattle / Large Animals' | 'Small Ruminants' | 'Poultry';
+  health_card_no?: string;
+  health_card_expiry?: string;
+  status: 'Active' | 'Inactive';
+  date_registered: string;
+  remarks?: string;
   created_at?: string;
 }
 
@@ -168,9 +190,34 @@ export interface TodaMember {
 export interface OpifIndicator {
   id?: string;
   section: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
-  major_final_output: string;
-  performance_indicator: string;
-  annual_target: string;
+  col3?: string; // Strategic Priorities/Core & Support Functions (5)
+  col4?: string; // Major Final Output (6)
+  col5?: string; // Programs/Projects/Activities (7)
+  col6?: string; // Performance Indicator (8)
+  col7?: string; // Annual Target (9)
+  actual?: string; // Actual (latest data)
+  semi?: string; // Semi-Annual Physical Targets
+  q1t?: string; // 1st QTR Target
+  q1a?: string; // 1st QTR Accomp
+  q1p?: string; // 1st QTR % Accomp
+  q2t?: string; // 2nd QTR Target
+  q2a?: string; // 2nd QTR Accomp
+  q2p?: string; // 2nd QTR % Accomp
+  q3t?: string; // 3rd QTR Target
+  q3a?: string; // 3rd QTR Accomp
+  q3p?: string; // 3rd QTR % Accomp
+  q4t?: string; // 4th QTR Target
+  q4a?: string; // 4th QTR Accomp
+  q4p?: string; // 4th QTR % Accomp
+  specialSpan?: number;
+  specialText?: string;
+  spanCol3?: number;
+  spanCol4?: number;
+  spanCol5?: number;
+  // Compatibility aliases
+  major_final_output?: string;
+  performance_indicator?: string;
+  annual_target?: string;
   actual_annual?: string;
   semi_annual_target?: string;
   q1_target?: string;
@@ -189,8 +236,18 @@ export interface OpifIndicator {
 }
 
 // -----------------------------------------------------------------------------
-// SECTION F: CSU DIGITAL LOGBOOK
+// SECTION F: MARKET GUARD DIGITAL LOGBOOK & IDENTITY
 // -----------------------------------------------------------------------------
+export interface MarketGuard {
+  guard_id: string;
+  guard_name: string;
+  rank_title?: string;
+  default_area?: string;
+  contact_no?: string;
+  radio_call_sign?: string;
+  status: 'Active' | 'On Leave' | 'Inactive';
+}
+
 export interface CsuPersonnelItem {
   id?: string;
   guard_id: string;
@@ -257,3 +314,46 @@ export interface AuditLog {
   details?: string;
   created_at?: string;
 }
+
+// -----------------------------------------------------------------------------
+// INVENTORY MANAGEMENT MODULE
+// -----------------------------------------------------------------------------
+export type InventoryDepartment =
+  | 'Market Office'
+  | 'Slaughterhouse'
+  | 'Cemetery'
+  | 'TODA'
+  | 'MEEDO'
+  | "Mayor's Office"
+  | 'Other Offices';
+
+export type InventoryTransactionType = 'Stock In' | 'Release' | 'Adjustment' | 'Return';
+
+export interface InventoryItem {
+  id: string;
+  item: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  low_stock_threshold: number;
+  date_received: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  inventory_item_id: string;
+  item_name: string;
+  description?: string;
+  department_section: string;
+  transaction_type: InventoryTransactionType;
+  quantity: number;
+  unit: string;
+  received_by?: string;
+  released_by: string;
+  transaction_date: string;
+  remarks?: string;
+  created_at: string;
+}
+

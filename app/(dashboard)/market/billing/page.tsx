@@ -7,7 +7,7 @@ import { ElectricBill } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Zap, Printer, Table as TableIcon, Save, CheckCircle2, FileText } from 'lucide-react';
+import { Zap, Printer, Table as TableIcon, Save, CheckCircle2, FileText, Lock, Unlock } from 'lucide-react';
 
 export default function ElectricBillingPage() {
   const { stalls, electricBills, addElectricBill, updateBillStatus } = useMeedo();
@@ -45,6 +45,17 @@ export default function ElectricBillingPage() {
     setPrevReading(prev);
     setCurrReading(prev);
     setArrears(lastBill && lastBill.status === 'Unpaid' ? lastBill.bill_amount : 0);
+  };
+
+  const handleToggleMeterReset = (checked: boolean) => {
+    setMeterReset(checked);
+    if (!checked) {
+      const lastBill = electricBills.find((b) => b.stall_no === selectedStall);
+      const prev = lastBill ? lastBill.curr_reading : 100;
+      setPrevReading(prev);
+    } else {
+      setPrevReading(0);
+    }
   };
 
   const consumption = meterReset
@@ -283,33 +294,54 @@ export default function ElectricBillingPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="font-semibold text-slate-700">Previous Reading</label>
-                      <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer">
+                      <label className="font-semibold text-slate-700 flex items-center gap-1.5">
+                        Previous Reading (kWh)
+                        {!meterReset && <Lock className="w-3 h-3 text-slate-400" />}
+                      </label>
+                      <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={meterReset}
-                          onChange={(e) => setMeterReset(e.target.checked)}
+                          onChange={(e) => handleToggleMeterReset(e.target.checked)}
                           className="rounded text-blue-600"
                         />
-                        Meter Reset
+                        <span>Meter Reset</span>
                       </label>
                     </div>
                     <input
                       type="number"
                       value={prevReading}
+                      readOnly={!meterReset}
+                      tabIndex={!meterReset ? -1 : 0}
                       onChange={(e) => setPrevReading(parseFloat(e.target.value) || 0)}
-                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                      className={`w-full text-sm px-3 py-2 border rounded-lg font-mono transition-all ${
+                        !meterReset
+                          ? 'bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed select-none'
+                          : 'bg-white border-amber-300 ring-1 ring-amber-400 text-slate-900 font-bold'
+                      }`}
                     />
+                    {!meterReset ? (
+                      <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> Auto-carried from last bill. Check &quot;Meter Reset&quot; to override.
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1 font-semibold">
+                        <Unlock className="w-2.5 h-2.5" /> Unlocked for replacement meter baseline.
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Current Reading</label>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Current Reading (kWh) <span className="text-blue-600 font-normal text-[11px]">(Active Entry)</span>
+                    </label>
                     <input
                       type="number"
                       value={currReading}
                       onChange={(e) => setCurrReading(parseFloat(e.target.value) || 0)}
                       required
-                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                      placeholder="Enter new meter reading..."
+                      className="w-full text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white font-mono font-bold text-blue-900 focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
@@ -370,7 +402,9 @@ export default function ElectricBillingPage() {
                       <td className="py-2.5 px-3 font-bold text-slate-900">{bill.stall_no}</td>
                       <td className="py-2.5 px-3 text-slate-700">{bill.owner_name}</td>
                       <td className="py-2.5 px-3 text-slate-500 font-mono">
-                        {bill.prev_reading} $\rightarrow$ {bill.curr_reading}
+                        <span>{bill.prev_reading}</span>
+                        <span className="mx-1.5 text-slate-400">→</span>
+                        <span>{bill.curr_reading}</span>
                       </td>
                       <td className="py-2.5 px-3 font-semibold">{bill.consumption} kWh</td>
                       <td className="py-2.5 px-3 font-bold text-slate-900">

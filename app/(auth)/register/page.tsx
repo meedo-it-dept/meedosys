@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMeedo } from '@/lib/store';
-import { Building2, ArrowRight } from 'lucide-react';
+import { Building2, ArrowRight, ShieldCheck, Shield } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -12,6 +12,9 @@ export default function RegisterPage() {
 
   const [username, setUsername] = useState('');
   const [section, setSection] = useState('A');
+  const [guardId, setGuardId] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [rankTitle, setRankTitle] = useState('SO1');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,7 +29,18 @@ export default function RegisterPage() {
       return;
     }
 
-    const ok = registerUser(username, section);
+    if (section === 'F' && !guardId.trim()) {
+      setError('Please provide a Guard ID (e.g. G-101) for Market Guard personnel.');
+      return;
+    }
+
+    const ok = registerUser(
+      username,
+      section,
+      section === 'F' ? guardId.trim().toUpperCase() : undefined,
+      section === 'F' ? fullName.trim() : undefined,
+      section === 'F' ? rankTitle.trim() : undefined
+    );
     if (ok) {
       setSuccess(true);
       setTimeout(() => {
@@ -87,9 +101,61 @@ export default function RegisterPage() {
               <option value="C">Section C: Cemetery Management</option>
               <option value="D">Section D: Transport Terminal</option>
               <option value="E">Section E: Executive / OPIF</option>
-              <option value="F">Section F: Peace & Order (CSU)</option>
+              <option value="F">Section F: Peace & Order (Market Guard)</option>
             </select>
           </div>
+
+          {section === 'F' && (
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-3 animate-fade-in">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+                <Shield className="w-4 h-4 text-blue-600" />
+                Market Guard Official Credentials
+              </div>
+              <p className="text-[11px] text-blue-700/80">
+                Your Guard ID links directly to the daily security blotter and enables instant sign-in with your badge number.
+              </p>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                  Guard ID <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={guardId}
+                  onChange={(e) => setGuardId(e.target.value)}
+                  placeholder="e.g. G-101, G-107"
+                  className="w-full px-3 py-1.5 text-xs font-mono font-bold uppercase border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                    Full Name (Officer)
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Roberto Alcantara"
+                    className="w-full px-3 py-1.5 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                    Rank / Designation
+                  </label>
+                  <input
+                    type="text"
+                    value={rankTitle}
+                    onChange={(e) => setRankTitle(e.target.value)}
+                    placeholder="e.g. SO1, SO2, Team Leader"
+                    className="w-full px-3 py-1.5 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>

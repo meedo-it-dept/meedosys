@@ -64,3 +64,214 @@
   mix-blend-mode: multiply;
   display: block;
 }
+
+/* ==========================================================================
+   OPIF REPORT STYLES (REPLICATED EXACTLY FROM LEGACY)
+   ========================================================================== */
+.opif-wrapper {
+  font-family: Calibri, Arial, sans-serif;
+  background-color: white;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 15px;
+}
+.opif-wrapper .document-header {
+  padding: 10px 15px;
+  background-color: white;
+}
+.opif-wrapper .opif-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  margin-top: 5px;
+  text-decoration: underline;
+  color: black;
+}
+.opif-wrapper .info-table {
+  border-collapse: collapse;
+  width: auto;
+  min-width: unset;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.opif-wrapper .info-table td {
+  border: none !important;
+  text-align: left !important;
+  padding: 2px 10px 2px 0 !important;
+  vertical-align: top;
+  color: black;
+}
+.opif-wrapper .info-label {
+  width: 150px;
+}
+.opif-wrapper table.opif-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1200px;
+  text-align: center;
+  font-size: 12px;
+  color: black;
+}
+.opif-wrapper table.opif-table th,
+.opif-wrapper table.opif-table td {
+  border: 1px solid #000 !important;
+  padding: 4px 6px;
+  vertical-align: middle;
+  color: black;
+}
+.opif-wrapper table.opif-table th {
+  background-color: #fee2ce;
+  font-weight: bold;
+  line-height: 1.2;
+}
+.opif-wrapper .sub-header th {
+  font-size: 11px;
+  padding: 4px 2px;
+}
+.opif-wrapper .text-left {
+  text-align: left !important;
+}
+.opif-wrapper .text-center {
+  text-align: center !important;
+}
+.opif-wrapper .align-top {
+  vertical-align: top;
+}
+.opif-wrapper .bg-yellow {
+  background-color: #fff2cc !important;
+}
+.opif-wrapper .bg-grey {
+  background-color: #f2f2f2;
+}
+.opif-wrapper .bold {
+  font-weight: bold;
+}
+.opif-wrapper .signature-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 25px;
+  font-size: 12.5px;
+  text-align: left;
+  background-color: transparent;
+  min-width: unset;
+}
+.opif-wrapper .signature-table td {
+  border: none !important;
+  padding: 2px 10px;
+  vertical-align: top;
+  text-align: left;
+  color: black;
+}
+.opif-wrapper .underline {
+  text-decoration: underline;
+}
+.opif-wrapper .pl-20 {
+  padding-left: 20px !important;
+}
+.opif-wrapper .pt-20 {
+  padding-top: 15px !important;
+}
+
+.opif-editable-cell {
+  outline: none;
+  transition: background-color 0.15s ease;
+}
+.opif-editable-cell:hover {
+  background-color: #f0fdf4 !important;
+  cursor: text;
+  box-shadow: inset 0 0 0 1px #16a34a;
+}
+.opif-editable-cell:focus {
+  background-color: #ffffff !important;
+  outline: 2px solid #2563eb !important;
+  z-index: 10;
+  position: relative;
+}
+
+@media print {
+  @page {
+    size: 13in 8.5in; /* 8.5 x 13 Long Bond Paper (Landscape) */
+    margin: 0.25in;
+  }
+
+  .opif-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+  .opif-wrapper table.opif-table {
+    page-break-inside: auto !important;
+    font-size: 8.5pt !important;
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+  .opif-wrapper table.opif-table tr,
+  .opif-wrapper table.opif-table td,
+  .opif-wrapper table.opif-table th {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    padding: 2px 3px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .opif-wrapper .print-single-header {
+    display: table-header-group !important;
+  }
+
+  .opif-wrapper .signature-table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    margin-top: 15px !important;
+  }
+
+  .opif-wrapper .document-header {
+    padding: 0 0 10px 0 !important;
+    margin: 0 !important;
+  }
+  .opif-wrapper .opif-title {
+    margin: 0 0 5px 0 !important;
+    font-size: 13pt !important;
+  }
+  .opif-wrapper .info-table {
+    margin-bottom: 5px !important;
+    font-size: 10pt !important;
+  }
+  .opif-wrapper .info-table td {
+    padding: 1px 5px 1px 0 !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+  table th.print-hide,
+  table td.print-hide,
+  table tr.print-hide {
+    display: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 0 !important;
+  }
+
+  body,
+  #mainContainer,
+  #contentArea,
+  .view-section,
+  .card,
+  main {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .lg\:pl-72 {
+    padding-left: 0 !important;
+  }
+}
