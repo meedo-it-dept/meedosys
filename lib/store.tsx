@@ -17,6 +17,8 @@ import {
   InventoryItem,
   InventoryTransaction,
   ButcherProfile,
+  MonitoringRecord,
+  formatAdditionalInfo,
 } from './types';
 import {
   initialUsers,
@@ -60,6 +62,9 @@ interface MeedoContextType {
   stalls: Stall[];
   updateStallTenant: (stallNo: string, tenant: Partial<StallTenant>) => void;
   addStallTenant: (stallNo: string, tenant: StallTenant) => void;
+
+  monitoringRecords: MonitoringRecord[];
+  addMonitoringRecord: (record: MonitoringRecord) => Promise<boolean>;
 
   electricBills: ElectricBill[];
   addElectricBill: (bill: ElectricBill) => void;
@@ -156,6 +161,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [guards, setGuards] = useState<MarketGuard[]>(initialMarketGuards);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
   const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>(initialInventoryTransactions);
+  const [monitoringRecords, setMonitoringRecords] = useState<MonitoringRecord[]>([]);
 
   // Initialize from Supabase and clean up legacy mock data
   useEffect(() => {
@@ -201,6 +207,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 invTxRes,
                 butchersRes,
                 profilesRes,
+                monitoringRes,
               ] = await Promise.all([
                 client.from('stall_tenants').select('*'),
                 client.from('electric_bills').select('*'),
@@ -214,6 +221,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 client.from('inventory_transactions').select('*'),
                 client.from('butchers').select('*'),
                 client.from('profiles').select('*'),
+                client.from('monitoring_records').select('*').order('monitoring_date', { ascending: false }),
               ]);
 
               if (billsRes.data) setElectricBills(billsRes.data);
@@ -226,6 +234,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               if (invItemsRes.data) setInventoryItems(invItemsRes.data);
               if (invTxRes.data) setInventoryTransactions(invTxRes.data);
               if (butchersRes.data) setButchers(butchersRes.data);
+              if (monitoringRes.data) setMonitoringRecords(monitoringRes.data);
 
               if (tenantsRes.data) {
                 const tenantMap = new Map();
@@ -292,6 +301,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
           const savedUsers = localStorage.getItem('meedo_users');
           if (savedUsers) setUsers(JSON.parse(savedUsers));
+
+          const savedMonitoring = localStorage.getItem('meedo_monitoring_records');
+          if (savedMonitoring) setMonitoringRecords(JSON.parse(savedMonitoring));
         }
       } catch (e) {
         console.error('Failed to load saved state:', e);
@@ -590,6 +602,73 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       })();
     }
+  };
+
+  const addMonitoringRecord = async (record: MonitoringRecord): Promise<boolean> => {
+    const newRecord: MonitoringRecord = {
+      ...record,
+      id: record.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mon_${Date.now()}`),
+      created_at: record.created_at || new Date().toISOString(),
+    };
+
+    setMonitoringRecords((prev) => {
+      const updated = [newRecord, ...prev];
+      try {
+        localStorage.setItem('meedo_monitoring_records', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('localStorage quota warning:', e);
+      }
+      return updated;
+    });
+
+    // Sync sanitation compliance and notes back to current tenant
+    const serializedInfo = formatAdditionalInfo(
+      record.claygo_compliant,
+      record.cctv_available,
+      record.palengqr_implemented,
+      record.remarks
+    );
+    updateStallTenant(record.stall_no, {
+      additional_info: serializedInfo,
+      compliance_status:
+        record.claygo_compliant === 'Yes' && record.palengqr_implemented === 'Yes'
+          ? 'Compliant'
+          : 'Non-Compliant',
+    });
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const payload: Record<string, any> = {
+          stall_no: record.stall_no,
+          monitoring_date: record.monitoring_date,
+          goodwill: record.goodwill || 0,
+          operational_status: record.operational_status,
+          permit_submitted: Boolean(record.permit_submitted),
+          permit_date: record.permit_date || null,
+          lease_submitted: Boolean(record.lease_submitted),
+          lease_date: record.lease_date || null,
+          rental_paid: Boolean(record.rental_paid),
+          rental_or: record.rental_or || null,
+          claygo_compliant: record.claygo_compliant || 'No',
+          cctv_available: record.cctv_available || 'No',
+          palengqr_implemented: record.palengqr_implemented || 'No',
+          seminars_attended: record.seminars_attended || [],
+          electric_bill_amount: record.electric_bill_amount || 0,
+          electric_bill_status: record.electric_bill_status || 'Unpaid',
+          electric_bill_due_date: record.electric_bill_due_date || null,
+        };
+        const res = await supabase.from('monitoring_records').insert(payload);
+        if (res.error) {
+          console.warn('Supabase monitoring insert warning:', res.error.message);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.warn('Supabase monitoring insert error:', err);
+        return false;
+      }
+    }
+    return true;
   };
 
   const addElectricBill = (bill: ElectricBill) => {
@@ -1123,6 +1202,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         stalls,
         updateStallTenant,
         addStallTenant,
+        monitoringRecords,
+        addMonitoringRecord,
         electricBills,
         addElectricBill,
         updateBillStatus,

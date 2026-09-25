@@ -68,10 +68,50 @@ export interface MonitoringRecord {
   cctv_available: 'Yes' | 'No' | '';
   palengqr_implemented: 'Yes' | 'No' | '';
   seminars_attended: string[];
-  electric_bill_amount: number;
-  electric_bill_status: 'Fully Paid' | 'Partial' | 'Unpaid' | '';
+  electric_bill_amount?: number;
+  electric_bill_status?: 'Fully Paid' | 'Partial' | 'Unpaid' | '';
   electric_bill_due_date?: string;
+  remarks?: string;
   created_at?: string;
+}
+
+export function parseAdditionalInfo(info?: string | null): {
+  claygo: 'Yes' | 'No';
+  cctv: 'Yes' | 'No';
+  palengqr: 'Yes' | 'No';
+  customNotes: string;
+} {
+  const text = info || '';
+  const claygoMatch = text.match(/CLAYGO:\s*(Yes|No)/i);
+  const cctvMatch = text.match(/CCTV:\s*(Yes|No)/i);
+  const palengqrMatch = text.match(/PalengQR:\s*(Yes|No)/i);
+
+  let customNotes = text
+    .replace(/CLAYGO:\s*(Yes|No)[,;\s]*/gi, '')
+    .replace(/CCTV:\s*(Yes|No)[,;\s]*/gi, '')
+    .replace(/PalengQR:\s*(Yes|No)[,;\s]*/gi, '')
+    .trim();
+  customNotes = customNotes.replace(/^[;,\-\s]+/, '').trim();
+
+  return {
+    claygo: (claygoMatch ? (claygoMatch[1].toLowerCase() === 'yes' ? 'Yes' : 'No') : 'No') as 'Yes' | 'No',
+    cctv: (cctvMatch ? (cctvMatch[1].toLowerCase() === 'yes' ? 'Yes' : 'No') : 'No') as 'Yes' | 'No',
+    palengqr: (palengqrMatch ? (palengqrMatch[1].toLowerCase() === 'yes' ? 'Yes' : 'No') : 'No') as 'Yes' | 'No',
+    customNotes,
+  };
+}
+
+export function formatAdditionalInfo(
+  claygo: 'Yes' | 'No' | '',
+  cctv: 'Yes' | 'No' | '',
+  palengqr: 'Yes' | 'No' | '',
+  customNotes?: string
+): string {
+  const flags = `CLAYGO: ${claygo || 'No'}, CCTV: ${cctv || 'No'}, PalengQR: ${palengqr || 'No'}`;
+  if (customNotes && customNotes.trim()) {
+    return `${flags}; ${customNotes.trim()}`;
+  }
+  return flags;
 }
 
 export interface ElectricBill {

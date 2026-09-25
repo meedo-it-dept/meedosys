@@ -1,18 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Stall, StallZone } from '@/lib/types';
 import { useMeedo } from '@/lib/store';
 import { User, Search } from 'lucide-react';
 import { StallSideViewer } from './StallSideViewer';
 
 export const StallGrid: React.FC = () => {
+  const searchParams = useSearchParams();
+  const stallParam = searchParams.get('stall');
   const { stalls } = useMeedo();
 
   const [activeZone, setActiveZone] = useState<StallZone>('triangular');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Occupied' | 'Vacant'>('all');
   const [selectedStall, setSelectedStall] = useState<Stall | null>(null);
+
+  // Auto-select stall and switch zone if ?stall=... is passed in URL
+  useEffect(() => {
+    if (stallParam && stalls.length > 0) {
+      const match = stalls.find(
+        (s) => s.stall_no.toUpperCase() === stallParam.toUpperCase()
+      );
+      if (match) {
+        setActiveZone(match.zone);
+        setSelectedStall(match);
+      }
+    }
+  }, [stallParam, stalls]);
 
   // Keep selected stall in sync with store updates
   const activeStall = selectedStall

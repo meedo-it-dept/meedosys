@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { StallGrid } from '@/components/market/StallGrid';
 
 export default function MarketMapPage() {
@@ -13,7 +13,9 @@ export default function MarketMapPage() {
         </p>
       </div>
 
-      <StallGrid />
+      <Suspense fallback={<div className="p-8 text-center text-slate-400 font-semibold text-sm">Loading Market Layout Blueprint...</div>}>
+        <StallGrid />
+      </Suspense>
     </div>
   );
 }
