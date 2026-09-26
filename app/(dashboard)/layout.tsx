@@ -16,7 +16,6 @@ import {
   ArrowRight,
   Home,
   LogOut,
-  Building2,
   UserCheck,
 } from 'lucide-react';
 
@@ -27,9 +26,8 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, authLoading, logout, switchSectionUser } = useMeedo();
+  const { currentUser, authLoading, logout } = useMeedo();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showSwitchModal, setShowSwitchModal] = useState(false);
 
   // Authentication check: redirect to /login if unauthenticated after state loaded
   useEffect(() => {
@@ -144,14 +142,6 @@ export default function DashboardLayout({
 
                   <div className="flex items-center gap-2">
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowSwitchModal(true)}
-                      className="text-blue-700 hover:bg-blue-50 text-xs font-semibold"
-                    >
-                      <Building2 className="w-4 h-4 mr-1" /> Switch Section
-                    </Button>
-                    <Button
                       variant="outline"
                       size="sm"
                       onClick={logout}
@@ -166,73 +156,6 @@ export default function DashboardLayout({
           )}
         </main>
       </div>
-
-      {/* Switch Section Modal for Testing */}
-      {showSwitchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex justify-between items-start border-b border-slate-200 pb-3 mb-4">
-              <div>
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-blue-600" /> Switch Section (RBAC Testing)
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Select a section to instantly switch active credentials and verify role-based permissions:
-                </p>
-              </div>
-              <button
-                onClick={() => setShowSwitchModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold text-lg"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {(
-                [
-                  { code: 'ALL', label: '👑 Administrator (Central OPIF & All Sections)', username: 'admin', path: '/' },
-                  { code: 'A', label: '🏬 Section A: Market Management', username: 'market_staff', path: '/market/map' },
-                  { code: 'B', label: '🥩 Section B: Slaughterhouse', username: 'slaughter_staff', path: '/slaughterhouse' },
-                  { code: 'C', label: '⚰️ Section C: Cemetery Management', username: 'cemetery_staff', path: '/cemetery/bookings' },
-                  { code: 'D', label: '🚐 Section D: Transport Terminal', username: 'transport_staff', path: '/transport/todas' },
-                  { code: 'F', label: '🛡️ Section F: Market Guard', username: 'guard_market', path: '/csu' },
-                ] as const
-              ).map((item) => (
-                <button
-                  key={item.code}
-                  onClick={() => {
-                    switchSectionUser(item.code as any);
-                    setShowSwitchModal(false);
-                    router.push(item.path);
-                  }}
-                  className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between ${
-                    currentUser.section === item.code
-                      ? 'border-blue-600 bg-blue-50/70 font-bold text-blue-950 shadow-sm'
-                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <div>
-                    <div className="text-xs font-semibold">{item.label}</div>
-                    <div className="text-[11px] text-slate-500 font-mono">User: {item.username}</div>
-                  </div>
-                  {currentUser.section === item.code && (
-                    <Badge variant="success" className="text-[10px]">
-                      Active
-                    </Badge>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setShowSwitchModal(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

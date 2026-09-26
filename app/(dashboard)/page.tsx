@@ -18,7 +18,6 @@ import {
   Lock,
   CheckCircle2,
   ShieldCheck,
-  Sparkles,
   Package,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -27,7 +26,6 @@ import { Badge } from '@/components/ui/badge';
 export default function DashboardHome() {
   const {
     currentUser,
-    switchSectionUser,
     stalls,
     electricBills,
     slaughterRecords,
@@ -128,15 +126,6 @@ export default function DashboardHome() {
     },
   ];
 
-  const quickSections: { code: UserSection; label: string; icon: string }[] = [
-    { code: 'ALL', label: 'Admin (All)', icon: '👑' },
-    { code: 'A', label: 'A: Market', icon: '🏬' },
-    { code: 'B', label: 'B: Slaughterhouse', icon: '🥩' },
-    { code: 'C', label: 'C: Cemetery', icon: '⚰️' },
-    { code: 'D', label: 'D: Transport', icon: '🚐' },
-    { code: 'F', label: 'F: Market Guard', icon: '🛡️' },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Welcome & Department Clearance Banner */}
@@ -179,33 +168,6 @@ export default function DashboardHome() {
                 {isAdmin ? 'Full Unrestricted (ALL)' : `Siloed to Section ${currentSec}`}
               </span>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Section Switcher Bar for Seamless RBAC Testing */}
-        <div className="mt-6 pt-5 border-t border-white/20 relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-blue-100 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Switch Section Persona (Testing):</span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {quickSections.map((s) => {
-              const isActive = (currentUser?.section || 'A') === s.code;
-              return (
-                <button
-                  key={s.code}
-                  onClick={() => switchSectionUser(s.code)}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1 ${
-                    isActive
-                      ? 'bg-white text-blue-800 font-bold shadow-sm ring-2 ring-blue-300'
-                      : 'bg-white/15 hover:bg-white/25 text-white'
-                  }`}
-                >
-                  <span>{s.icon}</span>
-                  <span>{s.label}</span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>

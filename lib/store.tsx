@@ -3,7 +3,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   UserProfile,
+  UserRole,
   UserSection,
+  UserStatus,
   Stall,
   ElectricBill,
   SlaughterRecord,
@@ -41,18 +43,22 @@ interface MeedoContextType {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   authLoading: boolean;
-  login: (username: string, role?: string, section?: string) => boolean;
+  login: (username: string, password?: string) => { success: boolean; message?: string };
   logout: () => void;
   switchSectionUser: (sectionCode: UserSection) => boolean;
   users: UserProfile[];
   updateUserStatus: (username: string, action: 'approve' | 'block' | 'delete') => void;
+  updateUserProfile: (username: string, updates: Partial<UserProfile>) => void;
+  createUser: (userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }) => { success: boolean; message?: string };
   registerUser: (
     username: string,
     section: string,
     guardId?: string,
     fullName?: string,
-    rankTitle?: string
-  ) => boolean;
+    rankTitle?: string,
+    password?: string
+  ) => { success: boolean; message?: string };
+  refreshUsers: () => Promise<void>;
 
   guards: MarketGuard[];
   addGuard: (guard: MarketGuard) => void;
@@ -188,6 +194,16 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const savedUser = localStorage.getItem('meedo_current_user');
         if (savedUser) setCurrentUser(JSON.parse(savedUser));
 
+        const savedUsersStr = localStorage.getItem('meedo_users');
+        if (savedUsersStr) {
+          try {
+            const parsed = JSON.parse(savedUsersStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setUsers(parsed);
+            }
+          } catch (e) {}
+        }
+
         if (isSupabaseConfigured && supabase) {
           // Fetch live production data from Supabase
           const fetchSupabase = async () => {
@@ -207,6 +223,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 invTxRes,
                 butchersRes,
                 profilesRes,
+                auditRes,
                 monitoringRes,
               ] = await Promise.all([
                 client.from('stall_tenants').select('*'),
@@ -221,6 +238,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 client.from('inventory_transactions').select('*'),
                 client.from('butchers').select('*'),
                 client.from('profiles').select('*'),
+                client.from('audit_logs').select('*').order('created_at', { ascending: true }),
                 client.from('monitoring_records').select('*').order('monitoring_date', { ascending: false }),
               ]);
 
@@ -250,12 +268,74 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 );
               }
 
-              if (profilesRes.data && profilesRes.data.length > 0) {
-                const userMap = new Map<string, UserProfile>();
-                initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
-                profilesRes.data.forEach((u: any) => userMap.set(u.username.toLowerCase(), u));
-                setUsers(Array.from(userMap.values()));
+              // Consolidate users directory from initial seeds, local cache, profiles, and audit log events
+              const userMap = new Map<string, UserProfile>();
+              initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
+
+              const cachedUsers = localStorage.getItem('meedo_users');
+              if (cachedUsers) {
+                try {
+                  const parsed = JSON.parse(cachedUsers);
+                  if (Array.isArray(parsed)) {
+                    parsed.forEach((u: UserProfile) => {
+                      if (u && u.username) {
+                        const existing = userMap.get(u.username.toLowerCase()) || {};
+                        userMap.set(u.username.toLowerCase(), { ...existing, ...u });
+                      }
+                    });
+                  }
+                } catch (e) {}
               }
+
+              if (profilesRes.data && profilesRes.data.length > 0) {
+                profilesRes.data.forEach((p: any) => {
+                  if (p && p.username) {
+                    const existing = userMap.get(p.username.toLowerCase()) || {};
+                    userMap.set(p.username.toLowerCase(), { ...existing, ...p });
+                  }
+                });
+              }
+
+              if (auditRes.data && auditRes.data.length > 0) {
+                auditRes.data.forEach((log: any) => {
+                  try {
+                    const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                    if (!details) return;
+                    if (log.action === 'USER_REGISTERED' || log.action === 'USER_CREATED_BY_ADMIN') {
+                      const u = details.user || details;
+                      if (u && u.username) {
+                        const existing = userMap.get(u.username.toLowerCase()) || {};
+                        userMap.set(u.username.toLowerCase(), { ...existing, ...u });
+                      }
+                    } else if (log.action === 'USER_APPROVED') {
+                      const un = (details.target_username || details.username || '').toLowerCase();
+                      if (un && userMap.has(un)) {
+                        const curr = userMap.get(un)!;
+                        userMap.set(un, { ...curr, status: 'Approved' });
+                      }
+                    } else if (log.action === 'USER_BLOCKED') {
+                      const un = (details.target_username || details.username || '').toLowerCase();
+                      if (un && userMap.has(un)) {
+                        const curr = userMap.get(un)!;
+                        userMap.set(un, { ...curr, status: 'Blocked' });
+                      }
+                    } else if (log.action === 'USER_DELETED') {
+                      const un = (details.target_username || details.username || '').toLowerCase();
+                      if (un) userMap.delete(un);
+                    } else if (log.action === 'USER_PROFILE_UPDATED') {
+                      const un = (details.target_username || details.username || '').toLowerCase();
+                      if (un && userMap.has(un) && details.updates) {
+                        const curr = userMap.get(un)!;
+                        userMap.set(un, { ...curr, ...details.updates });
+                      }
+                    }
+                  } catch (e) {}
+                });
+              }
+
+              const consolidated = Array.from(userMap.values());
+              setUsers(consolidated);
+              localStorage.setItem('meedo_users', JSON.stringify(consolidated));
             } catch (err) {
               console.warn('Supabase sync note:', err);
             }
@@ -342,21 +422,146 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const login = (identifier: string): boolean => {
+  const refreshUsers = async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      const [profilesRes, auditRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('audit_logs').select('*').order('created_at', { ascending: true }),
+      ]);
+
+      const userMap = new Map<string, UserProfile>();
+      initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
+
+      const localUsers = localStorage.getItem('meedo_users');
+      if (localUsers) {
+        try {
+          const parsed = JSON.parse(localUsers);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((u: UserProfile) => {
+              if (u && u.username) {
+                userMap.set(u.username.toLowerCase(), {
+                  ...userMap.get(u.username.toLowerCase()),
+                  ...u,
+                });
+              }
+            });
+          }
+        } catch (e) {}
+      }
+
+      if (profilesRes.data && profilesRes.data.length > 0) {
+        profilesRes.data.forEach((p: any) => {
+          if (p && p.username) {
+            const existing = userMap.get(p.username.toLowerCase()) || {};
+            userMap.set(p.username.toLowerCase(), { ...existing, ...p });
+          }
+        });
+      }
+
+      if (auditRes.data && auditRes.data.length > 0) {
+        auditRes.data.forEach((log: any) => {
+          try {
+            const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+            if (!details) return;
+            if (log.action === 'USER_REGISTERED' || log.action === 'USER_CREATED_BY_ADMIN') {
+              const u = details.user || details;
+              if (u && u.username) {
+                const existing = userMap.get(u.username.toLowerCase()) || {};
+                userMap.set(u.username.toLowerCase(), { ...existing, ...u });
+              }
+            } else if (log.action === 'USER_APPROVED') {
+              const un = (details.target_username || details.username || '').toLowerCase();
+              if (un && userMap.has(un)) {
+                const curr = userMap.get(un)!;
+                userMap.set(un, { ...curr, status: 'Approved' });
+              }
+            } else if (log.action === 'USER_BLOCKED') {
+              const un = (details.target_username || details.username || '').toLowerCase();
+              if (un && userMap.has(un)) {
+                const curr = userMap.get(un)!;
+                userMap.set(un, { ...curr, status: 'Blocked' });
+              }
+            } else if (log.action === 'USER_DELETED') {
+              const un = (details.target_username || details.username || '').toLowerCase();
+              if (un) userMap.delete(un);
+            } else if (log.action === 'USER_PROFILE_UPDATED') {
+              const un = (details.target_username || details.username || '').toLowerCase();
+              if (un && userMap.has(un) && details.updates) {
+                const curr = userMap.get(un)!;
+                userMap.set(un, { ...curr, ...details.updates });
+              }
+            }
+          } catch (e) {}
+        });
+      }
+
+      const mergedUsers = Array.from(userMap.values());
+      setUsers(mergedUsers);
+      localStorage.setItem('meedo_users', JSON.stringify(mergedUsers));
+    } catch (err) {
+      console.warn('Failed to refresh users directory from Supabase:', err);
+    }
+  };
+
+  const login = (
+    identifier: string,
+    passwordInput?: string
+  ): { success: boolean; message?: string } => {
     const trimmed = identifier.trim().toLowerCase();
+    if (!trimmed) {
+      return { success: false, message: 'Please enter your username or Guard ID.' };
+    }
+
     const existing = users.find(
       (u) =>
         u.username.toLowerCase() === trimmed ||
         (u.guard_id && u.guard_id.toLowerCase() === trimmed)
     );
+
     if (existing) {
-      if (existing.status !== 'Approved') {
-        alert('Account is pending approval or blocked.');
-        return false;
+      if (existing.status === 'Pending') {
+        return {
+          success: false,
+          message: 'Account approval pending. Please contact the MEEDO Office to activate your departmental credentials.',
+        };
       }
+      if (existing.status === 'Blocked') {
+        return {
+          success: false,
+          message: 'Account suspended. This user account has been deactivated by the Administrator.',
+        };
+      }
+
+      // Password verification: if account has a designated password, check it
+      if (existing.password && passwordInput !== undefined) {
+        if (existing.password !== passwordInput.trim()) {
+          return {
+            success: false,
+            message: 'Invalid password. Please enter the correct password for this account.',
+          };
+        }
+      }
+
       setCurrentUser(existing);
       localStorage.setItem('meedo_current_user', JSON.stringify(existing));
-      return true;
+
+      if (isSupabaseConfigured && supabase) {
+        supabase
+          .from('audit_logs')
+          .insert({
+            username: existing.username,
+            action: 'USER_LOGIN',
+            details: JSON.stringify({
+              role: existing.role,
+              section: existing.section,
+              timestamp: new Date().toISOString(),
+            }),
+          })
+          .then();
+      }
+
+      return { success: true };
     }
 
     // Check if identifier matches a registered guard from the roster (e.g. G-101, G-102...)
@@ -374,23 +579,13 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       setCurrentUser(guardUser);
       localStorage.setItem('meedo_current_user', JSON.stringify(guardUser));
-      return true;
+      return { success: true };
     }
 
-    // Auto-login fallback for testing
-    const isGuard = trimmed.startsWith('g-') || trimmed.includes('guard');
-    const defaultUser: UserProfile = {
-      id: 'usr_' + Date.now(),
-      username: identifier,
-      role: trimmed.includes('admin') ? 'Admin' : 'Staff',
-      section: trimmed.includes('admin') ? 'ALL' : isGuard ? 'F' : 'A',
-      status: 'Approved',
-      guard_id: isGuard ? identifier.toUpperCase() : undefined,
-      full_name: isGuard ? `Guard ${identifier.toUpperCase()}` : undefined,
+    return {
+      success: false,
+      message: 'Invalid credentials. User or Guard ID does not exist in the MEEDOSys registry.',
     };
-    setCurrentUser(defaultUser);
-    localStorage.setItem('meedo_current_user', JSON.stringify(defaultUser));
-    return true;
   };
 
   const logout = () => {
@@ -421,23 +616,53 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     section: string,
     guardId?: string,
     fullName?: string,
-    rankTitle?: string
-  ): boolean => {
+    rankTitle?: string,
+    password?: string
+  ): { success: boolean; message?: string } => {
+    const trimmedUser = username.trim();
+    if (!trimmedUser) {
+      return { success: false, message: 'Username is required.' };
+    }
+
+    const exists = users.some(
+      (u) => u.username.toLowerCase() === trimmedUser.toLowerCase()
+    );
+    if (exists) {
+      return { success: false, message: 'This username is already registered. Please choose another.' };
+    }
+
     const cleanGuardId = guardId ? guardId.trim().toUpperCase() : undefined;
     const newUser: UserProfile = {
       id: 'usr_' + Date.now(),
-      username,
+      username: trimmedUser,
       role: 'Staff',
-      section: section as any,
+      section: section as UserSection,
       status: 'Pending',
+      password: password?.trim() || undefined,
       guard_id: cleanGuardId,
-      full_name: fullName ? fullName.trim() : undefined,
+      full_name: fullName ? fullName.trim() : trimmedUser,
       rank_title: rankTitle ? rankTitle.trim() : undefined,
       created_at: new Date().toISOString(),
     };
+
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
+
+    // Sync to Supabase audit logs
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: newUser.username,
+          action: 'USER_REGISTERED',
+          details: JSON.stringify({
+            user: newUser,
+            timestamp: new Date().toISOString(),
+          }),
+        })
+        .then();
+    }
 
     // If registering under Section F with Guard ID, ensure it exists in guards roster
     if (section === 'F' && cleanGuardId) {
@@ -461,7 +686,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ...prev,
             {
               guard_id: cleanGuardId,
-              guard_name: fullName?.trim() || username,
+              guard_name: fullName?.trim() || trimmedUser,
               rank_title: rankTitle?.trim() || 'SO1',
               default_area: 'Market General Security',
               status: 'Active',
@@ -472,22 +697,148 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return updatedRoster;
       });
     }
-    return true;
+
+    return { success: true };
   };
 
   const updateUserStatus = (username: string, action: 'approve' | 'block' | 'delete') => {
     let updated: UserProfile[];
     if (action === 'delete') {
-      updated = users.filter((u) => u.username !== username);
+      updated = users.filter((u) => u.username.toLowerCase() !== username.toLowerCase());
     } else {
       updated = users.map((u) =>
-        u.username === username
+        u.username.toLowerCase() === username.toLowerCase()
           ? { ...u, status: action === 'approve' ? 'Approved' : 'Blocked' }
           : u
       );
     }
     setUsers(updated);
     localStorage.setItem('meedo_users', JSON.stringify(updated));
+
+    // Update active currentUser session if matching
+    if (currentUser?.username.toLowerCase() === username.toLowerCase()) {
+      if (action === 'delete' || action === 'block') {
+        setCurrentUser(null);
+        localStorage.removeItem('meedo_current_user');
+      } else {
+        const updatedSelf = { ...currentUser, status: 'Approved' as const };
+        setCurrentUser(updatedSelf);
+        localStorage.setItem('meedo_current_user', JSON.stringify(updatedSelf));
+      }
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: currentUser?.username || 'admin',
+          action: action === 'approve' ? 'USER_APPROVED' : action === 'block' ? 'USER_BLOCKED' : 'USER_DELETED',
+          details: JSON.stringify({
+            target_username: username,
+            action,
+            timestamp: new Date().toISOString(),
+          }),
+        })
+        .then();
+
+      if (action === 'delete') {
+        supabase.from('profiles').delete().ilike('username', username).then();
+      } else {
+        supabase
+          .from('profiles')
+          .update({ status: action === 'approve' ? 'Approved' : 'Blocked' })
+          .ilike('username', username)
+          .then();
+      }
+    }
+  };
+
+  const updateUserProfile = (username: string, updates: Partial<UserProfile>) => {
+    const updated = users.map((u) => {
+      if (u.username.toLowerCase() === username.toLowerCase()) {
+        return { ...u, ...updates, updated_at: new Date().toISOString() };
+      }
+      return u;
+    });
+    setUsers(updated);
+    localStorage.setItem('meedo_users', JSON.stringify(updated));
+
+    if (currentUser?.username.toLowerCase() === username.toLowerCase()) {
+      const updatedSelf = { ...currentUser, ...updates };
+      setCurrentUser(updatedSelf);
+      localStorage.setItem('meedo_current_user', JSON.stringify(updatedSelf));
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: currentUser?.username || 'admin',
+          action: 'USER_PROFILE_UPDATED',
+          details: JSON.stringify({
+            target_username: username,
+            updates,
+            timestamp: new Date().toISOString(),
+          }),
+        })
+        .then();
+
+      const profilePayload: any = {};
+      if (updates.role) profilePayload.role = updates.role;
+      if (updates.section) profilePayload.section = updates.section;
+      if (updates.status) profilePayload.status = updates.status;
+
+      if (Object.keys(profilePayload).length > 0) {
+        supabase.from('profiles').update(profilePayload).ilike('username', username).then();
+      }
+    }
+  };
+
+  const createUser = (
+    userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }
+  ): { success: boolean; message?: string } => {
+    const trimmedUser = userData.username.trim();
+    if (!trimmedUser) {
+      return { success: false, message: 'Username is required.' };
+    }
+
+    if (users.some((u) => u.username.toLowerCase() === trimmedUser.toLowerCase())) {
+      return { success: false, message: 'A user with this username already exists.' };
+    }
+
+    const newUser: UserProfile = {
+      id: 'usr_' + Date.now(),
+      username: trimmedUser,
+      role: userData.role || 'Staff',
+      section: userData.section || 'A',
+      status: userData.status || 'Approved',
+      password: userData.password?.trim() || undefined,
+      guard_id: userData.guard_id?.trim().toUpperCase() || undefined,
+      full_name: userData.full_name?.trim() || trimmedUser,
+      rank_title: userData.rank_title?.trim() || undefined,
+      created_at: new Date().toISOString(),
+    };
+
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
+
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: currentUser?.username || 'admin',
+          action: 'USER_CREATED_BY_ADMIN',
+          details: JSON.stringify({
+            created_by: currentUser?.username || 'admin',
+            user: newUser,
+            timestamp: new Date().toISOString(),
+          }),
+        })
+        .then();
+    }
+
+    return { success: true };
   };
 
   const updateStallTenant = (stallNo: string, updates: Partial<StallTenant>) => {
@@ -1198,7 +1549,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         switchSectionUser,
         users,
         updateUserStatus,
+        updateUserProfile,
+        createUser,
         registerUser,
+        refreshUsers,
         stalls,
         updateStallTenant,
         addStallTenant,

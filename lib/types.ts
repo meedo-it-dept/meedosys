@@ -12,6 +12,7 @@ export interface UserProfile {
   role: UserRole;
   section: UserSection;
   status: UserStatus;
+  password?: string;
   guard_id?: string;
   full_name?: string;
   rank_title?: string;

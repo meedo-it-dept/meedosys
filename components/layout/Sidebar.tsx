@@ -40,7 +40,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, logout, isLiveSupabase, switchSectionUser } = useMeedo();
+  const { currentUser, logout, isLiveSupabase } = useMeedo();
   const { isInstalled, openInstallGuide } = usePwa();
 
   const [marketOpen, setMarketOpen] = useState(true);
@@ -427,33 +427,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <Badge variant={isLiveSupabase ? 'success' : 'neutral'}>
               {isLiveSupabase ? 'Live' : 'Demo'}
             </Badge>
-          </div>
-
-          {/* Quick RBAC Switcher for Fast Testing */}
-          <div className="my-2.5 pt-2 border-t border-slate-200/60">
-            <label className="text-[9px] uppercase tracking-wider font-bold text-slate-400 block mb-1">
-              Switch Test Section
-            </label>
-            <select
-              value={currentUser?.section || 'ALL'}
-              onChange={(e) => {
-                const targetSec = e.target.value as UserSection;
-                const ok = switchSectionUser(targetSec);
-                const meta = SECTIONS_META[targetSec as keyof typeof SECTIONS_META];
-                if (ok && meta) {
-                  router.push(meta.defaultPath);
-                  onClose();
-                }
-              }}
-              className="w-full text-[11px] bg-white border border-slate-200 rounded-md px-2 py-1.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer hover:border-slate-300"
-            >
-              <option value="ALL">👑 Admin (Central OPIF & All Access)</option>
-              <option value="A">🏬 Section A • Market Staff</option>
-              <option value="B">🥩 Section B • Slaughterhouse</option>
-              <option value="C">⚰️ Section C • Cemetery Staff</option>
-              <option value="D">🚐 Section D • Transport Staff</option>
-              <option value="F">🛡️ Section F • Market Guard</option>
-            </select>
           </div>
 
           {/* In-App PWA Install Trigger when browsing on mobile web */}
