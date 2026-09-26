@@ -47,8 +47,9 @@ CREATE POLICY "Public profiles access" ON public.profiles
   USING (true) 
   WITH CHECK (true);
 
--- 6. Ensure default Administrator account exists
+-- 6. Ensure default Administrator account exists (explicitly providing UUID)
 INSERT INTO public.profiles (
+  id,
   username,
   full_name,
   role,
@@ -56,6 +57,7 @@ INSERT INTO public.profiles (
   status,
   password
 ) VALUES (
+  COALESCE((SELECT id FROM public.profiles WHERE username = 'admin'), gen_random_uuid()),
   'admin',
   'Municipal Administrator',
   'Admin',
