@@ -66,6 +66,7 @@ export default function UserManagementPage() {
   const [newRankTitle, setNewRankTitle] = useState('SO1');
   const [newCallSign, setNewCallSign] = useState('EAGLE-1');
   const [newDefaultArea, setNewDefaultArea] = useState('General Public Market');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [formError, setFormError] = useState('');
 
   // Edit User Form State
@@ -167,7 +168,7 @@ export default function UserManagementPage() {
   };
 
   // Submit Add User Modal
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -191,39 +192,46 @@ export default function UserManagementPage() {
       return;
     }
 
-    const res = createUser({
-      username: newUsername.trim(),
-      full_name: newFullName.trim() || newUsername.trim(),
-      role: newRole,
-      section: newRole === 'Admin' && newSection === 'ALL' ? 'ALL' : newSection,
-      status: newStatus,
-      password: newPassword.trim() || undefined,
-      guard_id: newSection === 'F' ? newGuardId.trim().toUpperCase() : undefined,
-      rank_title: newSection === 'F' ? newRankTitle.trim() : undefined,
-      radio_call_sign: newSection === 'F' ? newCallSign.trim().toUpperCase() : undefined,
-      default_area: newSection === 'F' ? newDefaultArea.trim() : undefined,
-    });
-
-    if (res.success) {
-      setFeedbackMsg({
-        type: 'success',
-        text: `New user account "${newUsername.trim()}" created and synced to Supabase directory.`,
+    setIsCreatingUser(true);
+    try {
+      const res = await createUser({
+        username: newUsername.trim(),
+        full_name: newFullName.trim() || newUsername.trim(),
+        role: newRole,
+        section: newRole === 'Admin' && newSection === 'ALL' ? 'ALL' : newSection,
+        status: newStatus,
+        password: newPassword.trim() || undefined,
+        guard_id: newSection === 'F' ? newGuardId.trim().toUpperCase() : undefined,
+        rank_title: newSection === 'F' ? newRankTitle.trim() : undefined,
+        radio_call_sign: newSection === 'F' ? newCallSign.trim().toUpperCase() : undefined,
+        default_area: newSection === 'F' ? newDefaultArea.trim() : undefined,
       });
-      setIsAddModalOpen(false);
-      // Reset form
-      setNewUsername('');
-      setNewFullName('');
-      setNewRole('Staff');
-      setNewSection('A');
-      setNewStatus('Approved');
-      setNewPassword('');
-      setNewGuardId('');
-      setNewRankTitle('SO1');
-      setNewCallSign('EAGLE-1');
-      setNewDefaultArea('General Public Market');
-      setTimeout(() => setFeedbackMsg(null), 4000);
-    } else {
-      setFormError(res.message || 'Failed to create user account.');
+
+      if (res.success) {
+        setFeedbackMsg({
+          type: 'success',
+          text: `New user account "${newUsername.trim()}" created and synced to Supabase directory.`,
+        });
+        setIsAddModalOpen(false);
+        // Reset form
+        setNewUsername('');
+        setNewFullName('');
+        setNewRole('Staff');
+        setNewSection('A');
+        setNewStatus('Approved');
+        setNewPassword('');
+        setNewGuardId('');
+        setNewRankTitle('SO1');
+        setNewCallSign('EAGLE-1');
+        setNewDefaultArea('General Public Market');
+        setTimeout(() => setFeedbackMsg(null), 4000);
+      } else {
+        setFormError(res.message || 'Failed to create user account.');
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to create user account.');
+    } finally {
+      setIsCreatingUser(false);
     }
   };
 
@@ -848,8 +856,15 @@ export default function UserManagementPage() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary" size="sm">
-                  Create User Account
+                <Button type="submit" variant="primary" size="sm" disabled={isCreatingUser}>
+                  {isCreatingUser ? (
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Saving to Supabase...
+                    </span>
+                  ) : (
+                    'Create User Account'
+                  )}
                 </Button>
               </div>
             </form>

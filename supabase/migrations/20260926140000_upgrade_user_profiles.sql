@@ -37,6 +37,8 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS guard_id TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS rank_title TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS radio_call_sign TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_area TEXT;
 
 -- 5. Row-Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;

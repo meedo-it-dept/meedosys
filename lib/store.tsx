@@ -52,7 +52,7 @@ interface MeedoContextType {
   users: UserProfile[];
   updateUserStatus: (username: string, action: 'approve' | 'block' | 'delete') => void;
   updateUserProfile: (username: string, updates: Partial<UserProfile>) => void;
-  createUser: (userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }) => { success: boolean; message?: string };
+  createUser: (userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }) => Promise<{ success: boolean; message?: string }>;
   registerUser: (
     username: string,
     section: string,
@@ -647,6 +647,33 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const mergedUsers = Array.from(userMap.values());
       setUsers(mergedUsers);
       localStorage.setItem('meedo_users', JSON.stringify(mergedUsers));
+
+      // Auto-sync any locally cached valid users missing from Supabase profiles
+      const supabaseUsernames = new Set(
+        (profilesRes.data || []).map((p: any) => (p.username || '').toLowerCase())
+      );
+      const entriesToSync = Array.from(userMap.entries()).filter(
+        ([uname]) => !supabaseUsernames.has(uname) && !legacyMockUsernames.has(uname) && uname !== 'admin'
+      );
+      for (const [, u] of entriesToSync) {
+        try {
+          const basePayload: Record<string, any> = {
+            id: u.id || generateUUID(),
+            username: u.username,
+            role: u.role || 'Staff',
+            section: u.section || 'A',
+            status: u.status || 'Approved',
+            full_name: u.full_name || u.username,
+            password: u.password || null,
+            guard_id: u.guard_id || null,
+            rank_title: u.rank_title || null,
+            created_at: u.created_at || new Date().toISOString(),
+          };
+          await supabase.from('profiles').upsert(basePayload, { onConflict: 'username' });
+        } catch (e) {
+          console.warn('Auto-sync profile note:', e);
+        }
+      }
     } catch (err) {
       console.warn('Failed to refresh users directory from Supabase:', err);
       throw err;
@@ -971,24 +998,47 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (isSupabaseConfigured && supabase) {
-      const profilePayload: any = { updated_at: new Date().toISOString() };
-      if (updates.role !== undefined) profilePayload.role = updates.role;
-      if (updates.section !== undefined) profilePayload.section = updates.section;
-      if (updates.status !== undefined) profilePayload.status = updates.status;
-      if (updates.full_name !== undefined) profilePayload.full_name = updates.full_name;
-      if (updates.password !== undefined) profilePayload.password = updates.password;
-      if (updates.guard_id !== undefined) profilePayload.guard_id = updates.guard_id;
-      if (updates.rank_title !== undefined) profilePayload.rank_title = updates.rank_title;
-      if (updates.radio_call_sign !== undefined) profilePayload.radio_call_sign = updates.radio_call_sign;
-      if (updates.default_area !== undefined) profilePayload.default_area = updates.default_area;
+      const client = supabase;
+      const basePayload: any = { updated_at: new Date().toISOString() };
+      if (updates.role !== undefined) basePayload.role = updates.role;
+      if (updates.section !== undefined) basePayload.section = updates.section;
+      if (updates.status !== undefined) basePayload.status = updates.status;
+      if (updates.full_name !== undefined) basePayload.full_name = updates.full_name;
+      if (updates.password !== undefined) basePayload.password = updates.password;
+      if (updates.guard_id !== undefined) basePayload.guard_id = updates.guard_id;
+      if (updates.rank_title !== undefined) basePayload.rank_title = updates.rank_title;
 
-      supabase
-        .from('profiles')
-        .update(profilePayload)
-        .ilike('username', username)
-        .then(({ error }) => {
+      const fullPayload = { ...basePayload };
+      if (updates.radio_call_sign !== undefined) fullPayload.radio_call_sign = updates.radio_call_sign;
+      if (updates.default_area !== undefined) fullPayload.default_area = updates.default_area;
+
+      const hasExtraCols = updates.radio_call_sign !== undefined || updates.default_area !== undefined;
+
+      const performUpdate = async () => {
+        if (hasExtraCols) {
+          const { error } = await client
+            .from('profiles')
+            .update(fullPayload)
+            .ilike('username', username);
+          if (error) {
+            if (error.code === 'PGRST204' || error.message?.includes('column')) {
+              await client
+                .from('profiles')
+                .update(basePayload)
+                .ilike('username', username);
+            } else {
+              console.error('Supabase profile update sync error:', error);
+            }
+          }
+        } else {
+          const { error } = await client
+            .from('profiles')
+            .update(basePayload)
+            .ilike('username', username);
           if (error) console.error('Supabase profile update sync error:', error);
-        });
+        }
+      };
+      performUpdate().then();
 
       // Synchronize changes to market_guards roster if user has guard_id
       const targetUser = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
@@ -1031,9 +1081,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const createUser = (
+  const createUser = async (
     userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }
-  ): { success: boolean; message?: string } => {
+  ): Promise<{ success: boolean; message?: string }> => {
     const trimmedUser = userData.username.trim();
     if (!trimmedUser) {
       return { success: false, message: 'Username is required.' };
@@ -1043,12 +1093,12 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, message: 'A user with this username already exists.' };
     }
 
-    const cleanGuardId = userData.guard_id ? userData.guard_id.trim().toUpperCase() : undefined;
+    const cleanGuardId = userData.section === 'F' && userData.guard_id ? userData.guard_id.trim().toUpperCase() : undefined;
     const cleanFullName = userData.full_name ? userData.full_name.trim() : trimmedUser;
-    const cleanRankTitle = userData.rank_title ? userData.rank_title.trim() : undefined;
+    const cleanRankTitle = userData.section === 'F' && userData.rank_title ? userData.rank_title.trim() : undefined;
     const cleanPassword = userData.password?.trim() || undefined;
-    const cleanCallSign = userData.radio_call_sign?.trim().toUpperCase() || 'EAGLE-1';
-    const cleanDefaultArea = userData.default_area?.trim() || 'General Public Market';
+    const cleanCallSign = userData.section === 'F' ? (userData.radio_call_sign?.trim().toUpperCase() || 'EAGLE-1') : undefined;
+    const cleanDefaultArea = userData.section === 'F' ? (userData.default_area?.trim() || 'General Public Market') : undefined;
 
     const newUser: UserProfile = {
       id: generateUUID(),
@@ -1065,48 +1115,77 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: new Date().toISOString(),
     };
 
+    // Direct synchronization to Supabase public.profiles and audit_logs
+    if (isSupabaseConfigured && supabase) {
+      const basePayload: Record<string, any> = {
+        id: newUser.id,
+        username: newUser.username,
+        role: newUser.role,
+        section: newUser.section,
+        status: newUser.status,
+        full_name: newUser.full_name,
+        password: newUser.password || null,
+        guard_id: newUser.guard_id || null,
+        rank_title: newUser.rank_title || null,
+        created_at: newUser.created_at,
+      };
+
+      try {
+        let syncError: any = null;
+        if (newUser.section === 'F' && (newUser.radio_call_sign || newUser.default_area)) {
+          const fullPayload = {
+            ...basePayload,
+            radio_call_sign: newUser.radio_call_sign || null,
+            default_area: newUser.default_area || null,
+          };
+          const { error } = await supabase
+            .from('profiles')
+            .upsert(fullPayload, { onConflict: 'username' });
+
+          if (error) {
+            if (error.code === 'PGRST204' || error.message?.includes('column')) {
+              console.warn('Profiles table missing extra columns, falling back to base columns:', error.message);
+              const retryRes = await supabase
+                .from('profiles')
+                .upsert(basePayload, { onConflict: 'username' });
+              syncError = retryRes.error;
+            } else {
+              syncError = error;
+            }
+          }
+        } else {
+          const { error } = await supabase
+            .from('profiles')
+            .upsert(basePayload, { onConflict: 'username' });
+          syncError = error;
+        }
+
+        if (syncError) {
+          console.error('Supabase profile creation sync error:', syncError);
+          return { success: false, message: `Database error: ${syncError.message}` };
+        }
+
+        await supabase
+          .from('audit_logs')
+          .insert({
+            username: currentUser?.username || 'admin',
+            action: 'USER_CREATED_BY_ADMIN',
+            details: JSON.stringify({
+              created_by: currentUser?.username || 'admin',
+              user: newUser,
+              timestamp: new Date().toISOString(),
+            }),
+          });
+      } catch (err: any) {
+        console.error('Network error creating Supabase profile:', err);
+        return { success: false, message: `Failed to connect to database: ${err.message || err}` };
+      }
+    }
+
+    // Save locally
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
-
-    // Direct synchronization to Supabase public.profiles and audit_logs
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('profiles')
-        .upsert(
-          {
-            id: newUser.id,
-            username: newUser.username,
-            role: newUser.role,
-            section: newUser.section,
-            status: newUser.status,
-            full_name: newUser.full_name,
-            password: newUser.password || null,
-            guard_id: newUser.guard_id || null,
-            rank_title: newUser.rank_title || null,
-            radio_call_sign: newUser.radio_call_sign || null,
-            default_area: newUser.default_area || null,
-            created_at: newUser.created_at,
-          },
-          { onConflict: 'username' }
-        )
-        .then(({ error }) => {
-          if (error) console.error('Supabase profile creation sync error:', error);
-        });
-
-      supabase
-        .from('audit_logs')
-        .insert({
-          username: currentUser?.username || 'admin',
-          action: 'USER_CREATED_BY_ADMIN',
-          details: JSON.stringify({
-            created_by: currentUser?.username || 'admin',
-            user: newUser,
-            timestamp: new Date().toISOString(),
-          }),
-        })
-        .then();
-    }
 
     // If Section F with Guard ID, ensure it exists in guards roster and Supabase market_guards
     if (newUser.section === 'F' && cleanGuardId) {
