@@ -206,7 +206,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window !== 'undefined') {
       try {
         // One-time wipe of old mock data from previous demo sessions
-        if (localStorage.getItem('meedo_clean_csu_and_users_v5') !== 'true') {
+        if (localStorage.getItem('meedo_clean_csu_and_users_v6') !== 'true') {
           localStorage.removeItem('meedo_csu');
           localStorage.removeItem('meedo_guards');
           localStorage.removeItem('meedo_calendar_events');
@@ -217,23 +217,41 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setMarketCalendarEvents([]);
           setActiveShiftSession(null);
           setUsers(initialUsers);
-          localStorage.setItem('meedo_clean_csu_and_users_v5', 'true');
+          localStorage.setItem('meedo_clean_csu_and_users_v6', 'true');
         }
 
+        const legacyMockUsernames = new Set([
+          'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
+          'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
+          'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
+          'rexmonteliza', 'alvin'
+        ]);
+
         const savedUser = localStorage.getItem('meedo_current_user');
-        if (savedUser) setCurrentUser(JSON.parse(savedUser));
+        if (savedUser) {
+          try {
+            const parsed = JSON.parse(savedUser);
+            if (
+              !parsed ||
+              !parsed.username ||
+              legacyMockUsernames.has(parsed.username.toLowerCase()) ||
+              (parsed.full_name && parsed.full_name.toLowerCase().includes('rafjun'))
+            ) {
+              localStorage.removeItem('meedo_current_user');
+              setCurrentUser(initialUsers[0]);
+            } else {
+              setCurrentUser(parsed);
+            }
+          } catch (e) {
+            setCurrentUser(initialUsers[0]);
+          }
+        }
 
         const savedUsersStr = localStorage.getItem('meedo_users');
         if (savedUsersStr) {
           try {
             const parsed = JSON.parse(savedUsersStr);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              const legacyMockUsernames = new Set([
-                'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
-                'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
-                'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
-                'rexmonteliza', 'alvin'
-              ]);
               const filtered = parsed.filter((u: UserProfile) => u && u.username && !legacyMockUsernames.has(u.username.toLowerCase()));
               setUsers(filtered.length > 0 ? filtered : initialUsers);
             }
@@ -288,18 +306,41 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               if (todasRes.data) setTodas(todasRes.data);
               if (membersRes.data) setTodaMembers(membersRes.data);
               if (opifRes.data) setOpifIndicators(opifRes.data);
-              if (csuRes.data) setCsuReports(csuRes.data);
+              if (csuRes.data) {
+                const liveCsu = csuRes.data.filter(
+                  (r: any) =>
+                    r &&
+                    !r.prep_name?.toLowerCase().includes('rafjun') &&
+                    !r.prep_name?.toLowerCase().includes('melvin d. sionosa')
+                );
+                setCsuReports(liveCsu);
+              }
               if (invItemsRes.data) setInventoryItems(invItemsRes.data);
               if (invTxRes.data) setInventoryTransactions(invTxRes.data);
               if (butchersRes.data) setButchers(butchersRes.data);
               if (monitoringRes.data) setMonitoringRecords(monitoringRes.data);
-              if (guardsRes.data && guardsRes.data.length > 0) {
-                setGuards(guardsRes.data);
-                localStorage.setItem('meedo_guards', JSON.stringify(guardsRes.data));
+              if (guardsRes.data) {
+                const liveGuards = guardsRes.data.filter(
+                  (g: any) =>
+                    g &&
+                    !g.guard_name?.toLowerCase().includes('rafjun') &&
+                    !g.guard_name?.toLowerCase().includes('roberto alcantara') &&
+                    !g.guard_name?.toLowerCase().includes('melvin d. sionosa') &&
+                    !g.guard_name?.toLowerCase().includes('jomar l. castillo') &&
+                    !g.guard_name?.toLowerCase().includes('danilo p. ramos')
+                );
+                setGuards(liveGuards);
+                localStorage.setItem('meedo_guards', JSON.stringify(liveGuards));
               }
-              if (calendarRes.data && calendarRes.data.length > 0) {
-                setMarketCalendarEvents(calendarRes.data);
-                localStorage.setItem('meedo_calendar_events', JSON.stringify(calendarRes.data));
+              if (calendarRes.data) {
+                const liveCalendar = calendarRes.data.filter(
+                  (e: any) =>
+                    e &&
+                    !e.assigned_personnel?.toLowerCase().includes('rafjun') &&
+                    e.id !== 'evt_shift_01'
+                );
+                setMarketCalendarEvents(liveCalendar);
+                localStorage.setItem('meedo_calendar_events', JSON.stringify(liveCalendar));
               }
 
               if (tenantsRes.data) {
@@ -1725,12 +1766,12 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const session: GuardShiftSession = {
       id: 'shift_sess_' + Date.now(),
       calendar_event_id: eventDetails?.calendar_event_id,
-      guard_id: eventDetails?.guard_id || matchedGuard?.guard_id || 'G-103',
-      guard_name: eventDetails?.guard_name || matchedGuard?.guard_name || currentUser?.full_name || 'Market Guard',
+      guard_id: eventDetails?.guard_id || matchedGuard?.guard_id || currentUser?.guard_id || 'G-101',
+      guard_name: eventDetails?.guard_name || matchedGuard?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
       facility: eventDetails?.facility || matchedGuard?.assigned_facility || 'Public Market Main',
       area: eventDetails?.area || matchedGuard?.default_area || 'Whole Market / Main Hall',
       shift_name: eventDetails?.shift_name || matchedGuard?.current_shift || '1st Shift (06:00 - 14:00)',
-      call_sign: eventDetails?.call_sign || matchedGuard?.radio_call_sign || 'FALCON-3',
+      call_sign: eventDetails?.call_sign || matchedGuard?.radio_call_sign || 'EAGLE-1',
       status: 'ON_DUTY',
       time_in: timeIn,
       date: dateStr,
@@ -1793,7 +1834,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       turnover_notes:
         turnoverNotes ||
         'Properly turned over post, municipal keys, handheld radio, and peace & order logbook to incoming duty shift.',
-      prep_name: sess?.guard_name || currentUser?.full_name || 'Market Guard',
+      prep_name: sess?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
       prep_title: 'Market Guard-on-Duty',
       ver_name: 'CSU Supervisor',
       ver_title: 'Chief Security Officer',
@@ -1802,8 +1843,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       personnel_data: [
         {
           id: 'guard_duty_' + Date.now(),
-          guard_id: sess?.guard_id || 'G-103',
-          guard_name: sess?.guard_name || 'Market Guard',
+          guard_id: sess?.guard_id || currentUser?.guard_id || 'G-101',
+          guard_name: sess?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
           assigned_area: sess?.area || 'Whole Market',
           time_in: sess?.time_in || '06:00',
           time_out: timeOut,

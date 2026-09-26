@@ -53,11 +53,11 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
         g.guard_id.toUpperCase() === (currentUser?.username || '').toUpperCase()
     ) ||
     guards[0] || {
-      guard_id: 'G-103',
-      guard_name: 'Rafjun Somosa',
-      rank_title: 'Market Guard-on-Duty',
-      default_area: 'Whole Market / Main Hall',
-      radio_call_sign: 'FALCON-3',
+      guard_id: currentUser?.guard_id || 'G-101',
+      guard_name: currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+      rank_title: currentUser?.rank_title || 'Market Security Guard',
+      default_area: 'General Public Market',
+      radio_call_sign: 'EAGLE-1',
       assigned_facility: 'Public Market Main',
       current_shift: '1st Shift (06:00 - 14:00)',
       status: 'Active',

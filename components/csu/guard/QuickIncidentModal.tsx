@@ -85,8 +85,8 @@ export const QuickIncidentModal: React.FC<QuickIncidentModalProps> = ({
       immediate_action: immediateAction.trim() || 'Responded to scene and restored order.',
       persons_involved: personsInvolved.trim() || undefined,
       status: severity === 'Critical' ? 'Under Escalation' : 'Resolved On-Site',
-      guard_id: activeShiftSession?.guard_id || 'G-103',
-      guard_name: activeShiftSession?.guard_name || currentUser?.full_name || 'Market Guard',
+      guard_id: activeShiftSession?.guard_id || currentUser?.guard_id || 'G-101',
+      guard_name: activeShiftSession?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
       shift: activeShiftSession?.shift_name || '1st Shift',
       facility: activeShiftSession?.facility || 'Public Market Main',
     };

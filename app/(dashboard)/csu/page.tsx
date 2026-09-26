@@ -73,7 +73,7 @@ export default function CsuPage() {
 
   // When admin previews guard mode, select which guard persona to preview
   const [previewGuardId, setPreviewGuardId] = useState<string>(
-    guards[0]?.guard_id || 'G-103'
+    guards[0]?.guard_id || currentUser?.guard_id || 'G-101'
   );
 
   // Admin Navigation Tabs:
