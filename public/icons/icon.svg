@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1e40af" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded rect -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Outer gold accent ring -->
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="none" stroke="url(#goldGrad)" stroke-width="4" opacity="0.4" />
+
+  <!-- Center Store / Enterprise Icon Graphic -->
+  <g filter="url(#shadow)">
+    <!-- Roof / Canopy -->
+    <path d="M120 220 L256 128 L392 220 L380 248 L132 248 Z" fill="url(#goldGrad)" />
+    
+    <!-- Building Pillars & Base -->
+    <rect x="144" y="252" width="224" height="136" rx="8" fill="#ffffff" />
+    
+    <!-- Stall Openings / Pillars -->
+    <rect x="168" y="280" width="38" height="88" rx="6" fill="#1e40af" />
+    <rect x="237" y="280" width="38" height="88" rx="6" fill="#1e40af" />
+    <rect x="306" y="280" width="38" height="88" rx="6" fill="#1e40af" />
+    
+    <!-- Pedestal Base -->
+    <rect x="120" y="388" width="272" height="24" rx="6" fill="url(#goldGrad)" />
+  </g>
+
+  <!-- MEEDO Typography -->
+  <text x="256" y="456" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="4">
+    MEEDOSYS
+  </text>
+  <text x="256" y="482" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" fill="#93c5fd" text-anchor="middle" letter-spacing="2">
+    MALUNGON
+  </text>
+</svg>

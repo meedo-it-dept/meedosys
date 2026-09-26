@@ -48,4 +48,6 @@ export {
   Download,
   ShieldCheck,
   Lock,
+  Smartphone,
+  QrCode,
 } from 'lucide-react';

@@ -26,7 +26,9 @@ import {
   Building2,
   Package,
   UserCheck,
+  Smartphone,
 } from '@/components/icons';
+import { usePwa } from '@/components/pwa/PwaProvider';
 import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
 
@@ -39,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, logout, isLiveSupabase, switchSectionUser } = useMeedo();
+  const { isInstalled, openInstallGuide } = usePwa();
 
   const [marketOpen, setMarketOpen] = useState(true);
   const [slaughterOpen, setSlaughterOpen] = useState(true);
@@ -394,6 +397,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               >
                 <UsersRound className="w-4 h-4 text-purple-600" /> User Management
               </Link>
+              <Link
+                href="/admin/pwa"
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
+                  { 'bg-blue-50 text-blue-600 font-semibold': isActive('/admin/pwa') }
+                )}
+              >
+                <Smartphone className="w-4 h-4 text-emerald-600" /> Mobile & PWA Guide
+              </Link>
             </div>
           )}
         </nav>
@@ -442,6 +455,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <option value="F">🛡️ Section F • Market Guard</option>
             </select>
           </div>
+
+          {/* In-App PWA Install Trigger when browsing on mobile web */}
+          {!isInstalled && (
+            <button
+              type="button"
+              onClick={() => {
+                openInstallGuide();
+                onClose();
+              }}
+              className="w-full mb-2 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-blue-600" /> Install Mobile App
+            </button>
+          )}
 
           <button
             onClick={logout}

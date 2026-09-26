@@ -130,7 +130,12 @@ export function checkRouteAccess(user: UserProfile | null, pathname: string): Ac
     };
   }
 
-  // Admin routes explicitly require Admin role
+  // PWA & Mobile Installation Guide is accessible to all municipal staff
+  if (pathname === '/admin/pwa' || pathname.startsWith('/admin/pwa')) {
+    return { allowed: true };
+  }
+
+  // Other Admin routes explicitly require Admin role
   if (pathname.startsWith('/admin')) {
     return {
       allowed: false,

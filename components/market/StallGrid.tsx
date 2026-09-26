@@ -4,7 +4,20 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Stall, StallZone } from '@/lib/types';
 import { useMeedo } from '@/lib/store';
-import { User, Search } from 'lucide-react';
+import {
+  User,
+  Search,
+  Map as MapIcon,
+  List as ListIcon,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCcw,
+  X,
+  Store,
+  Layers,
+  Sparkles,
+} from 'lucide-react';
 import { StallSideViewer } from './StallSideViewer';
 
 export const StallGrid: React.FC = () => {
@@ -16,6 +29,48 @@ export const StallGrid: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Occupied' | 'Vacant'>('all');
   const [selectedStall, setSelectedStall] = useState<Stall | null>(null);
+
+  // Mobile App-like Viewport & View Mode Enhancements
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [isFitMode, setIsFitMode] = useState<boolean>(false);
+  const [containerWidth, setContainerWidth] = useState<number>(980);
+  const canvasContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Measure container width for responsive fit-to-screen
+  useEffect(() => {
+    const updateWidth = () => {
+      if (canvasContainerRef.current) {
+        setContainerWidth(canvasContainerRef.current.clientWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  const baseMapWidth = 980;
+  const fitScale = Math.min(Math.max((containerWidth - 24) / baseMapWidth, 0.35), 1);
+  const effectiveZoom = isFitMode ? fitScale : zoomLevel;
+
+  const handleZoomIn = () => {
+    setIsFitMode(false);
+    setZoomLevel((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 1.5));
+  };
+
+  const handleZoomOut = () => {
+    setIsFitMode(false);
+    setZoomLevel((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.35));
+  };
+
+  const handleResetZoom = () => {
+    setIsFitMode(false);
+    setZoomLevel(1);
+  };
+
+  const handleToggleFit = () => {
+    setIsFitMode((prev) => !prev);
+  };
 
   // Auto-select stall and switch zone if ?stall=... is passed in URL
   useEffect(() => {
@@ -35,12 +90,41 @@ export const StallGrid: React.FC = () => {
     ? stalls.find((s) => s.stall_no === selectedStall.stall_no) || selectedStall
     : null;
 
-  const zones: { id: StallZone; label: string }[] = [
-    { id: 'wet', label: 'Wet Section' },
-    { id: 'dry', label: 'Dry Goods' },
-    { id: 'old', label: 'Old Building' },
-    { id: 'triangular', label: 'Triangular' },
+  // Stalls in active zone
+  const activeZoneStalls = stalls.filter((s) => s.zone === activeZone);
+  const occupiedCount = activeZoneStalls.filter((s) => s.status === 'Occupied').length;
+  const vacantCount = activeZoneStalls.filter((s) => s.status === 'Vacant').length;
+  const totalZoneStalls = activeZoneStalls.length;
+
+  const zones: { id: StallZone; label: string; count: number }[] = [
+    { id: 'wet', label: 'Wet Section', count: stalls.filter((s) => s.zone === 'wet').length || 71 },
+    { id: 'dry', label: 'Dry Goods', count: stalls.filter((s) => s.zone === 'dry').length || 36 },
+    { id: 'old', label: 'Old Building', count: stalls.filter((s) => s.zone === 'old').length || 43 },
+    { id: 'triangular', label: 'Triangular', count: stalls.filter((s) => s.zone === 'triangular').length || 32 },
   ];
+
+  // Filtered stalls for the Directory / List View
+  const filteredListStalls = activeZoneStalls.filter((stall) => {
+    const isOccupied = stall.status === 'Occupied';
+    const owner = stall.current_tenant?.stall_owner || '';
+    const operator = stall.current_tenant?.operator || '';
+    const lob = stall.current_tenant?.line_of_business || '';
+    const term = searchTerm.toLowerCase().trim();
+
+    const matchesSearch =
+      term === '' ||
+      stall.stall_no.toLowerCase().includes(term) ||
+      owner.toLowerCase().includes(term) ||
+      operator.toLowerCase().includes(term) ||
+      lob.toLowerCase().includes(term);
+
+    const matchesFilter =
+      filterStatus === 'all' ||
+      (filterStatus === 'Occupied' && isOccupied) ||
+      (filterStatus === 'Vacant' && !isOccupied);
+
+    return matchesSearch && matchesFilter;
+  });
 
   // Helper to render an individual stall matching legacy HTML/CSS exactly
   const renderStall = (
@@ -139,63 +223,228 @@ export const StallGrid: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header Controls Bar matching Legacy Index.html */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm flex flex-wrap gap-4 justify-between items-center">
-        {/* Title */}
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight m-0">
-          Market Layout
-        </h2>
+    <div className="space-y-4 pb-16 lg:pb-6">
+      {/* Top Header & Mobile Nav Bar */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-sm space-y-3">
+        {/* Row 1: Title + View Switcher (Map vs Directory) */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight m-0">
+                Market Layout
+              </h2>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60 hidden sm:inline">
+                {totalZoneStalls} Stalls in Zone
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
+              Interactive stall blueprint and digital tenancy assignment.
+            </p>
+          </div>
 
-        {/* Tab Group matching .tab-group & .tab-btn */}
-        <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 inline-flex items-center gap-1 overflow-x-auto">
-          {zones.map((z) => (
+          {/* Mode Switcher: Blueprint Map vs Directory List */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shadow-2xs">
             <button
-              key={z.id}
               type="button"
-              onClick={() => setActiveZone(z.id)}
-              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all whitespace-nowrap ${
-                activeZone === z.id
-                  ? 'bg-white text-blue-600 shadow-sm border border-slate-200/60'
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'map'
+                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200/60'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {z.label}
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Blueprint Map</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200/60'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ListIcon className="w-3.5 h-3.5" />
+              <span>Directory List</span>
+            </button>
+          </div>
         </div>
 
-        {/* Search & Status Filter matching #mainSearchContainer */}
-        <div className="flex items-center gap-2 flex-1 justify-end min-w-[280px]">
-          <div className="relative w-full max-w-[260px]">
+        {/* Row 2: Zone Tabs (Smooth Mobile Horizontal Scroll - No Clipping) */}
+        <div className="relative">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 w-full touch-pan-x">
+            {zones.map((z) => (
+              <button
+                key={z.id}
+                type="button"
+                onClick={() => setActiveZone(z.id)}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+                  activeZone === z.id
+                    ? 'bg-white text-blue-600 shadow-sm border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>{z.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    activeZone === z.id
+                      ? 'bg-blue-100 text-blue-700 font-extrabold'
+                      : 'bg-slate-200/70 text-slate-600 font-semibold'
+                  }`}
+                >
+                  {z.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 3: Search & Status Filters */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 border-t border-slate-100">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search stall or owner..."
-              className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 placeholder-slate-400"
+              placeholder="Search stall #, owner, operator, or business..."
+              className="w-full pl-8 pr-8 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 placeholder-slate-400"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="text-xs border border-slate-300 rounded-md px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="all">All Status</option>
-            <option value="Occupied">Occupied</option>
-            <option value="Vacant">Vacant</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="text-xs border border-slate-300 rounded-xl px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold w-full sm:w-auto"
+            >
+              <option value="all">All Status</option>
+              <option value="Occupied">Occupied Only</option>
+              <option value="Vacant">Vacant Only</option>
+            </select>
+
+            {/* Quick Clear Filter indicator */}
+            {(searchTerm !== '' || filterStatus !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterStatus('all');
+                }}
+                className="text-xs text-rose-600 hover:text-rose-700 font-bold px-2 py-1.5 shrink-0"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Main Canvas Card */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200/90 shadow-sm overflow-x-auto min-h-[520px]">
-        {/* ========================================================================= */}
-        {/* 1. WET SECTION PHYSICAL MAP                                              */}
-        {/* ========================================================================= */}
-        {activeZone === 'wet' && (
-          <div className="min-w-[950px] space-y-7 p-2">
+      {/* VIEW 1: MAP BLUEPRINT */}
+      {viewMode === 'map' && (
+        <div className="space-y-3">
+          {/* Map Controls & Status Strip */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+            {/* Left: Occupancy summary chips */}
+            <div className="flex items-center gap-2 sm:gap-3 text-xs flex-wrap">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/70 font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Occupied: {occupiedCount}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border border-slate-200 font-bold">
+                <span className="w-2 h-2 rounded-full bg-slate-300 border border-slate-400" />
+                <span>Vacant: {vacantCount}</span>
+              </div>
+              <span className="text-[11px] text-slate-400 hidden md:inline">
+                • Total {totalZoneStalls} Stalls in {zones.find((z) => z.id === activeZone)?.label}
+              </span>
+            </div>
+
+            {/* Right: Zoom & Fit Controllers */}
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 transition-colors shadow-2xs font-bold"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+
+              <span className="text-xs font-mono font-bold text-slate-700 px-2 min-w-[50px] text-center">
+                {isFitMode ? 'Fit' : `${Math.round(zoomLevel * 100)}%`}
+              </span>
+
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 transition-colors shadow-2xs font-bold"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleFit}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 shadow-2xs ${
+                  isFitMode
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+                title="Fit Entire Blueprint to Screen"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>{isFitMode ? 'Fit On' : 'Fit'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 transition-colors shadow-2xs"
+                title="Reset Zoom to 100%"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Gestures Hint */}
+          <div className="flex items-center justify-between px-2 text-[11px] text-slate-500">
+            <span>👆 Drag to pan blueprint • Tap stall to view tenancy</span>
+            <span className="hidden sm:inline text-slate-400">
+              Tap &quot;Fit&quot; for full overview
+            </span>
+          </div>
+
+          {/* Main Canvas Card */}
+          <div
+            ref={canvasContainerRef}
+            className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm mobile-canvas-viewport overflow-auto min-h-[520px]"
+          >
+            <div
+              style={{
+                transform: `scale(${effectiveZoom})`,
+                transformOrigin: 'top left',
+                width: isFitMode ? `${baseMapWidth}px` : undefined,
+              }}
+              className="transition-transform duration-200 ease-out origin-top-left"
+            >
+              {/* ========================================================================= */}
+              {/* 1. WET SECTION PHYSICAL MAP                                              */}
+              {/* ========================================================================= */}
+              {activeZone === 'wet' && (
+                <div className="min-w-[950px] space-y-7 p-2">
             {/* Top 3 Section Boxes */}
             <div className="grid grid-cols-3 gap-6">
               {/* SECTION G */}
@@ -569,6 +818,156 @@ export const StallGrid: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: DIRECTORY LIST (TOUCH-FIRST & FAST FOR MOBILE) */}
+      {viewMode === 'list' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+            <span>
+              Showing <strong>{filteredListStalls.length}</strong> of {totalZoneStalls} stalls in{' '}
+              <strong>{zones.find((z) => z.id === activeZone)?.label}</strong>
+            </span>
+            <span className="font-semibold text-slate-700 hidden sm:inline">
+              {occupiedCount} Occupied • {vacantCount} Vacant
+            </span>
+          </div>
+
+          {filteredListStalls.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
+              <Store className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-700 text-sm">No stalls match your filter</h4>
+              <p className="text-xs text-slate-400 mt-1">
+                Try clearing your search term or selecting All Status.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterStatus('all');
+                }}
+                className="mt-3 text-xs font-bold text-blue-600 hover:underline"
+              >
+                Reset Filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredListStalls.map((stall) => {
+                const isOcc = stall.status === 'Occupied';
+                const tenant = stall.current_tenant;
+                const isSelected = selectedStall?.stall_no === stall.stall_no;
+
+                return (
+                  <div
+                    key={stall.stall_no}
+                    onClick={() => setSelectedStall(stall)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-white flex flex-col justify-between hover:border-blue-400 hover:shadow-md ${
+                      isSelected
+                        ? 'ring-2 ring-blue-600 border-blue-500 shadow-md'
+                        : 'border-slate-200/90'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-extrabold text-xs tracking-wide">
+                          {stall.stall_no}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isOcc
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}
+                        >
+                          {isOcc ? 'Occupied' : 'Vacant'}
+                        </span>
+                      </div>
+
+                      {isOcc && tenant ? (
+                        <div className="space-y-1">
+                          <p className="font-bold text-xs text-slate-900 truncate">
+                            {tenant.stall_owner || 'Registered Tenant'}
+                          </p>
+                          {tenant.operator && tenant.operator !== tenant.stall_owner && (
+                            <p className="text-[11px] text-slate-500 truncate">
+                              Operator: {tenant.operator}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-slate-600 font-medium truncate">
+                            {tenant.line_of_business || 'General Merchandise'}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic py-2">
+                          Available for Municipal Lease Assignment
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                      {isOcc && tenant ? (
+                        <span
+                          className={`font-semibold text-[10px] px-1.5 py-0.5 rounded ${
+                            tenant.compliance_status === 'Compliant'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : tenant.compliance_status === 'Lacking'
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-rose-50 text-rose-700'
+                          }`}
+                        >
+                          {tenant.compliance_status || 'Compliant'}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-blue-600 font-semibold">
+                          Assign Tenant
+                        </span>
+                      )}
+                      <span className="text-blue-600 font-bold hover:underline inline-flex items-center gap-0.5">
+                        View Profile ➔
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile Floating Action Dock */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 lg:hidden flex items-center gap-2 p-1.5 bg-slate-900/90 backdrop-blur-md text-white rounded-full shadow-2xl border border-white/20">
+        <button
+          type="button"
+          onClick={() => setViewMode(viewMode === 'map' ? 'list' : 'map')}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-900 shadow-sm transition-all"
+        >
+          {viewMode === 'map' ? (
+            <>
+              <ListIcon className="w-3.5 h-3.5 text-blue-600" />
+              <span>Directory List</span>
+            </>
+          ) : (
+            <>
+              <MapIcon className="w-3.5 h-3.5 text-blue-600" />
+              <span>Blueprint Map</span>
+            </>
+          )}
+        </button>
+
+        {viewMode === 'map' && (
+          <button
+            type="button"
+            onClick={handleToggleFit}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-slate-200 hover:text-white transition-colors"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>{isFitMode ? '100%' : 'Fit'}</span>
+          </button>
         )}
       </div>
 

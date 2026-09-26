@@ -1,0 +1,78 @@
+{
+  "name": "MEEDOSys v2.0 — Municipality of Malungon",
+  "short_name": "MEEDOSys",
+  "description": "Municipal Economic Enterprise Development Office Management System",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "government", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Market Layout",
+      "short_name": "Layout",
+      "description": "Interactive visual market stall blueprint & tenancy assignment",
+      "url": "/market/map",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Stall Monitoring",
+      "short_name": "Monitoring",
+      "description": "Field inspection & compliance tracking",
+      "url": "/market/monitoring",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Daily Billing",
+      "short_name": "Billing",
+      "description": "Daily rental & utility collection ledger",
+      "url": "/market/billing",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Market Guard Desk",
+      "short_name": "Guard Desk",
+      "description": "Peace & order shift blotters and security logs",
+      "url": "/csu",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
