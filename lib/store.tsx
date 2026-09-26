@@ -506,13 +506,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const refreshUsers = async () => {
+  const generateUUID = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  };
+
+  const refreshUsers = async (): Promise<void> => {
     if (!isSupabaseConfigured || !supabase) return;
     try {
       const [profilesRes, auditRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('audit_logs').select('*').order('created_at', { ascending: true }),
       ]);
+
+      if (profilesRes.error) {
+        console.error('Failed to query profiles:', profilesRes.error);
+        throw profilesRes.error;
+      }
 
       const legacyMockUsernames = new Set([
         'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
@@ -557,7 +573,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (!details) return;
             if (log.action === 'USER_REGISTERED' || log.action === 'USER_CREATED_BY_ADMIN') {
               const u = details.user || details;
-              if (u && u.username) {
+              if (u && u.username && !legacyMockUsernames.has(u.username.toLowerCase())) {
                 const existing = userMap.get(u.username.toLowerCase()) || {};
                 userMap.set(u.username.toLowerCase(), { ...existing, ...u });
               }
@@ -592,6 +608,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_users', JSON.stringify(mergedUsers));
     } catch (err) {
       console.warn('Failed to refresh users directory from Supabase:', err);
+      throw err;
     }
   };
 
@@ -723,16 +740,20 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const cleanGuardId = guardId ? guardId.trim().toUpperCase() : undefined;
+    const cleanFullName = fullName ? fullName.trim() : trimmedUser;
+    const cleanRankTitle = rankTitle ? rankTitle.trim() : undefined;
+    const cleanPassword = password?.trim() || undefined;
+
     const newUser: UserProfile = {
-      id: 'usr_' + Date.now(),
+      id: generateUUID(),
       username: trimmedUser,
       role: 'Staff',
       section: section as UserSection,
       status: 'Pending',
-      password: password?.trim() || undefined,
+      password: cleanPassword,
       guard_id: cleanGuardId,
-      full_name: fullName ? fullName.trim() : trimmedUser,
-      rank_title: rankTitle ? rankTitle.trim() : undefined,
+      full_name: cleanFullName,
+      rank_title: cleanRankTitle,
       created_at: new Date().toISOString(),
     };
 
@@ -740,8 +761,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setUsers(updatedUsers);
     localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
 
-    // Sync to Supabase audit logs
+    // Direct synchronization to Supabase public.profiles and audit_logs
     if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: newUser.id,
+            username: newUser.username,
+            role: newUser.role,
+            section: newUser.section,
+            status: newUser.status,
+            full_name: newUser.full_name,
+            password: newUser.password || null,
+            guard_id: newUser.guard_id || null,
+            rank_title: newUser.rank_title || null,
+            created_at: newUser.created_at,
+          },
+          { onConflict: 'username' }
+        )
+        .then(({ error }) => {
+          if (error) console.error('Supabase profile registration sync error:', error);
+        });
+
       supabase
         .from('audit_logs')
         .insert({
@@ -755,7 +797,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .then();
     }
 
-    // If registering under Section F with Guard ID, ensure it exists in guards roster
+    // If registering under Section F with Guard ID, ensure it exists in guards roster and market_guards
     if (section === 'F' && cleanGuardId) {
       setGuards((prev) => {
         const existingIndex = prev.findIndex(
@@ -767,8 +809,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             i === existingIndex
               ? {
                   ...g,
-                  guard_name: fullName?.trim() || g.guard_name,
-                  rank_title: rankTitle?.trim() || g.rank_title,
+                  guard_name: cleanFullName,
+                  rank_title: cleanRankTitle || g.rank_title,
                 }
               : g
           );
@@ -777,8 +819,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             ...prev,
             {
               guard_id: cleanGuardId,
-              guard_name: fullName?.trim() || trimmedUser,
-              rank_title: rankTitle?.trim() || 'SO1',
+              guard_name: cleanFullName,
+              rank_title: cleanRankTitle || 'SO1',
               default_area: 'Market General Security',
               status: 'Active',
             },
@@ -787,6 +829,22 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('meedo_guards', JSON.stringify(updatedRoster));
         return updatedRoster;
       });
+
+      if (isSupabaseConfigured && supabase) {
+        supabase
+          .from('market_guards')
+          .upsert(
+            {
+              guard_id: cleanGuardId,
+              guard_name: cleanFullName,
+              rank_title: cleanRankTitle || 'SO1',
+              default_area: 'Market General Security',
+              status: 'Active',
+            },
+            { onConflict: 'guard_id' }
+          )
+          .then();
+      }
     }
 
     return { success: true };
@@ -819,6 +877,27 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (isSupabaseConfigured && supabase) {
+      if (action === 'delete') {
+        supabase
+          .from('profiles')
+          .delete()
+          .ilike('username', username)
+          .then(({ error }) => {
+            if (error) console.error('Supabase delete profile error:', error);
+          });
+      } else {
+        supabase
+          .from('profiles')
+          .update({
+            status: action === 'approve' ? 'Approved' : 'Blocked',
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('username', username)
+          .then(({ error }) => {
+            if (error) console.error('Supabase update profile status error:', error);
+          });
+      }
+
       supabase
         .from('audit_logs')
         .insert({
@@ -831,16 +910,6 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }),
         })
         .then();
-
-      if (action === 'delete') {
-        supabase.from('profiles').delete().ilike('username', username).then();
-      } else {
-        supabase
-          .from('profiles')
-          .update({ status: action === 'approve' ? 'Approved' : 'Blocked' })
-          .ilike('username', username)
-          .then();
-      }
     }
   };
 
@@ -861,6 +930,23 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (isSupabaseConfigured && supabase) {
+      const profilePayload: any = { updated_at: new Date().toISOString() };
+      if (updates.role !== undefined) profilePayload.role = updates.role;
+      if (updates.section !== undefined) profilePayload.section = updates.section;
+      if (updates.status !== undefined) profilePayload.status = updates.status;
+      if (updates.full_name !== undefined) profilePayload.full_name = updates.full_name;
+      if (updates.password !== undefined) profilePayload.password = updates.password;
+      if (updates.guard_id !== undefined) profilePayload.guard_id = updates.guard_id;
+      if (updates.rank_title !== undefined) profilePayload.rank_title = updates.rank_title;
+
+      supabase
+        .from('profiles')
+        .update(profilePayload)
+        .ilike('username', username)
+        .then(({ error }) => {
+          if (error) console.error('Supabase profile update sync error:', error);
+        });
+
       supabase
         .from('audit_logs')
         .insert({
@@ -873,15 +959,6 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }),
         })
         .then();
-
-      const profilePayload: any = {};
-      if (updates.role) profilePayload.role = updates.role;
-      if (updates.section) profilePayload.section = updates.section;
-      if (updates.status) profilePayload.status = updates.status;
-
-      if (Object.keys(profilePayload).length > 0) {
-        supabase.from('profiles').update(profilePayload).ilike('username', username).then();
-      }
     }
   };
 
@@ -897,16 +974,21 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, message: 'A user with this username already exists.' };
     }
 
+    const cleanGuardId = userData.guard_id ? userData.guard_id.trim().toUpperCase() : undefined;
+    const cleanFullName = userData.full_name ? userData.full_name.trim() : trimmedUser;
+    const cleanRankTitle = userData.rank_title ? userData.rank_title.trim() : undefined;
+    const cleanPassword = userData.password?.trim() || undefined;
+
     const newUser: UserProfile = {
-      id: 'usr_' + Date.now(),
+      id: generateUUID(),
       username: trimmedUser,
       role: userData.role || 'Staff',
       section: userData.section || 'A',
       status: userData.status || 'Approved',
-      password: userData.password?.trim() || undefined,
-      guard_id: userData.guard_id?.trim().toUpperCase() || undefined,
-      full_name: userData.full_name?.trim() || trimmedUser,
-      rank_title: userData.rank_title?.trim() || undefined,
+      password: cleanPassword,
+      guard_id: cleanGuardId,
+      full_name: cleanFullName,
+      rank_title: cleanRankTitle,
       created_at: new Date().toISOString(),
     };
 
@@ -914,7 +996,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setUsers(updatedUsers);
     localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
 
+    // Direct synchronization to Supabase public.profiles and audit_logs
     if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('profiles')
+        .upsert(
+          {
+            id: newUser.id,
+            username: newUser.username,
+            role: newUser.role,
+            section: newUser.section,
+            status: newUser.status,
+            full_name: newUser.full_name,
+            password: newUser.password || null,
+            guard_id: newUser.guard_id || null,
+            rank_title: newUser.rank_title || null,
+            created_at: newUser.created_at,
+          },
+          { onConflict: 'username' }
+        )
+        .then(({ error }) => {
+          if (error) console.error('Supabase profile creation sync error:', error);
+        });
+
       supabase
         .from('audit_logs')
         .insert({
@@ -927,6 +1031,56 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }),
         })
         .then();
+    }
+
+    // If Section F with Guard ID, ensure it exists in guards roster and Supabase market_guards
+    if (newUser.section === 'F' && cleanGuardId) {
+      setGuards((prev) => {
+        const existingIndex = prev.findIndex(
+          (g) => g.guard_id.toUpperCase() === cleanGuardId
+        );
+        let updatedRoster: MarketGuard[];
+        if (existingIndex >= 0) {
+          updatedRoster = prev.map((g, i) =>
+            i === existingIndex
+              ? {
+                  ...g,
+                  guard_name: cleanFullName,
+                  rank_title: cleanRankTitle || g.rank_title,
+                }
+              : g
+          );
+        } else {
+          updatedRoster = [
+            ...prev,
+            {
+              guard_id: cleanGuardId,
+              guard_name: cleanFullName,
+              rank_title: cleanRankTitle || 'SO1',
+              default_area: 'Market General Security',
+              status: 'Active',
+            },
+          ];
+        }
+        localStorage.setItem('meedo_guards', JSON.stringify(updatedRoster));
+        return updatedRoster;
+      });
+
+      if (isSupabaseConfigured && supabase) {
+        supabase
+          .from('market_guards')
+          .upsert(
+            {
+              guard_id: cleanGuardId,
+              guard_name: cleanFullName,
+              rank_title: cleanRankTitle || 'SO1',
+              default_area: 'Market General Security',
+              status: 'Active',
+            },
+            { onConflict: 'guard_id' }
+          )
+          .then();
+      }
     }
 
     return { success: true };
