@@ -467,21 +467,16 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
         {/* Document Header */}
         <div className="document-header">
           {/* Editable OPIF Title */}
-          <div className="opif-title flex items-center justify-center gap-2 flex-wrap">
+          <div className="opif-title flex items-center justify-center gap-1.5 flex-wrap">
             <span>Organizational Performance Indicator Framework (OPIF) -</span>
-            <div className="inline-flex items-center gap-1 group relative">
-              <input
-                type="text"
-                value={opifYear}
-                onChange={(e) => handleYearChange(e.target.value)}
-                className="w-20 sm:w-24 text-center font-bold text-base sm:text-lg text-slate-900 bg-transparent border-b-2 border-dashed border-blue-400 hover:border-blue-600 focus:border-blue-600 focus:bg-blue-50/50 rounded-sm focus:outline-none transition-colors"
-                title="Click to edit OPIF reporting year (e.g. 2025, 2026, 2027)"
-                placeholder="2025"
-              />
-              <span className="print-hide text-xs text-blue-600 cursor-pointer opacity-70 group-hover:opacity-100" title="Click to edit year">
-                ✏️
-              </span>
-            </div>
+            <input
+              type="text"
+              value={opifYear}
+              onChange={(e) => handleYearChange(e.target.value)}
+              className="w-16 sm:w-20 text-center font-bold text-inherit bg-transparent border-none underline focus:outline-none focus:bg-blue-50/60 rounded transition-colors cursor-text p-0 m-0"
+              title="Click to edit year"
+              placeholder="2025"
+            />
           </div>
 
           <table className="info-table">
