@@ -26,17 +26,26 @@ import {
   Copy,
   Layers,
   Sparkles,
+  LayoutTemplate,
 } from 'lucide-react';
 
 // Generates printable HTML formatted for 4-to-a-page (2x2 grid) on A4 or US Letter
 function generatePrintHtml(
   sheets: ({ bill: ElectricBill; copyLabel?: string } | null)[][],
   paperSize: 'a4' | 'letter',
+  orientation: 'portrait' | 'landscape',
   showCutGuides: boolean
 ) {
   const isLetter = paperSize === 'letter';
-  const sheetWidth = isLetter ? '203mm' : '198mm';
-  const sheetHeight = isLetter ? '266mm' : '284mm';
+  const isLandscape = orientation === 'landscape';
+
+  const sheetWidth = isLandscape
+    ? isLetter ? '267mm' : '284mm'
+    : isLetter ? '203mm' : '198mm';
+
+  const sheetHeight = isLandscape
+    ? isLetter ? '203mm' : '198mm'
+    : isLetter ? '266mm' : '284mm';
 
   const sheetsHtml = sheets
     .map((sheet, sheetIdx) => {
@@ -49,64 +58,190 @@ function generatePrintHtml(
           const totalAmount = typeof b.bill_amount === 'number' ? b.bill_amount : parseFloat(String(b.bill_amount || 0));
           const arrears = typeof b.arrears === 'number' ? b.arrears : parseFloat(String(b.arrears || 0));
 
+          if (isLandscape) {
+            // WIDE / LANDSCAPE SLIP (2 columns side-by-side inside card)
+            return `
+              <div class="bill-card landscape-slip">
+                ${copyLabel ? `<div class="copy-badge">${copyLabel}</div>` : ''}
+
+                <!-- Header -->
+                <div class="slip-header-ls">
+                  <div class="muni-title-ls">MUNICIPALITY OF MALUNGON • PROVINCE OF SARANGANI</div>
+                  <div class="dept-title-ls">Municipal Economic Enterprise Development Office (MEEDO)</div>
+                  <div class="statement-title-ls">ELECTRIC UTILITY BILLING STATEMENT</div>
+                  <div class="header-divider-ls"></div>
+                </div>
+
+                <!-- 2-Column Body -->
+                <div class="body-grid-ls">
+                  <!-- Left: Stall Info, Dates, and Notice -->
+                  <div class="col-left-ls">
+                    <div class="account-card-ls">
+                      <div class="field-row-ls">
+                        <span class="label-ls">Stall No:</span>
+                        <span class="val-stall-ls">${b.stall_no}</span>
+                      </div>
+                      <div class="field-row-ls">
+                        <span class="label-ls">Concessionaire:</span>
+                        <span class="val-owner-ls">${b.owner_name || 'Vacant'}</span>
+                      </div>
+                      <div class="field-divider-ls"></div>
+                      <div class="field-row-ls">
+                        <span class="label-ls">Due Date:</span>
+                        <span class="val-due-ls">${formatDate(b.due_date)}</span>
+                      </div>
+                      <div class="field-row-ls">
+                        <span class="label-ls">Disconnection:</span>
+                        <span class="val-disc-ls">${b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</span>
+                      </div>
+                    </div>
+
+                    <div class="notice-box-ls">
+                      <strong>Reminder:</strong> Settle on or before due date to avoid service disconnection. Present at MEEDO / Cashier.
+                    </div>
+                  </div>
+
+                  <!-- Right: Readings & Computation Table -->
+                  <div class="col-right-ls">
+                    <div class="reading-card-ls">
+                      <div class="calc-row-ls">
+                        <span>Prev Reading:</span>
+                        <span class="mono">${Number(b.prev_reading || 0).toFixed(1)} kWh</span>
+                      </div>
+                      <div class="calc-row-ls">
+                        <span>Curr Reading:</span>
+                        <span class="mono">${Number(b.curr_reading || 0).toFixed(1)} kWh</span>
+                      </div>
+                      <div class="calc-divider-thin-ls"></div>
+                      <div class="calc-row-ls font-bold">
+                        <span>Consumption:</span>
+                        <span class="text-blue">${Number(b.consumption || 0).toFixed(1)} kWh</span>
+                      </div>
+                      <div class="calc-row-ls">
+                        <span>Rate / kWh:</span>
+                        <span>₱${Number(b.rate_per_kwh || 0).toFixed(2)}</span>
+                      </div>
+                      ${arrears > 0 ? `
+                      <div class="calc-row-ls text-rose">
+                        <span>Prev Arrears:</span>
+                        <span class="font-bold">₱${arrears.toFixed(2)}</span>
+                      </div>` : ''}
+                      <div class="calc-divider-thick-ls"></div>
+                      <div class="total-row-ls">
+                        <span class="total-label-ls">TOTAL AMOUNT DUE:</span>
+                        <span class="total-val-ls">₱${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Footer: Signatures & System Reference -->
+                <div class="footer-row-ls">
+                  <div class="sig-wrapper-ls">
+                    <div class="sig-unit-ls">
+                      <div class="sig-line-ls"></div>
+                      <div class="sig-label-ls">Billing Clerk / Meter Reader</div>
+                    </div>
+                    <div class="sig-unit-ls">
+                      <div class="sig-line-ls"></div>
+                      <div class="sig-label-ls">Concessionaire / Received By</div>
+                    </div>
+                  </div>
+                  <div class="system-tag-ls">
+                    MEEDO Market System • Official Bill • Stall ${b.stall_no}
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+
+          // PORTRAIT SLIP (Stacked vertical with zero dead space)
           return `
-            <div class="bill-card">
+            <div class="bill-card portrait-slip">
               ${copyLabel ? `<div class="copy-badge">${copyLabel}</div>` : ''}
               
-              <div class="slip-header">
-                <div class="muni-title">MUNICIPALITY OF MALUNGON</div>
-                <div class="dept-title">Municipal Economic Enterprise Development Office (MEEDO)</div>
-                <div class="statement-title">ELECTRIC UTILITY BILLING STATEMENT</div>
-                <div class="header-divider"></div>
+              <!-- Header -->
+              <div class="slip-header-pt">
+                <div class="muni-title-pt">MUNICIPALITY OF MALUNGON</div>
+                <div class="province-title-pt">Province of Sarangani</div>
+                <div class="dept-title-pt">Municipal Economic Enterprise Development Office (MEEDO)</div>
+                <div class="statement-title-pt">ELECTRIC UTILITY BILLING STATEMENT</div>
+                <div class="header-divider-pt"></div>
               </div>
 
-              <div class="meta-grid">
-                <div class="meta-col">
-                  <div class="meta-label">Stall Number:</div>
-                  <div class="meta-val bold-large">${b.stall_no}</div>
-                  <div class="meta-label" style="margin-top: 4px;">Due Date:</div>
-                  <div class="meta-val due-date-val">${formatDate(b.due_date)}</div>
-                </div>
-                <div class="meta-col">
-                  <div class="meta-label">Tenant / Owner:</div>
-                  <div class="meta-val bold-owner">${b.owner_name || 'Vacant / N/A'}</div>
-                  <div class="meta-label" style="margin-top: 4px;">Disconnection Date:</div>
-                  <div class="meta-val">${b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</div>
+              <!-- Account & Stall Box -->
+              <div class="account-card-pt">
+                <div class="account-grid-pt">
+                  <div>
+                    <span class="meta-label-pt">Stall Number:</span>
+                    <div class="meta-stall-pt">${b.stall_no}</div>
+                  </div>
+                  <div>
+                    <span class="meta-label-pt">Tenant / Owner:</span>
+                    <div class="meta-owner-pt">${b.owner_name || 'Vacant / N/A'}</div>
+                  </div>
+                  <div>
+                    <span class="meta-label-pt">Due Date:</span>
+                    <div class="meta-due-pt">${formatDate(b.due_date)}</div>
+                  </div>
+                  <div>
+                    <span class="meta-label-pt">Disconnection Date:</span>
+                    <div class="meta-disc-pt">${b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</div>
+                  </div>
                 </div>
               </div>
 
-              <div class="reading-box">
-                <div class="reading-row">
-                  <span class="reading-label">Previous Reading:</span>
-                  <span class="reading-val mono">${Number(b.prev_reading || 0).toFixed(1)} kWh</span>
+              <!-- Readings & Computation Box -->
+              <div class="reading-card-pt">
+                <div class="reading-row-pt">
+                  <span class="calc-label-pt">Previous Meter Reading:</span>
+                  <span class="calc-val-pt mono">${Number(b.prev_reading || 0).toFixed(1)} kWh</span>
                 </div>
-                <div class="reading-row">
-                  <span class="reading-label">Current Reading:</span>
-                  <span class="reading-val mono">${Number(b.curr_reading || 0).toFixed(1)} kWh</span>
+                <div class="reading-row-pt">
+                  <span class="calc-label-pt">Current Meter Reading:</span>
+                  <span class="calc-val-pt mono">${Number(b.curr_reading || 0).toFixed(1)} kWh</span>
                 </div>
-                <div class="sub-divider"></div>
-                <div class="reading-row">
-                  <span class="reading-label">Consumption:</span>
-                  <span class="reading-val bold">${Number(b.consumption || 0).toFixed(1)} kWh</span>
+                <div class="divider-thin-pt"></div>
+                <div class="reading-row-pt">
+                  <span class="calc-label-pt font-bold">Total Power Consumption:</span>
+                  <span class="calc-val-pt font-extrabold text-blue">${Number(b.consumption || 0).toFixed(1)} kWh</span>
                 </div>
-                <div class="reading-row">
-                  <span class="reading-label">Rate per kWh:</span>
-                  <span class="reading-val">₱${Number(b.rate_per_kwh || 0).toFixed(2)}</span>
+                <div class="reading-row-pt">
+                  <span class="calc-label-pt">Applicable Rate per kWh:</span>
+                  <span class="calc-val-pt">₱${Number(b.rate_per_kwh || 0).toFixed(2)}</span>
                 </div>
                 ${arrears > 0 ? `
-                <div class="reading-row" style="color: #dc2626;">
-                  <span class="reading-label" style="color: #dc2626; font-weight: 600;">Previous Arrears:</span>
-                  <span class="reading-val bold" style="color: #dc2626;">₱${arrears.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div class="reading-row-pt text-rose">
+                  <span class="calc-label-pt font-semibold text-rose">Previous Unpaid Balance:</span>
+                  <span class="calc-val-pt font-bold text-rose">₱${arrears.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>` : ''}
-                <div class="total-divider"></div>
-                <div class="total-row">
-                  <span class="total-label">Total Amount Due:</span>
-                  <span class="total-val">₱${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div class="divider-thick-pt"></div>
+                <div class="total-row-pt">
+                  <span class="total-label-pt">TOTAL AMOUNT DUE:</span>
+                  <span class="total-val-pt">₱${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
-              <div class="notice-footer">
-                Notice: Please settle your utility bill on or before the due date to avoid service disconnection.
+              <!-- Settlement Notice -->
+              <div class="notice-box-pt">
+                <strong>Notice:</strong> Please settle your utility bill on or before the due date to avoid service disconnection. Present this statement at the MEEDO / Cashier.
+              </div>
+
+              <!-- Signatures & Verification -->
+              <div class="signatures-pt">
+                <div class="sig-col-pt">
+                  <div class="sig-line-pt"></div>
+                  <div class="sig-label-pt">Billing In-Charge / Reader</div>
+                </div>
+                <div class="sig-col-pt">
+                  <div class="sig-line-pt"></div>
+                  <div class="sig-label-pt">Concessionaire / Received By</div>
+                </div>
+              </div>
+
+              <!-- System Stamp -->
+              <div class="system-stamp-pt">
+                MEEDO Market System • Official Utility Billing Statement • Stall ${b.stall_no}
               </div>
             </div>
           `;
@@ -138,10 +273,10 @@ function generatePrintHtml(
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Electric Utility Billing Statements - 4x4 (A4 / Letter)</title>
+  <title>Electric Utility Billing Statements - 4x4 (${paperSize.toUpperCase()} ${orientation.toUpperCase()})</title>
   <style>
     @page {
-      size: ${isLetter ? 'letter portrait' : 'A4 portrait'};
+      size: ${isLetter ? 'letter' : 'A4'} ${isLandscape ? 'landscape' : 'portrait'};
       margin: 6mm 6mm;
     }
     * {
@@ -177,16 +312,19 @@ function generatePrintHtml(
       page-break-after: auto;
       break-after: auto;
     }
+    .empty-card {
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      height: 100%;
+      background: #fafafa;
+    }
+
+    /* Common Card Styling */
     .bill-card {
       border: 2px solid #0f172a;
       border-radius: 12px;
-      padding: 7px 10px;
       background: #ffffff;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
       position: relative;
-      height: 100%;
       box-sizing: border-box;
       overflow: hidden;
     }
@@ -202,107 +340,136 @@ function generatePrintHtml(
       border-radius: 4px;
       text-transform: uppercase;
       letter-spacing: 0.3px;
+      z-index: 10;
     }
-    .slip-header {
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .font-bold { font-weight: 700; }
+    .font-extrabold { font-weight: 800; }
+    .text-blue { color: #1d4ed8; }
+    .text-rose { color: #dc2626; }
+
+    /* ========================================================
+       PORTRAIT SLIP STYLES (Balanced Vertical Flow)
+       ======================================================== */
+    .portrait-slip {
+      padding: 7px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 3px;
+      height: 100%;
+    }
+    .slip-header-pt {
       text-align: center;
+      padding-top: 1px;
     }
-    .muni-title {
+    .muni-title-pt {
       font-weight: 800;
       font-size: 8.5pt;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
-      color: #000;
-      margin: 0;
-      line-height: 1.2;
+      letter-spacing: 0.4px;
+      color: #0f172a;
+      line-height: 1.15;
     }
-    .dept-title {
+    .province-title-pt {
+      font-size: 6.5pt;
+      color: #64748b;
+      line-height: 1.15;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .dept-title-pt {
       font-weight: 600;
       font-size: 6.8pt;
       color: #334155;
-      margin: 1px 0 0 0;
-      line-height: 1.2;
+      line-height: 1.15;
+      margin-top: 1px;
     }
-    .statement-title {
+    .statement-title-pt {
       font-weight: 900;
       font-size: 8.8pt;
       text-transform: uppercase;
-      letter-spacing: 0.3px;
-      color: #000;
-      margin: 3px 0 0 0;
-      line-height: 1.2;
+      letter-spacing: 0.4px;
+      color: #0f172a;
+      margin-top: 2px;
+      line-height: 1.15;
     }
-    .header-divider {
-      border-bottom: 2px solid #000;
-      margin: 4px 0 5px 0;
+    .header-divider-pt {
+      border-bottom: 2px solid #0f172a;
+      margin: 3px 0 2px 0;
     }
-    .meta-grid {
+    .account-card-pt {
+      background: #f8fafc;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      padding: 5px 8px;
+    }
+    .account-grid-pt {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 3px 8px;
       font-size: 7.2pt;
       line-height: 1.25;
-      margin-bottom: 3px;
     }
-    .meta-label {
+    .meta-label-pt {
       color: #64748b;
-      font-size: 6.8pt;
+      font-size: 6.5pt;
       font-weight: 600;
+      display: block;
     }
-    .meta-val {
-      color: #0f172a;
-      font-size: 7.8pt;
-      font-weight: 700;
-    }
-    .bold-large {
-      font-size: 9.5pt;
+    .meta-stall-pt {
+      font-size: 10pt;
       font-weight: 900;
+      color: #0f172a;
     }
-    .bold-owner {
-      font-size: 8.2pt;
+    .meta-owner-pt {
+      font-size: 8pt;
       font-weight: 800;
+      color: #0f172a;
       text-transform: uppercase;
       word-break: break-word;
     }
-    .due-date-val {
-      color: #b91c1c;
+    .meta-due-pt {
+      font-size: 8pt;
       font-weight: 800;
+      color: #b91c1c;
     }
-    .reading-box {
-      background-color: #f8fafc;
-      border: 1px solid #cbd5e1;
+    .meta-disc-pt {
+      font-size: 7.8pt;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .reading-card-pt {
+      background: #f8fafc;
+      border: 1.5px solid #cbd5e1;
       border-radius: 7px;
       padding: 5px 8px;
-      margin: 3px 0;
       font-size: 7.2pt;
       line-height: 1.35;
     }
-    .reading-row {
+    .reading-row-pt {
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .reading-label {
+    .calc-label-pt {
       color: #475569;
     }
-    .reading-val {
+    .calc-val-pt {
       color: #0f172a;
       font-weight: 600;
     }
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .bold {
-      font-weight: 800;
-    }
-    .sub-divider {
+    .divider-thin-pt {
       border-top: 1px solid #e2e8f0;
       margin: 2px 0;
     }
-    .total-divider {
+    .divider-thick-pt {
       border-top: 2px solid #0f172a;
       margin: 3px 0 2px 0;
     }
-    .total-row {
+    .total-row-pt {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
@@ -310,25 +477,239 @@ function generatePrintHtml(
       font-weight: 900;
       color: #0f172a;
     }
-    .total-val {
+    .total-val-pt {
       font-size: 10.5pt;
       font-weight: 900;
       color: #1e3a8a;
     }
-    .notice-footer {
+    .notice-box-pt {
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      border-radius: 6px;
+      padding: 3px 6px;
       font-size: 6.2pt;
-      font-style: italic;
-      color: #64748b;
+      color: #78350f;
+      line-height: 1.25;
       text-align: center;
-      margin-top: 2px;
+    }
+    .signatures-pt {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 0 4px;
+      margin-top: 1px;
+    }
+    .sig-col-pt {
+      text-align: center;
+    }
+    .sig-line-pt {
+      border-bottom: 1px solid #475569;
+      height: 11px;
+    }
+    .sig-label-pt {
+      font-size: 5.8pt;
+      color: #64748b;
+      margin-top: 1.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .system-stamp-pt {
+      font-size: 5.5pt;
+      color: #94a3b8;
+      text-align: center;
+      letter-spacing: 0.2px;
+    }
+
+    /* ========================================================
+       LANDSCAPE SLIP STYLES (Wide 2-Column Balance)
+       ======================================================== */
+    .landscape-slip {
+      padding: 7px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      gap: 3px;
+    }
+    .slip-header-ls {
+      text-align: center;
+    }
+    .muni-title-ls {
+      font-weight: 800;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #0f172a;
+      line-height: 1.15;
+    }
+    .dept-title-ls {
+      font-weight: 600;
+      font-size: 6.5pt;
+      color: #475569;
+      line-height: 1.15;
+    }
+    .statement-title-ls {
+      font-weight: 900;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: #0f172a;
+      margin-top: 1px;
+      line-height: 1.15;
+    }
+    .header-divider-ls {
+      border-bottom: 2px solid #0f172a;
+      margin: 3px 0 2px 0;
+    }
+    .body-grid-ls {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 6px;
+      flex: 1;
+      align-items: stretch;
+    }
+    .col-left-ls {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 3px;
+    }
+    .account-card-ls {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-size: 7pt;
+      line-height: 1.25;
+    }
+    .field-row-ls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .label-ls {
+      color: #64748b;
+      font-size: 6.5pt;
+      font-weight: 600;
+    }
+    .val-stall-ls {
+      font-weight: 900;
+      font-size: 9pt;
+      color: #0f172a;
+    }
+    .val-owner-ls {
+      font-weight: 800;
+      font-size: 7.5pt;
+      color: #0f172a;
+      text-transform: uppercase;
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .val-due-ls {
+      font-weight: 800;
+      color: #b91c1c;
+      font-size: 7.5pt;
+    }
+    .val-disc-ls {
+      font-weight: 700;
+      color: #1e293b;
+      font-size: 7.2pt;
+    }
+    .field-divider-ls {
+      border-top: 1px solid #e2e8f0;
+      margin: 2px 0;
+    }
+    .notice-box-ls {
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      border-radius: 5px;
+      padding: 3px 5px;
+      font-size: 6pt;
+      color: #78350f;
       line-height: 1.2;
     }
-    .empty-card {
-      border: 1px dashed #cbd5e1;
-      border-radius: 12px;
-      height: 100%;
-      background: #fafafa;
+    .col-right-ls {
+      display: flex;
+      flex-direction: column;
+      justify-content: stretch;
     }
+    .reading-card-ls {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 5px 6px;
+      font-size: 7pt;
+      line-height: 1.35;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .calc-row-ls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #334155;
+    }
+    .calc-divider-thin-ls {
+      border-top: 1px solid #e2e8f0;
+      margin: 1.5px 0;
+    }
+    .calc-divider-thick-ls {
+      border-top: 2px solid #0f172a;
+      margin: 2px 0 1.5px 0;
+    }
+    .total-row-ls {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 8pt;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .total-val-ls {
+      font-size: 9.8pt;
+      font-weight: 900;
+      color: #1e3a8a;
+    }
+    .footer-row-ls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 2px;
+      margin-top: 2px;
+    }
+    .sig-wrapper-ls {
+      display: flex;
+      gap: 12px;
+      flex: 1;
+    }
+    .sig-unit-ls {
+      flex: 1;
+      text-align: center;
+    }
+    .sig-line-ls {
+      border-bottom: 1px solid #475569;
+      height: 10px;
+    }
+    .sig-label-ls {
+      font-size: 5.5pt;
+      color: #64748b;
+      margin-top: 1px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .system-tag-ls {
+      font-size: 5.5pt;
+      color: #94a3b8;
+      text-align: right;
+      padding-left: 6px;
+    }
+
+    /* Cut Guides Overlay */
     .cut-line-h {
       position: absolute;
       top: 50%;
@@ -408,6 +789,7 @@ export default function ElectricBillingPage() {
     'single-4copies' | 'single-1slip' | 'batch-due' | 'batch-filtered'
   >('single-4copies');
   const [paperSize, setPaperSize] = useState<'a4' | 'letter'>('a4');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [showCutGuides, setShowCutGuides] = useState(true);
   const [showCopyLabels, setShowCopyLabels] = useState(true);
   const [previewSheetIndex, setPreviewSheetIndex] = useState(0);
@@ -612,13 +994,13 @@ export default function ElectricBillingPage() {
 
   // Execute printing in dedicated popup window
   const handleTriggerPrint = () => {
-    const printWin = window.open('', '_blank', 'width=1000,height=800');
+    const printWin = window.open('', '_blank', 'width=1050,height=800');
     if (!printWin) {
       window.print();
       return;
     }
 
-    const html = generatePrintHtml(printSheets, paperSize, showCutGuides);
+    const html = generatePrintHtml(printSheets, paperSize, orientation, showCutGuides);
     printWin.document.open();
     printWin.document.write(html);
     printWin.document.close();
@@ -636,7 +1018,7 @@ export default function ElectricBillingPage() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Electric Utility Billing</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Single & batch meter reading calculation, arrears tracking, and 4x4 A4/Letter slip printing.
+            Single & batch meter reading calculation, arrears tracking, and balanced 4x4 A4/Letter slip printing.
           </p>
         </div>
 
@@ -1130,7 +1512,7 @@ export default function ElectricBillingPage() {
       {/* 4x4 BILLING STATEMENT PRINT PREVIEW MODAL */}
       {showPrintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
               <div className="flex items-center gap-3">
@@ -1141,11 +1523,11 @@ export default function ElectricBillingPage() {
                   <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
                     Print Electric Utility Statements
                     <Badge variant="info" className="text-[10px] font-bold">
-                      4x4 Grid on {paperSize.toUpperCase()}
+                      4x4 Grid on {paperSize.toUpperCase()} ({orientation.toUpperCase()})
                     </Badge>
                   </h3>
                   <p className="text-xs text-slate-500">
-                    4 statements per sheet (2×2 grid) optimized for A4 and US Letter with scissors cut guides.
+                    Balanced 4-per-sheet layout with zero dead space, official municipal styling, and scissors cut guides.
                   </p>
                 </div>
               </div>
@@ -1225,31 +1607,60 @@ export default function ElectricBillingPage() {
                   </button>
                 </div>
 
-                {/* Paper Size selector */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl font-bold">
-                  <span className="text-[11px] text-slate-500 px-2 font-medium">Paper:</span>
-                  <button
-                    type="button"
-                    onClick={() => setPaperSize('a4')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
-                      paperSize === 'a4'
-                        ? 'bg-white text-blue-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    A4 (210×297mm)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaperSize('letter')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
-                      paperSize === 'letter'
-                        ? 'bg-white text-blue-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Letter (8.5×11&quot;)
-                  </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Orientation selector */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl font-bold">
+                    <span className="text-[11px] text-slate-500 px-1.5 font-medium">Layout:</span>
+                    <button
+                      type="button"
+                      onClick={() => setOrientation('portrait')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        orientation === 'portrait'
+                          ? 'bg-white text-blue-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Portrait (Vertical)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrientation('landscape')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        orientation === 'landscape'
+                          ? 'bg-white text-blue-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Landscape (Wide)
+                    </button>
+                  </div>
+
+                  {/* Paper Size selector */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl font-bold">
+                    <span className="text-[11px] text-slate-500 px-1.5 font-medium">Paper:</span>
+                    <button
+                      type="button"
+                      onClick={() => setPaperSize('a4')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        paperSize === 'a4'
+                          ? 'bg-white text-blue-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      A4
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaperSize('letter')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        paperSize === 'letter'
+                          ? 'bg-white text-blue-700 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Letter
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1263,7 +1674,7 @@ export default function ElectricBillingPage() {
                     className="rounded text-blue-600 focus:ring-blue-500"
                   />
                   <Scissors className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Show Dashed Cut Guides (Center ✂ lines)</span>
+                  <span>Dashed Center Cut Guides (✂)</span>
                 </label>
 
                 {printLayoutMode === 'single-4copies' && (
@@ -1312,9 +1723,9 @@ export default function ElectricBillingPage() {
 
               {/* The Sheet Paper Representation */}
               <div
-                className={`bg-white rounded-xl shadow-lg border border-slate-300 w-full max-w-[620px] p-3 relative transition-all ${
-                  paperSize === 'letter' ? 'aspect-[8.5/11]' : 'aspect-[1/1.414]'
-                } flex flex-col`}
+                className={`bg-white rounded-xl shadow-lg border border-slate-300 w-full ${
+                  orientation === 'landscape' ? 'max-w-[760px] aspect-[11/8.5]' : 'max-w-[620px] aspect-[8.5/11]'
+                } p-3 relative transition-all flex flex-col`}
               >
                 {/* 2x2 Grid Preview */}
                 <div className="grid grid-cols-2 grid-rows-2 gap-2.5 h-full relative">
@@ -1331,66 +1742,160 @@ export default function ElectricBillingPage() {
                     }
 
                     const { bill: b, copyLabel } = slot;
+
+                    if (orientation === 'landscape') {
+                      // Wide Landscape preview card
+                      return (
+                        <div
+                          key={slotIdx}
+                          className="border-2 border-slate-900 rounded-xl p-2 bg-white flex flex-col justify-between text-slate-900 relative shadow-2xs overflow-hidden select-none"
+                        >
+                          {copyLabel && (
+                            <span className="absolute top-1 right-1 text-[7px] font-extrabold uppercase bg-slate-200 text-slate-700 px-1 py-0.2 rounded tracking-wider">
+                              {copyLabel}
+                            </span>
+                          )}
+
+                          {/* Slip Header */}
+                          <div className="text-center">
+                            <h4 className="text-[9px] font-black uppercase tracking-wide leading-tight">
+                              MUNICIPALITY OF MALUNGON • PROVINCE OF SARANGANI
+                            </h4>
+                            <p className="text-[7.5px] font-bold text-slate-600 leading-tight">
+                              Municipal Economic Enterprise Development Office (MEEDO)
+                            </p>
+                            <p className="text-[9px] font-black text-slate-900 uppercase tracking-wide leading-tight">
+                              ELECTRIC UTILITY BILLING STATEMENT
+                            </p>
+                            <div className="border-b-2 border-slate-900 my-0.5"></div>
+                          </div>
+
+                          {/* 2-Column Body */}
+                          <div className="grid grid-cols-2 gap-2 flex-1 my-0.5">
+                            {/* Left: Account & Notice */}
+                            <div className="flex flex-col justify-between text-[8px] bg-slate-50 border border-slate-200 rounded p-1.5 leading-tight">
+                              <div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500 font-semibold">Stall No:</span>
+                                  <strong className="text-[10px] text-slate-900 font-black">{b.stall_no}</strong>
+                                </div>
+                                <div className="flex justify-between mt-0.5">
+                                  <span className="text-slate-500 font-semibold">Owner:</span>
+                                  <strong className="text-[8.5px] text-slate-900 truncate max-w-[90px]">{b.owner_name}</strong>
+                                </div>
+                              </div>
+                              <div className="border-t border-slate-200 pt-0.5 mt-0.5">
+                                <div className="flex justify-between text-[7.5px]">
+                                  <span className="text-slate-500">Due:</span>
+                                  <strong className="text-rose-700 font-bold">{formatDate(b.due_date)}</strong>
+                                </div>
+                                <div className="flex justify-between text-[7.5px]">
+                                  <span className="text-slate-500">Disconnect:</span>
+                                  <strong className="text-slate-700">{b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right: Calculations */}
+                            <div className="flex flex-col justify-between text-[8px] bg-slate-50 border border-slate-200 rounded p-1.5 leading-tight">
+                              <div className="space-y-0.5">
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500">Prev Reading:</span>
+                                  <span className="font-mono">{Number(b.prev_reading || 0).toFixed(1)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500">Curr Reading:</span>
+                                  <span className="font-mono">{Number(b.curr_reading || 0).toFixed(1)}</span>
+                                </div>
+                                <div className="flex justify-between border-t border-slate-200 pt-0.5">
+                                  <span className="font-bold">Consumption:</span>
+                                  <strong className="text-blue-700">{Number(b.consumption || 0).toFixed(1)} kWh</strong>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500">Rate:</span>
+                                  <span>₱{Number(b.rate_per_kwh || 0).toFixed(2)}</span>
+                                </div>
+                              </div>
+                              <div className="border-t-2 border-slate-900 pt-0.5 flex justify-between font-black text-[9px]">
+                                <span>TOTAL DUE:</span>
+                                <span className="text-blue-900 font-extrabold">{formatCurrency(b.bill_amount)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Footer Signatures */}
+                          <div className="grid grid-cols-2 gap-3 text-[6.5px] border-t border-slate-200 pt-0.5 text-center text-slate-500">
+                            <div>
+                              <div className="border-b border-slate-400 h-2"></div>
+                              <span>Billing Clerk</span>
+                            </div>
+                            <div>
+                              <div className="border-b border-slate-400 h-2"></div>
+                              <span>Concessionaire</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Balanced Portrait preview card (zero dead space)
                     return (
                       <div
                         key={slotIdx}
-                        className="border-2 border-slate-900 rounded-xl p-2.5 bg-white flex flex-col justify-between text-slate-900 relative shadow-2xs overflow-hidden select-none"
+                        className="border-2 border-slate-900 rounded-xl p-2 bg-white flex flex-col justify-between text-slate-900 relative shadow-2xs overflow-hidden select-none gap-1"
                       >
                         {copyLabel && (
-                          <span className="absolute top-1.5 right-1.5 text-[8px] font-extrabold uppercase bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded tracking-wider">
+                          <span className="absolute top-1.5 right-1.5 text-[7px] font-extrabold uppercase bg-slate-200 text-slate-700 px-1 py-0.5 rounded tracking-wider">
                             {copyLabel}
                           </span>
                         )}
 
                         {/* Slip Header */}
                         <div className="text-center pt-0.5">
-                          <h4 className="text-[10px] font-black uppercase tracking-wide leading-tight">
+                          <h4 className="text-[9px] font-black uppercase tracking-wide leading-tight">
                             MUNICIPALITY OF MALUNGON
                           </h4>
-                          <p className="text-[8px] font-bold text-slate-600 leading-tight">
-                            Municipal Economic Enterprise Development Office (MEEDO)
+                          <p className="text-[7.5px] font-bold text-slate-600 leading-tight">
+                            MEEDO — ELECTRIC UTILITY STATEMENT
                           </p>
-                          <p className="text-[10px] font-black text-slate-900 uppercase tracking-wide mt-0.5 leading-tight">
-                            ELECTRIC UTILITY BILLING STATEMENT
-                          </p>
-                          <div className="border-b-2 border-slate-900 my-1"></div>
+                          <div className="border-b-2 border-slate-900 my-0.5"></div>
                         </div>
 
-                        {/* Meta info */}
-                        <div className="grid grid-cols-2 gap-1 text-[8.5px] leading-tight">
+                        {/* Meta info box */}
+                        <div className="bg-slate-50 border border-slate-200 rounded p-1.5 grid grid-cols-2 gap-1 text-[8px] leading-tight">
                           <div>
-                            <span className="text-slate-500 font-semibold block text-[7.5px]">Stall Number:</span>
-                            <strong className="text-[11px] text-slate-900 font-extrabold">{b.stall_no}</strong>
+                            <span className="text-slate-500 block text-[6.5px]">Stall Number:</span>
+                            <strong className="text-[10px] text-slate-900 font-black">{b.stall_no}</strong>
                           </div>
                           <div>
-                            <span className="text-slate-500 font-semibold block text-[7.5px]">Tenant / Owner:</span>
-                            <strong className="text-[9.5px] text-slate-900 font-bold truncate block">{b.owner_name}</strong>
+                            <span className="text-slate-500 block text-[6.5px]">Tenant / Owner:</span>
+                            <strong className="text-[8px] text-slate-900 font-bold truncate block">{b.owner_name}</strong>
                           </div>
                           <div>
-                            <span className="text-slate-500 font-semibold block text-[7.5px]">Due Date:</span>
-                            <strong className="text-rose-700 font-bold">{formatDate(b.due_date)}</strong>
+                            <span className="text-slate-500 block text-[6.5px]">Due Date:</span>
+                            <strong className="text-rose-700 font-bold text-[8px]">{formatDate(b.due_date)}</strong>
                           </div>
                           <div>
-                            <span className="text-slate-500 font-semibold block text-[7.5px]">Disconnection Date:</span>
-                            <strong className="text-slate-800 font-bold">
+                            <span className="text-slate-500 block text-[6.5px]">Disconnection:</span>
+                            <strong className="text-slate-800 text-[8px]">
                               {b.disconnection_date ? formatDate(b.disconnection_date) : '—'}
                             </strong>
                           </div>
                         </div>
 
                         {/* Readings / Breakdown Card */}
-                        <div className="border border-slate-300 rounded-lg p-1.5 bg-slate-50 text-[8.5px] space-y-0.5 my-1">
+                        <div className="border border-slate-200 rounded p-1.5 bg-slate-50 text-[8px] space-y-0.5">
                           <div className="flex justify-between">
-                            <span className="text-slate-600">Previous Reading:</span>
+                            <span className="text-slate-600">Prev Reading:</span>
                             <strong className="font-mono">{Number(b.prev_reading || 0).toFixed(1)} kWh</strong>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-600">Current Reading:</span>
+                            <span className="text-slate-600">Curr Reading:</span>
                             <strong className="font-mono">{Number(b.curr_reading || 0).toFixed(1)} kWh</strong>
                           </div>
-                          <div className="flex justify-between border-t border-slate-200 pt-0.5 mt-0.5">
-                            <span className="text-slate-600 font-medium">Consumption:</span>
-                            <strong className="font-bold text-slate-900">{Number(b.consumption || 0).toFixed(1)} kWh</strong>
+                          <div className="flex justify-between border-t border-slate-200 pt-0.5">
+                            <span className="text-slate-600 font-semibold">Total Consumption:</span>
+                            <strong className="font-black text-blue-700">{Number(b.consumption || 0).toFixed(1)} kWh</strong>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-600">Rate per kWh:</span>
@@ -1402,18 +1907,30 @@ export default function ElectricBillingPage() {
                               <span>₱{Number(b.arrears).toFixed(2)}</span>
                             </div>
                           )}
-                          <div className="flex justify-between border-t-2 border-slate-900 pt-0.5 text-[9.5px] font-black text-slate-900">
-                            <span>Total Amount Due:</span>
-                            <span className="text-blue-900 text-[10.5px]">
+                          <div className="flex justify-between border-t-2 border-slate-900 pt-0.5 text-[9px] font-black text-slate-900">
+                            <span>TOTAL AMOUNT DUE:</span>
+                            <span className="text-blue-900 font-extrabold text-[10px]">
                               {formatCurrency(b.bill_amount)}
                             </span>
                           </div>
                         </div>
 
-                        {/* Footer Notice */}
-                        <p className="text-[7px] text-center text-slate-500 italic leading-tight pb-0.5">
-                          Notice: Please settle your utility bill on or before the due date to avoid service disconnection.
-                        </p>
+                        {/* Settlement Alert Box */}
+                        <div className="bg-amber-50/80 border border-amber-200 rounded p-1 text-[6.8px] text-amber-900 text-center leading-tight">
+                          Please settle on or before due date to avoid service disconnection.
+                        </div>
+
+                        {/* Signatures */}
+                        <div className="grid grid-cols-2 gap-3 text-[6px] text-center text-slate-500 px-1">
+                          <div>
+                            <div className="border-b border-slate-400 h-2"></div>
+                            <span>Billing In-Charge</span>
+                          </div>
+                          <div>
+                            <div className="border-b border-slate-400 h-2"></div>
+                            <span>Concessionaire</span>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -1439,7 +1956,7 @@ export default function ElectricBillingPage() {
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                 <span>
                   Ready to print <strong>{totalSheets}</strong> {totalSheets === 1 ? 'sheet' : 'sheets'} on{' '}
-                  <strong className="uppercase">{paperSize}</strong> in Portrait orientation.
+                  <strong className="uppercase">{paperSize}</strong> in <strong className="capitalize">{orientation}</strong> orientation.
                 </span>
               </div>
 
