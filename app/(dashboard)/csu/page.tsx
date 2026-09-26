@@ -114,6 +114,19 @@ export default function CsuPage() {
   // Calendar Event Creation Modal State
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
 
+  // Fallback guard profile if roster is still empty
+  const defaultEmptyGuard: MarketGuard = {
+    guard_id: 'G-101',
+    guard_name: currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+    rank_title: 'Market Guard',
+    default_area: 'General Public Market',
+    contact_no: '',
+    radio_call_sign: 'EAGLE-1',
+    assigned_facility: 'Public Market Main',
+    current_shift: '1st Shift (06:00 - 14:00)',
+    status: 'Active',
+  };
+
   // Selected guard object for guard view
   const activeGuardObj =
     guards.find((g) => g.guard_id === previewGuardId) ||
@@ -121,7 +134,8 @@ export default function CsuPage() {
       (g) =>
         g.guard_name.toLowerCase().includes((currentUser?.full_name || currentUser?.username || '').toLowerCase())
     ) ||
-    guards[0];
+    guards[0] ||
+    defaultEmptyGuard;
 
   // Flattened Incidents, Violations, Lost & Found for Admin tables
   const allIncidents = csuReports.flatMap((r) => r.incident_data || []);
@@ -180,14 +194,14 @@ export default function CsuPage() {
       {/* ===================================================================== */}
       {/* TOP DUAL-PERSONA HEADER & MODE SWITCHER                               */}
       {/* ===================================================================== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-600/30">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs overflow-hidden">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-600/30">
             <ShieldAlert className="h-6 w-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-slate-900">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-black text-slate-900 truncate">
                 Peace & Order Desk
               </h1>
               <Badge
@@ -201,30 +215,36 @@ export default function CsuPage() {
                 {viewPersona === 'guard' ? '📱 Market Guard View' : '🖥️ Administrator Side'}
               </Badge>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 line-clamp-1">
               Section F: Operational Duty Roster, Market Calendar, Blotter & Multi-Sector Security
             </p>
           </div>
         </div>
 
         {/* Persona Switcher / Preview Toggle */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
           {viewPersona === 'guard' ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
               {currentUser?.role === 'Admin' && (
-                <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1">
-                  <Eye className="h-3.5 w-3.5 text-amber-700" />
-                  <span className="text-[11px] font-bold text-amber-900">Previewing Guard:</span>
+                <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 min-w-0 flex-1 sm:flex-initial">
+                  <Eye className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                  <span className="text-[11px] font-bold text-amber-900 shrink-0">Previewing:</span>
                   <select
                     value={previewGuardId}
                     onChange={(e) => setPreviewGuardId(e.target.value)}
-                    className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800"
+                    className="rounded-lg border border-amber-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800 min-w-0 flex-1 max-w-[200px]"
                   >
-                    {guards.map((g) => (
-                      <option key={g.guard_id} value={g.guard_id}>
-                        {g.guard_name} ({g.guard_id})
+                    {guards.length === 0 ? (
+                      <option value={defaultEmptyGuard.guard_id}>
+                        {defaultEmptyGuard.guard_name} ({defaultEmptyGuard.guard_id})
                       </option>
-                    ))}
+                    ) : (
+                      guards.map((g) => (
+                        <option key={g.guard_id} value={g.guard_id}>
+                          {g.guard_name} ({g.guard_id})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               )}
@@ -234,7 +254,7 @@ export default function CsuPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => setViewPersona('admin')}
-                  className="rounded-xl border-slate-300 text-xs font-bold gap-1.5 shadow-xs"
+                  className="rounded-xl border-slate-300 text-xs font-bold gap-1.5 shadow-xs w-full sm:w-auto justify-center"
                 >
                   <X className="h-3.5 w-3.5" /> Back to Admin Console
                 </Button>
@@ -244,7 +264,7 @@ export default function CsuPage() {
             <Button
               size="sm"
               onClick={() => setViewPersona('guard')}
-              className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-1.5 shadow-sm"
+              className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-1.5 shadow-sm w-full sm:w-auto justify-center"
             >
               <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
               Preview Market Guard Mobile View
@@ -259,7 +279,7 @@ export default function CsuPage() {
       {viewPersona === 'guard' ? (
         <div className="space-y-6">
           {/* Guard Navigation Pills */}
-          <div className="flex items-center justify-between overflow-x-auto rounded-2xl bg-slate-100 p-1.5 border border-slate-200">
+          <div className="overflow-x-auto no-scrollbar rounded-2xl bg-slate-100 p-1.5 border border-slate-200 max-w-full">
             <div className="flex items-center gap-1 min-w-max">
               <button
                 onClick={() => setGuardTab('shift')}
@@ -331,7 +351,7 @@ export default function CsuPage() {
         /* =================================================================== */
         <div className="space-y-6">
           {/* Admin Navigation Tabs */}
-          <div className="flex items-center overflow-x-auto rounded-2xl bg-slate-100 p-1.5 border border-slate-200">
+          <div className="overflow-x-auto no-scrollbar rounded-2xl bg-slate-100 p-1.5 border border-slate-200 max-w-full">
             <div className="flex items-center gap-1 min-w-max">
               <button
                 onClick={() => setAdminTab('dashboard')}

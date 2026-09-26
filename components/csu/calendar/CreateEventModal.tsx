@@ -167,30 +167,30 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-2xl max-h-[94vh] sm:max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-900 px-6 py-4 text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/30 text-blue-400 ring-1 ring-blue-500/50">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-900 px-4 sm:px-6 py-3.5 sm:py-4 text-white shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/30 text-blue-400 ring-1 ring-blue-500/50">
               <Calendar className="h-5 w-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold">Create Market Operation Event</h2>
-              <p className="text-xs text-slate-400">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold truncate">Create Market Operation Event</h2>
+              <p className="text-[11px] sm:text-xs text-slate-400 line-clamp-1">
                 Schedule guard duties, inspections, cleanings, and market activities
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
           {errorMsg && (
             <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
@@ -267,39 +267,39 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
           </div>
 
           {/* Date & Shift Quick Presets */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 sm:p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <Clock className="h-4 w-4 text-blue-600" />
+                <Clock className="h-4 w-4 text-blue-600 shrink-0" />
                 Schedule & Shift Timing
               </span>
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-slate-500 mr-1">Presets:</span>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-slate-500 mr-1 text-[11px]">Presets:</span>
                 <button
                   type="button"
                   onClick={() => handleApplyShiftPreset('1st')}
-                  className="rounded-lg bg-blue-100 hover:bg-blue-200 px-2 py-1 font-semibold text-blue-800 transition"
+                  className="rounded-lg bg-blue-100 hover:bg-blue-200 px-2 py-1 font-semibold text-blue-800 transition text-[11px]"
                 >
                   1st Shift (06-14h)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleApplyShiftPreset('2nd')}
-                  className="rounded-lg bg-indigo-100 hover:bg-indigo-200 px-2 py-1 font-semibold text-indigo-800 transition"
+                  className="rounded-lg bg-indigo-100 hover:bg-indigo-200 px-2 py-1 font-semibold text-indigo-800 transition text-[11px]"
                 >
                   2nd Shift (14-22h)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleApplyShiftPreset('3rd')}
-                  className="rounded-lg bg-purple-100 hover:bg-purple-200 px-2 py-1 font-semibold text-purple-800 transition"
+                  className="rounded-lg bg-purple-100 hover:bg-purple-200 px-2 py-1 font-semibold text-purple-800 transition text-[11px]"
                 >
                   3rd Shift (22-06h)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleApplyShiftPreset('day')}
-                  className="rounded-lg bg-slate-200 hover:bg-slate-300 px-2 py-1 font-semibold text-slate-800 transition"
+                  className="rounded-lg bg-slate-200 hover:bg-slate-300 px-2 py-1 font-semibold text-slate-800 transition text-[11px]"
                 >
                   Office (08-17h)
                 </button>
@@ -533,19 +533,24 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         </form>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-4">
-          <p className="text-xs text-slate-500 flex items-center gap-1.5">
-            <CheckCircle className="h-4 w-4 text-emerald-600" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-slate-50 px-4 sm:px-6 py-3.5 shrink-0">
+          <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 order-2 sm:order-1">
+            <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 shrink-0" />
             Synchronized with Market Guard "My Shift" interface
           </p>
-          <div className="flex items-center gap-3">
-            <Button type="button" variant="outline" onClick={onClose} className="rounded-xl px-4 py-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end order-1 sm:order-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="rounded-xl px-4 py-2 flex-1 sm:flex-initial text-xs font-bold"
+            >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={handleSubmit}
-              className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 shadow-md shadow-blue-600/20"
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 shadow-md shadow-blue-600/20 flex-1 sm:flex-initial text-xs"
             >
               Confirm & Schedule Event
             </Button>

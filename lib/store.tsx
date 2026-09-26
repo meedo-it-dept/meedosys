@@ -206,21 +206,18 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window !== 'undefined') {
       try {
         // One-time wipe of old mock data from previous demo sessions
-        if (localStorage.getItem('meedo_clean_slate_v4') !== 'true') {
-          localStorage.removeItem('meedo_stalls');
-          localStorage.removeItem('meedo_bills');
-          localStorage.removeItem('meedo_slaughter');
-          localStorage.removeItem('meedo_cemetery');
-          localStorage.removeItem('meedo_todas');
-          localStorage.removeItem('meedo_members');
-          localStorage.removeItem('meedo_opif');
+        if (localStorage.getItem('meedo_clean_csu_and_users_v5') !== 'true') {
           localStorage.removeItem('meedo_csu');
           localStorage.removeItem('meedo_guards');
-          localStorage.removeItem('meedo_inventory_items');
-          localStorage.removeItem('meedo_inventory_transactions');
-          localStorage.removeItem('meedo_butchers');
-          localStorage.removeItem('meedo_users');
-          localStorage.setItem('meedo_clean_slate_v4', 'true');
+          localStorage.removeItem('meedo_calendar_events');
+          localStorage.removeItem('meedo_active_guard_session');
+          localStorage.setItem('meedo_users', JSON.stringify(initialUsers));
+          setCsuReports([]);
+          setGuards([]);
+          setMarketCalendarEvents([]);
+          setActiveShiftSession(null);
+          setUsers(initialUsers);
+          localStorage.setItem('meedo_clean_csu_and_users_v5', 'true');
         }
 
         const savedUser = localStorage.getItem('meedo_current_user');
@@ -231,7 +228,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           try {
             const parsed = JSON.parse(savedUsersStr);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setUsers(parsed);
+              const legacyMockUsernames = new Set([
+                'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
+                'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
+                'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
+                'rexmonteliza', 'alvin'
+              ]);
+              const filtered = parsed.filter((u: UserProfile) => u && u.username && !legacyMockUsernames.has(u.username.toLowerCase()));
+              setUsers(filtered.length > 0 ? filtered : initialUsers);
             }
           } catch (e) {}
         }
@@ -312,6 +316,13 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 );
               }
 
+              const legacyMockUsernames = new Set([
+                'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
+                'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
+                'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
+                'rexmonteliza', 'alvin'
+              ]);
+
               // Consolidate users directory from initial seeds, local cache, profiles, and audit log events
               const userMap = new Map<string, UserProfile>();
               initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
@@ -322,7 +333,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   const parsed = JSON.parse(cachedUsers);
                   if (Array.isArray(parsed)) {
                     parsed.forEach((u: UserProfile) => {
-                      if (u && u.username) {
+                      if (u && u.username && !legacyMockUsernames.has(u.username.toLowerCase())) {
                         const existing = userMap.get(u.username.toLowerCase()) || {};
                         userMap.set(u.username.toLowerCase(), { ...existing, ...u });
                       }
@@ -333,7 +344,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
               if (profilesRes.data && profilesRes.data.length > 0) {
                 profilesRes.data.forEach((p: any) => {
-                  if (p && p.username) {
+                  if (p && p.username && !legacyMockUsernames.has(p.username.toLowerCase())) {
                     const existing = userMap.get(p.username.toLowerCase()) || {};
                     userMap.set(p.username.toLowerCase(), { ...existing, ...p });
                   }
@@ -503,6 +514,13 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         supabase.from('audit_logs').select('*').order('created_at', { ascending: true }),
       ]);
 
+      const legacyMockUsernames = new Set([
+        'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
+        'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
+        'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
+        'rexmonteliza', 'alvin'
+      ]);
+
       const userMap = new Map<string, UserProfile>();
       initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
 
@@ -512,7 +530,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const parsed = JSON.parse(localUsers);
           if (Array.isArray(parsed)) {
             parsed.forEach((u: UserProfile) => {
-              if (u && u.username) {
+              if (u && u.username && !legacyMockUsernames.has(u.username.toLowerCase())) {
                 userMap.set(u.username.toLowerCase(), {
                   ...userMap.get(u.username.toLowerCase()),
                   ...u,
@@ -525,7 +543,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (profilesRes.data && profilesRes.data.length > 0) {
         profilesRes.data.forEach((p: any) => {
-          if (p && p.username) {
+          if (p && p.username && !legacyMockUsernames.has(p.username.toLowerCase())) {
             const existing = userMap.get(p.username.toLowerCase()) || {};
             userMap.set(p.username.toLowerCase(), { ...existing, ...p });
           }
