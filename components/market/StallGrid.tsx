@@ -25,7 +25,7 @@ export const StallGrid: React.FC = () => {
   const stallParam = searchParams.get('stall');
   const { stalls } = useMeedo();
 
-  const [activeZone, setActiveZone] = useState<StallZone>('triangular');
+  const [activeZone, setActiveZone] = useState<StallZone>('wet');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Occupied' | 'Vacant'>('all');
   const [selectedStall, setSelectedStall] = useState<Stall | null>(null);
