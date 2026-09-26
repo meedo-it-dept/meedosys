@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { BlotterPrintSheet } from '@/components/csu/blotter/BlotterPrintSheet';
 
 export const MasterBlotterReview: React.FC = () => {
   const { csuReports, approveBlotterReport, updateCsuReport } = useMeedo();
@@ -28,6 +29,7 @@ export const MasterBlotterReview: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Locked' | 'Draft' | 'Approved'>('All');
   const [selectedReport, setSelectedReport] = useState<CsuDailyReport | null>(null);
+  const [printModalReport, setPrintModalReport] = useState<CsuDailyReport | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
 
   // Filtered reports
@@ -175,14 +177,25 @@ export const MasterBlotterReview: React.FC = () => {
                       )}
                     </td>
                     <td className="p-4 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedReport(report)}
-                        className="rounded-xl text-xs font-bold gap-1 h-8"
-                      >
-                        <Eye className="h-3.5 w-3.5" /> Review & Sign
-                      </Button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPrintModalReport(report)}
+                          className="rounded-xl text-xs font-bold gap-1 h-8 text-blue-700 hover:bg-blue-50 border-blue-200"
+                          title="Print / Export in A4 or US Letter"
+                        >
+                          <Printer className="h-3.5 w-3.5" /> A4/Letter
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedReport(report)}
+                          className="rounded-xl text-xs font-bold gap-1 h-8"
+                        >
+                          <Eye className="h-3.5 w-3.5" /> Review & Sign
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -323,10 +336,10 @@ export const MasterBlotterReview: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.print()}
-                className="rounded-xl text-xs font-bold gap-1.5"
+                onClick={() => setPrintModalReport(selectedReport)}
+                className="rounded-xl text-xs font-bold gap-1.5 text-blue-700 bg-blue-50/50 hover:bg-blue-100/50 border-blue-200"
               >
-                <Printer className="h-4 w-4" /> Print Document
+                <Printer className="h-4 w-4 text-blue-600" /> Print Document (A4 & Letter)
               </Button>
 
               <div className="flex items-center gap-2">
@@ -345,6 +358,19 @@ export const MasterBlotterReview: React.FC = () => {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated A4 / US Letter Print Preview Modal */}
+      {printModalReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 md:p-8 backdrop-blur-sm overflow-y-auto no-print:bg-black/75">
+          <div className="relative w-full max-w-5xl rounded-3xl bg-slate-100 p-4 sm:p-6 shadow-2xl max-h-[96vh] overflow-y-auto">
+            <BlotterPrintSheet
+              report={printModalReport}
+              isModal
+              onClose={() => setPrintModalReport(null)}
+            />
           </div>
         </div>
       )}

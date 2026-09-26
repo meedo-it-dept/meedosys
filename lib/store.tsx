@@ -257,6 +257,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 profilesRes,
                 auditRes,
                 monitoringRes,
+                guardsRes,
+                calendarRes,
               ] = await Promise.all([
                 client.from('stall_tenants').select('*'),
                 client.from('electric_bills').select('*'),
@@ -272,6 +274,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 client.from('profiles').select('*'),
                 client.from('audit_logs').select('*').order('created_at', { ascending: true }),
                 client.from('monitoring_records').select('*').order('monitoring_date', { ascending: false }),
+                client.from('market_guards').select('*'),
+                client.from('market_calendar_events').select('*').order('date', { ascending: true }),
               ]);
 
               if (billsRes.data) setElectricBills(billsRes.data);
@@ -285,6 +289,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               if (invTxRes.data) setInventoryTransactions(invTxRes.data);
               if (butchersRes.data) setButchers(butchersRes.data);
               if (monitoringRes.data) setMonitoringRecords(monitoringRes.data);
+              if (guardsRes.data && guardsRes.data.length > 0) {
+                setGuards(guardsRes.data);
+                localStorage.setItem('meedo_guards', JSON.stringify(guardsRes.data));
+              }
+              if (calendarRes.data && calendarRes.data.length > 0) {
+                setMarketCalendarEvents(calendarRes.data);
+                localStorage.setItem('meedo_calendar_events', JSON.stringify(calendarRes.data));
+              }
 
               if (tenantsRes.data) {
                 const tenantMap = new Map();
@@ -454,6 +466,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_guards', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('market_guards').upsert(guard).then();
+    }
   };
 
   const updateGuard = (guardId: string, updates: Partial<MarketGuard>) => {
@@ -464,6 +479,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_guards', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('market_guards').update(updates).eq('guard_id', guardId).then();
+    }
   };
 
   const deleteGuard = (guardId: string) => {
@@ -472,6 +490,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_guards', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('market_guards').delete().eq('guard_id', guardId).then();
+    }
   };
 
   const refreshUsers = async () => {
@@ -1294,6 +1315,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('csu_daily_reports').insert(newReport).then();
+    }
   };
 
   const updateCsuReport = (id: string, updates: Partial<CsuDailyReport>) => {
@@ -1302,33 +1326,45 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('csu_daily_reports').update(updates).eq('id', id).then();
+    }
   };
 
   const requestBlotterCorrection = (reportId: string, reason: string) => {
+    let updatedReport: CsuDailyReport | null = null;
     setCsuReports((prev) => {
       const updated = prev.map((r) => {
         if (r.id === reportId) {
           const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           const userStr = currentUser?.full_name || currentUser?.username || 'Market Guard';
-          return {
+          updatedReport = {
             ...r,
             is_locked: false,
             turnover_notes: `${r.turnover_notes ? r.turnover_notes + '\n\n' : ''}[CORRECTION REQUESTED by ${userStr} at ${timestamp}]: ${reason}`,
           };
+          return updatedReport;
         }
         return r;
       });
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase && updatedReport) {
+      supabase.from('csu_daily_reports').update({
+        is_locked: false,
+        turnover_notes: (updatedReport as any).turnover_notes,
+      }).eq('id', reportId).then();
+    }
   };
 
   const approveBlotterReport = (reportId: string, reviewerNotes?: string) => {
+    let updatedReport: CsuDailyReport | null = null;
     setCsuReports((prev) => {
       const updated = prev.map((r) => {
         if (r.id === reportId) {
           const approverName = currentUser?.full_name || 'Market Administrator';
-          return {
+          updatedReport = {
             ...r,
             is_locked: true,
             ver_name: approverName,
@@ -1339,12 +1375,23 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               ? `${r.turnover_notes ? r.turnover_notes + '\n\n' : ''}[ADMIN APPROVAL NOTE]: ${reviewerNotes}`
               : r.turnover_notes,
           };
+          return updatedReport;
         }
         return r;
       });
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
       return updated;
     });
+    if (isSupabaseConfigured && supabase && updatedReport) {
+      supabase.from('csu_daily_reports').update({
+        is_locked: true,
+        ver_name: (updatedReport as any).ver_name,
+        ver_title: (updatedReport as any).ver_title,
+        app_name: (updatedReport as any).app_name,
+        app_title: (updatedReport as any).app_title,
+        turnover_notes: (updatedReport as any).turnover_notes,
+      }).eq('id', reportId).then();
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -1427,6 +1474,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return updated;
     });
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('market_calendar_events').insert(newEvt).then();
+    }
+
     return { success: true };
   };
 
@@ -1465,6 +1516,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return updated;
     });
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('market_calendar_events').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).then();
+    }
+
     return { success: true };
   };
 
@@ -1474,6 +1529,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_calendar_events', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('market_calendar_events').delete().eq('id', id).then();
+    }
   };
 
   // ---------------------------------------------------------------------------

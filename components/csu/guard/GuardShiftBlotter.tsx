@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { QuickIncidentModal } from './QuickIncidentModal';
+import { BlotterPrintSheet } from '@/components/csu/blotter/BlotterPrintSheet';
 
 interface GuardShiftBlotterProps {
   currentGuard: MarketGuard;
@@ -53,6 +54,7 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [correctionReason, setCorrectionReason] = useState('');
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   // Local draft additions if not locked
   const [newViolation, setNewViolation] = useState({
@@ -152,10 +154,10 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.print()}
-              className="rounded-xl text-xs font-bold gap-1.5"
+              onClick={() => setIsPrintModalOpen(true)}
+              className="rounded-xl text-xs font-bold gap-1.5 shadow-xs"
             >
-              <Printer className="h-4 w-4" /> Print Blotter
+              <Printer className="h-4 w-4" /> Print / Export (A4 & Letter)
             </Button>
           </div>
         </div>
@@ -245,245 +247,42 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
             </div>
           </div>
 
-          {/* Blotter Sheet Document View */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm space-y-6">
-            {/* Document Header */}
-            <div className="border-b pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <span className="text-[11px] font-mono font-bold text-blue-700 uppercase">
-                  MEEDOSys Municipal Economic Enterprise Development Office
-                </span>
-                <h2 className="text-xl font-black text-slate-900 mt-0.5">
-                  CSU Daily Shift Blotter Report
-                </h2>
-                <p className="text-xs text-slate-500 font-mono">
-                  Report ID: {activeReport.id} • Date: {activeReport.report_date} ({activeReport.day_of_week})
-                </p>
-              </div>
-
-              <div className="text-right">
-                <span className="block text-xs font-bold text-slate-700 uppercase">Shift Schedule</span>
-                <span className="block text-sm font-black text-blue-900">{activeReport.shift}</span>
-                <span className="block text-xs text-slate-500">{activeReport.area_covered}</span>
-              </div>
-            </div>
-
-            {/* Guard on Duty Roster */}
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2 flex items-center gap-1.5">
-                <Shield className="h-4 w-4 text-blue-600" />
-                Guards / Personnel on Duty
-              </h3>
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase">
-                    <tr>
-                      <th className="p-3">Guard Name</th>
-                      <th className="p-3">Assigned Area</th>
-                      <th className="p-3">Time In</th>
-                      <th className="p-3">Time Out</th>
-                      <th className="p-3">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {activeReport.personnel_data.map((p, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-slate-900">
-                          {p.guard_name} <span className="font-mono text-slate-500">({p.guard_id})</span>
-                        </td>
-                        <td className="p-3 text-slate-700">{p.assigned_area}</td>
-                        <td className="p-3 font-mono font-bold text-emerald-700">{p.time_in}</td>
-                        <td className="p-3 font-mono font-bold text-slate-700">{p.time_out || '--'}</td>
-                        <td className="p-3 text-slate-500">{p.remarks || 'Standard duty'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* Quick Draft Action Toolbar (if not locked) */}
+          {!isLocked && (
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 no-print">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                Log Operational Records for This Shift:
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setIsIncidentModalOpen(true)}
+                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold h-8 gap-1.5 shadow-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Log Incident
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAddViolationOpen(true)}
+                  className="rounded-xl text-xs font-bold h-8 gap-1.5 bg-white border-slate-300"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Log Stall Infraction
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAddLostFoundOpen(true)}
+                  className="rounded-xl text-xs font-bold h-8 gap-1.5 bg-white border-slate-300"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Log Lost Item
+                </Button>
               </div>
             </div>
+          )}
 
-            {/* Incidents Section */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                  Incidents & Emergencies Recorded ({activeReport.incident_data.length})
-                </h3>
-                {!isLocked && (
-                  <Button
-                    size="sm"
-                    onClick={() => setIsIncidentModalOpen(true)}
-                    className="rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold h-7 gap-1"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Log Incident
-                  </Button>
-                )}
-              </div>
-
-              {activeReport.incident_data.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
-                  No security incidents or emergency events logged during this shift.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {activeReport.incident_data.map((inc, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-2xl border border-red-200 bg-red-50/50 p-4 space-y-1.5 text-xs text-slate-800"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-red-900 text-sm">{inc.type}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-slate-600">{inc.time}</span>
-                          <Badge variant="outline" className="bg-white text-[10px]">
-                            {inc.status}
-                          </Badge>
-                        </div>
-                      </div>
-                      <p className="text-slate-700">{inc.description}</p>
-                      {inc.immediate_action && (
-                        <p className="text-emerald-800 font-semibold">
-                          Action Taken: {inc.immediate_action}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Violations & Citations Section */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-amber-600" />
-                  Stall Violations & Vendor Reminders ({activeReport.violations_data.length})
-                </h3>
-                {!isLocked && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsAddViolationOpen(true)}
-                    className="rounded-xl text-xs font-bold h-7 gap-1"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Log Violation
-                  </Button>
-                )}
-              </div>
-
-              {activeReport.violations_data.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
-                  No vendor or stall infractions recorded during this shift.
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b font-bold text-slate-600">
-                      <tr>
-                        <th className="p-3">Vendor / Identifier</th>
-                        <th className="p-3">Infraction</th>
-                        <th className="p-3">Action Taken</th>
-                        <th className="p-3">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {activeReport.violations_data.map((v, idx) => (
-                        <tr key={idx}>
-                          <td className="p-3 font-bold text-slate-900">{v.identifier}</td>
-                          <td className="p-3 text-slate-700">{v.violation}</td>
-                          <td className="p-3 text-emerald-700 font-medium">{v.action_taken}</td>
-                          <td className="p-3 font-mono text-slate-500">{v.time || '--'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Lost & Found Section */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <Package className="h-4 w-4 text-teal-600" />
-                  Lost & Found Items Handled ({activeReport.lost_found_data.length})
-                </h3>
-                {!isLocked && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsAddLostFoundOpen(true)}
-                    className="rounded-xl text-xs font-bold h-7 gap-1"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Item
-                  </Button>
-                )}
-              </div>
-
-              {activeReport.lost_found_data.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
-                  No lost items turned in during this shift.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {activeReport.lost_found_data.map((lf, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-teal-950 block">{lf.description}</span>
-                        <span className="text-slate-500 text-[11px]">
-                          Location: {lf.location || 'Market'} • Turned in by: {lf.found_by}
-                        </span>
-                      </div>
-                      <Badge className="bg-teal-700 text-white text-[10px]">{lf.status}</Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Activities & Turnover Notes */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-1">
-                <span className="block text-xs font-bold uppercase text-slate-600">
-                  Summary of Activities
-                </span>
-                <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
-                  {activeReport.summary_activities || 'Normal shift roving conducted without incident.'}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-1">
-                <span className="block text-xs font-bold uppercase text-slate-600">
-                  Turnover Notes & Custody
-                </span>
-                <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
-                  {activeReport.turnover_notes || 'All posts accounted for.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Tri-Level Signatures Footer */}
-            <div className="pt-6 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs">
-              <div className="space-y-1">
-                <span className="block text-[10px] uppercase font-bold text-slate-400">Prepared By</span>
-                <p className="font-black text-slate-900 border-b pb-1">{activeReport.prep_name}</p>
-                <p className="text-slate-500 text-[11px]">{activeReport.prep_title}</p>
-              </div>
-              <div className="space-y-1">
-                <span className="block text-[10px] uppercase font-bold text-slate-400">Verified By</span>
-                <p className="font-black text-slate-900 border-b pb-1">{activeReport.ver_name}</p>
-                <p className="text-slate-500 text-[11px]">{activeReport.ver_title}</p>
-              </div>
-              <div className="space-y-1">
-                <span className="block text-[10px] uppercase font-bold text-slate-400">Approved By</span>
-                <p className="font-black text-slate-900 border-b pb-1">{activeReport.app_name}</p>
-                <p className="text-slate-500 text-[11px]">{activeReport.app_title}</p>
-              </div>
-            </div>
-          </div>
+          {/* Official A4 / US Letter Size Printable Blotter Sheet */}
+          <BlotterPrintSheet report={activeReport} />
         </div>
       )}
 
@@ -638,6 +437,19 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dedicated A4 / US Letter Print Preview Modal */}
+      {isPrintModalOpen && activeReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 md:p-8 backdrop-blur-sm overflow-y-auto no-print:bg-black/75">
+          <div className="relative w-full max-w-5xl rounded-3xl bg-slate-100 p-4 sm:p-6 shadow-2xl max-h-[96vh] overflow-y-auto">
+            <BlotterPrintSheet
+              report={activeReport}
+              isModal
+              onClose={() => setIsPrintModalOpen(false)}
+            />
           </div>
         </div>
       )}
