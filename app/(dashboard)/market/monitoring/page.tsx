@@ -86,6 +86,11 @@ function MonthlyMonitoringContent() {
     (s) => s.stall_no.toUpperCase() === selectedStallNo.toUpperCase()
   );
 
+  const wetStalls = stalls.filter((s) => s.zone === 'wet');
+  const dryStalls = stalls.filter((s) => s.zone === 'dry');
+  const oldStalls = stalls.filter((s) => s.zone === 'old');
+  const triangularStalls = stalls.filter((s) => s.zone === 'triangular');
+
   // Whenever a stall is selected, pre-populate from stall tenant & historical monitoring
   useEffect(() => {
     if (stall) {
@@ -213,13 +218,13 @@ function MonthlyMonitoringContent() {
       </div>
 
       {/* Stall Selector & Cross-Module Context Card */}
-      <Card className="no-print p-4 sm:p-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex-1 max-w-xl">
+      <Card className="no-print p-4 sm:p-5 w-full min-w-0 overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full min-w-0">
+          <div className="w-full flex-1 max-w-xl min-w-0">
             <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
               Select Stall to Monitor
             </label>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 w-full min-w-0">
               <select
                 value={selectedStallNo}
                 onChange={(e) => {
@@ -230,14 +235,45 @@ function MonthlyMonitoringContent() {
                     router.replace('/market/monitoring');
                   }
                 }}
-                className="flex-1 text-sm px-3.5 py-2.5 border border-slate-300 rounded-lg bg-white font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="flex-1 w-full min-w-0 max-w-full text-xs sm:text-sm px-3 py-2.5 border border-slate-300 rounded-xl bg-white font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 truncate"
               >
                 <option value="">Select a stall...</option>
-                {stalls.map((s) => (
-                  <option key={s.stall_no} value={s.stall_no}>
-                    {s.stall_no} — {s.current_tenant?.stall_owner || 'Vacant'} ({s.zone.toUpperCase()} ZONE)
-                  </option>
-                ))}
+                {wetStalls.length > 0 && (
+                  <optgroup label="🏬 Wet Section">
+                    {wetStalls.map((s) => (
+                      <option key={s.stall_no} value={s.stall_no}>
+                        {s.stall_no} — {s.current_tenant?.stall_owner || 'Vacant'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {dryStalls.length > 0 && (
+                  <optgroup label="👕 Dry Goods">
+                    {dryStalls.map((s) => (
+                      <option key={s.stall_no} value={s.stall_no}>
+                        {s.stall_no} — {s.current_tenant?.stall_owner || 'Vacant'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {oldStalls.length > 0 && (
+                  <optgroup label="🏛️ Old Building">
+                    {oldStalls.map((s) => (
+                      <option key={s.stall_no} value={s.stall_no}>
+                        {s.stall_no} — {s.current_tenant?.stall_owner || 'Vacant'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {triangularStalls.length > 0 && (
+                  <optgroup label="📐 Triangular">
+                    {triangularStalls.map((s) => (
+                      <option key={s.stall_no} value={s.stall_no}>
+                        {s.stall_no} — {s.current_tenant?.stall_owner || 'Vacant'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
 
               {selectedStallNo && (
@@ -247,9 +283,9 @@ function MonthlyMonitoringContent() {
                   size="sm"
                   onClick={() => router.push(`/market/map?stall=${selectedStallNo}`)}
                   title="Open stall in Market Layout side drawer"
-                  className="shrink-0"
+                  className="shrink-0 text-xs px-2.5 sm:px-3"
                 >
-                  <MapPin className="w-4 h-4 mr-1 text-blue-600" />
+                  <MapPin className="w-3.5 h-3.5 mr-1 text-blue-600" />
                   Blueprint
                 </Button>
               )}
@@ -257,7 +293,7 @@ function MonthlyMonitoringContent() {
           </div>
 
           {stall && stall.current_tenant && (
-            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200/90 rounded-xl">
+            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200/90 rounded-xl w-full md:w-auto min-w-0">
               <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
                 {stall.current_tenant.stall_owner.charAt(0) || 'T'}
               </div>
