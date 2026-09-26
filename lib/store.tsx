@@ -979,6 +979,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (updates.password !== undefined) profilePayload.password = updates.password;
       if (updates.guard_id !== undefined) profilePayload.guard_id = updates.guard_id;
       if (updates.rank_title !== undefined) profilePayload.rank_title = updates.rank_title;
+      if (updates.radio_call_sign !== undefined) profilePayload.radio_call_sign = updates.radio_call_sign;
+      if (updates.default_area !== undefined) profilePayload.default_area = updates.default_area;
 
       supabase
         .from('profiles')
@@ -987,6 +989,32 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .then(({ error }) => {
           if (error) console.error('Supabase profile update sync error:', error);
         });
+
+      // Synchronize changes to market_guards roster if user has guard_id
+      const targetUser = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+      const effectiveGuardId = updates.guard_id || targetUser?.guard_id;
+      if (effectiveGuardId) {
+        const guardUpdates: Partial<MarketGuard> = {};
+        if (updates.full_name) guardUpdates.guard_name = updates.full_name;
+        if (updates.rank_title) guardUpdates.rank_title = updates.rank_title;
+        if (updates.radio_call_sign) guardUpdates.radio_call_sign = updates.radio_call_sign;
+        if (updates.default_area) guardUpdates.default_area = updates.default_area;
+
+        if (Object.keys(guardUpdates).length > 0) {
+          setGuards((prev) =>
+            prev.map((g) =>
+              g.guard_id.toUpperCase() === effectiveGuardId.toUpperCase()
+                ? { ...g, ...guardUpdates }
+                : g
+            )
+          );
+          supabase
+            .from('market_guards')
+            .update(guardUpdates)
+            .eq('guard_id', effectiveGuardId)
+            .then();
+        }
+      }
 
       supabase
         .from('audit_logs')
@@ -1019,6 +1047,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const cleanFullName = userData.full_name ? userData.full_name.trim() : trimmedUser;
     const cleanRankTitle = userData.rank_title ? userData.rank_title.trim() : undefined;
     const cleanPassword = userData.password?.trim() || undefined;
+    const cleanCallSign = userData.radio_call_sign?.trim().toUpperCase() || 'EAGLE-1';
+    const cleanDefaultArea = userData.default_area?.trim() || 'General Public Market';
 
     const newUser: UserProfile = {
       id: generateUUID(),
@@ -1030,6 +1060,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       guard_id: cleanGuardId,
       full_name: cleanFullName,
       rank_title: cleanRankTitle,
+      radio_call_sign: cleanCallSign,
+      default_area: cleanDefaultArea,
       created_at: new Date().toISOString(),
     };
 
@@ -1052,6 +1084,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             password: newUser.password || null,
             guard_id: newUser.guard_id || null,
             rank_title: newUser.rank_title || null,
+            radio_call_sign: newUser.radio_call_sign || null,
+            default_area: newUser.default_area || null,
             created_at: newUser.created_at,
           },
           { onConflict: 'username' }
@@ -1088,6 +1122,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   ...g,
                   guard_name: cleanFullName,
                   rank_title: cleanRankTitle || g.rank_title,
+                  radio_call_sign: cleanCallSign,
+                  default_area: cleanDefaultArea,
                 }
               : g
           );
@@ -1098,7 +1134,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               guard_id: cleanGuardId,
               guard_name: cleanFullName,
               rank_title: cleanRankTitle || 'SO1',
-              default_area: 'Market General Security',
+              default_area: cleanDefaultArea,
+              radio_call_sign: cleanCallSign,
               status: 'Active',
             },
           ];
@@ -1115,7 +1152,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               guard_id: cleanGuardId,
               guard_name: cleanFullName,
               rank_title: cleanRankTitle || 'SO1',
-              default_area: 'Market General Security',
+              default_area: cleanDefaultArea,
+              radio_call_sign: cleanCallSign,
               status: 'Active',
             },
             { onConflict: 'guard_id' }

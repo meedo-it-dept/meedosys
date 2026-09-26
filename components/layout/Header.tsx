@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Smartphone } from '@/components/icons';
+import { Menu, Smartphone, LogOut } from '@/components/icons';
 import { useMeedo } from '@/lib/store';
 import { usePwa } from '@/components/pwa/PwaProvider';
 
@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
-  const { currentUser } = useMeedo();
+  const { currentUser, logout } = useMeedo();
   const { isInstalled, openInstallGuide } = usePwa();
 
   return (
@@ -40,9 +40,18 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           </button>
         )}
 
-        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0" title={currentUser?.full_name || currentUser?.username}>
           {currentUser?.username ? currentUser.username[0].toUpperCase() : 'U'}
         </div>
+
+        <button
+          onClick={logout}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+          title="Log Out"
+          aria-label="Log Out"
+        >
+          <LogOut className="w-4 h-4 text-rose-600" />
+        </button>
       </div>
     </header>
   );

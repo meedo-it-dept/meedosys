@@ -260,16 +260,7 @@ export default function CsuPage() {
                 </Button>
               )}
             </div>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => setViewPersona('guard')}
-              className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-1.5 shadow-sm w-full sm:w-auto justify-center"
-            >
-              <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
-              Preview Market Guard Mobile View
-            </Button>
-          )}
+          ) : null}
         </div>
       </div>
 

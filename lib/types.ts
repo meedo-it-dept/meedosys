@@ -16,6 +16,8 @@ export interface UserProfile {
   guard_id?: string;
   full_name?: string;
   rank_title?: string;
+  radio_call_sign?: string;
+  default_area?: string;
   created_at?: string;
   updated_at?: string;
 }

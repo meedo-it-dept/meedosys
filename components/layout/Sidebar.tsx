@@ -72,12 +72,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0',
+          'fixed inset-y-0 top-0 left-0 z-50 h-[100dvh] max-h-[100dvh] w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Brand Header */}
-        <div className="p-4 border-b border-slate-100 flex items-center gap-3">
+        <div className="p-4 border-b border-slate-100 flex items-center gap-3 shrink-0">
           <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center p-1 border border-slate-100 shadow-sm flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1.5 text-sm">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-1.5 text-sm overscroll-contain">
           {/* Section A: Market Management */}
           {canAccessSection('A') && (
             <div>
@@ -412,13 +412,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </nav>
 
         {/* User Profile & Footer Controls */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-          <div className="flex items-center justify-between mb-2">
+        <div className="p-3 sm:p-4 border-t border-slate-200/80 bg-slate-50/80 shrink-0 pb-6 sm:pb-4 space-y-2">
+          <div className="flex items-center justify-between">
             <div className="flex flex-col min-w-0 pr-1">
-              <span className="font-semibold text-xs text-slate-800 truncate">
+              <span className="font-bold text-xs text-slate-900 truncate">
                 {currentUser ? (currentUser.full_name || currentUser.username) : 'Guest User'}
               </span>
-              <span className="text-[10px] text-slate-500 font-medium truncate">
+              <span className="text-[10px] text-slate-500 font-semibold truncate">
                 {currentUser?.section && SECTIONS_META[currentUser.section]
                   ? `${SECTIONS_META[currentUser.section].badge} ${SECTIONS_META[currentUser.section].shortName}`
                   : `${role || 'Staff'} • Section ${section || 'N/A'}`}
@@ -429,26 +429,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </Badge>
           </div>
 
-          {/* In-App PWA Install Trigger when browsing on mobile web */}
-          {!isInstalled && (
-            <button
-              type="button"
-              onClick={() => {
-                openInstallGuide();
-                onClose();
-              }}
-              className="w-full mb-2 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-blue-600" /> Install Mobile App
-            </button>
-          )}
+          <div className="flex items-center gap-2 pt-0.5">
+            {/* In-App PWA Install Trigger when browsing on mobile web */}
+            {!isInstalled && (
+              <button
+                type="button"
+                onClick={() => {
+                  openInstallGuide();
+                  onClose();
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-blue-600" /> App
+              </button>
+            )}
 
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" /> Logout
-          </button>
+            <button
+              onClick={logout}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors shadow-2xs"
+            >
+              <LogOut className="w-3.5 h-3.5" /> Log Out
+            </button>
+          </div>
         </div>
       </aside>
     </>

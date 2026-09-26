@@ -64,6 +64,8 @@ export default function UserManagementPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [newGuardId, setNewGuardId] = useState('');
   const [newRankTitle, setNewRankTitle] = useState('SO1');
+  const [newCallSign, setNewCallSign] = useState('EAGLE-1');
+  const [newDefaultArea, setNewDefaultArea] = useState('General Public Market');
   const [formError, setFormError] = useState('');
 
   // Edit User Form State
@@ -73,6 +75,8 @@ export default function UserManagementPage() {
   const [editStatus, setEditStatus] = useState<UserStatus>('Approved');
   const [editGuardId, setEditGuardId] = useState('');
   const [editRankTitle, setEditRankTitle] = useState('');
+  const [editCallSign, setEditCallSign] = useState('EAGLE-1');
+  const [editDefaultArea, setEditDefaultArea] = useState('General Public Market');
   const [editPassword, setEditPassword] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
 
@@ -127,6 +131,8 @@ export default function UserManagementPage() {
     setEditStatus(user.status);
     setEditGuardId(user.guard_id || '');
     setEditRankTitle(user.rank_title || 'SO1');
+    setEditCallSign(user.radio_call_sign || 'EAGLE-1');
+    setEditDefaultArea(user.default_area || 'General Public Market');
     setEditPassword('');
     setShowEditPassword(false);
   };
@@ -143,6 +149,8 @@ export default function UserManagementPage() {
       status: editStatus,
       guard_id: editSection === 'F' && editGuardId.trim() ? editGuardId.trim().toUpperCase() : undefined,
       rank_title: editSection === 'F' && editRankTitle.trim() ? editRankTitle.trim() : undefined,
+      radio_call_sign: editSection === 'F' && editCallSign.trim() ? editCallSign.trim().toUpperCase() : undefined,
+      default_area: editSection === 'F' && editDefaultArea.trim() ? editDefaultArea.trim() : undefined,
     };
 
     if (editPassword.trim()) {
@@ -192,6 +200,8 @@ export default function UserManagementPage() {
       password: newPassword.trim() || undefined,
       guard_id: newSection === 'F' ? newGuardId.trim().toUpperCase() : undefined,
       rank_title: newSection === 'F' ? newRankTitle.trim() : undefined,
+      radio_call_sign: newSection === 'F' ? newCallSign.trim().toUpperCase() : undefined,
+      default_area: newSection === 'F' ? newDefaultArea.trim() : undefined,
     });
 
     if (res.success) {
@@ -209,6 +219,8 @@ export default function UserManagementPage() {
       setNewPassword('');
       setNewGuardId('');
       setNewRankTitle('SO1');
+      setNewCallSign('EAGLE-1');
+      setNewDefaultArea('General Public Market');
       setTimeout(() => setFeedbackMsg(null), 4000);
     } else {
       setFormError(res.message || 'Failed to create user account.');
@@ -731,7 +743,7 @@ export default function UserManagementPage() {
               {newSection === 'F' && (
                 <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
                   <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-blue-600" /> Guard Badge Details
+                    <Shield className="w-3.5 h-3.5 text-blue-600" /> Guard Badge & Assignment
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -755,6 +767,32 @@ export default function UserManagementPage() {
                         value={newRankTitle}
                         onChange={(e) => setNewRankTitle(e.target.value)}
                         placeholder="e.g. SO1, Team Leader"
+                        className="w-full px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-200/60">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                        Radio Call Sign
+                      </label>
+                      <input
+                        type="text"
+                        value={newCallSign}
+                        onChange={(e) => setNewCallSign(e.target.value)}
+                        placeholder="e.g. EAGLE-1"
+                        className="w-full px-2.5 py-1.5 text-xs font-mono font-bold uppercase border border-blue-200 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                        Assigned Sector / Area
+                      </label>
+                      <input
+                        type="text"
+                        value={newDefaultArea}
+                        onChange={(e) => setNewDefaultArea(e.target.value)}
+                        placeholder="e.g. General Public Market"
                         className="w-full px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
                       />
                     </div>
@@ -897,7 +935,7 @@ export default function UserManagementPage() {
               {editSection === 'F' && (
                 <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
                   <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-blue-600" /> Guard Badge Details
+                    <Shield className="w-3.5 h-3.5 text-blue-600" /> Guard Badge & Assignment
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -921,6 +959,32 @@ export default function UserManagementPage() {
                         value={editRankTitle}
                         onChange={(e) => setEditRankTitle(e.target.value)}
                         placeholder="e.g. SO1, Team Leader"
+                        className="w-full px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-200/60">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                        Radio Call Sign
+                      </label>
+                      <input
+                        type="text"
+                        value={editCallSign}
+                        onChange={(e) => setEditCallSign(e.target.value)}
+                        placeholder="e.g. EAGLE-1"
+                        className="w-full px-2.5 py-1.5 text-xs font-mono font-bold uppercase border border-blue-200 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                        Assigned Sector / Area
+                      </label>
+                      <input
+                        type="text"
+                        value={editDefaultArea}
+                        onChange={(e) => setEditDefaultArea(e.target.value)}
+                        placeholder="e.g. General Public Market"
                         className="w-full px-2.5 py-1.5 text-xs border border-blue-200 rounded-md focus:ring-1 focus:ring-blue-500 bg-white"
                       />
                     </div>
