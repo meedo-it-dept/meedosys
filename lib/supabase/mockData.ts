@@ -14,6 +14,7 @@ import {
   CsuDailyReport,
   UserProfile,
   MarketGuard,
+  MarketCalendarEvent,
   InventoryItem,
   InventoryTransaction,
   ButcherProfile,
@@ -26482,7 +26483,203 @@ export const initialOpifIndicators: OpifIndicator[] = [
   }
 ];
 
-export const initialMarketGuards: MarketGuard[] = [];
+export const initialMarketGuards: MarketGuard[] = [
+  {
+    guard_id: "G-101",
+    guard_name: "Roberto Alcantara",
+    rank_title: "Senior Market Guard",
+    default_area: "Wet Market Section",
+    contact_no: "0917-555-0101",
+    radio_call_sign: "EAGLE-1",
+    assigned_facility: "Public Market Main",
+    current_shift: "1st Shift (06:00 - 14:00)",
+    status: "Active"
+  },
+  {
+    guard_id: "G-102",
+    guard_name: "Melvin D. Sionosa",
+    rank_title: "Market Security Guard I",
+    default_area: "Dry Goods & Perimeter",
+    contact_no: "0918-555-0102",
+    radio_call_sign: "HAWK-2",
+    assigned_facility: "Public Market Main",
+    current_shift: "2nd Shift (14:00 - 22:00)",
+    status: "Active"
+  },
+  {
+    guard_id: "G-103",
+    guard_name: "Rafjun Somosa",
+    rank_title: "Market Guard-on-Duty",
+    default_area: "Whole Market / Main Hall",
+    contact_no: "0919-555-0103",
+    radio_call_sign: "FALCON-3",
+    assigned_facility: "Public Market Main",
+    current_shift: "1st Shift (06:00 - 14:00)",
+    status: "Active"
+  },
+  {
+    guard_id: "G-104",
+    guard_name: "Jomar L. Castillo",
+    rank_title: "Market Security Guard I",
+    default_area: "Terminal & Unloading Bay",
+    contact_no: "0920-555-0104",
+    radio_call_sign: "SENTINEL-4",
+    assigned_facility: "Public Market Main",
+    current_shift: "3rd Shift (22:00 - 06:00)",
+    status: "Active"
+  },
+  {
+    guard_id: "G-105",
+    guard_name: "Danilo P. Ramos",
+    rank_title: "Security Officer / Roving",
+    default_area: "Commercial Plaza & Gates",
+    contact_no: "0921-555-0105",
+    radio_call_sign: "GUARDIAN-5",
+    assigned_facility: "Public Market Main",
+    current_shift: "1st Shift (06:00 - 14:00)",
+    status: "Active"
+  }
+];
+
+export const initialMarketCalendarEvents: MarketCalendarEvent[] = [
+  {
+    id: "evt_shift_01",
+    title: "Guard Duty: 1st Shift - Whole Market",
+    category: "Guard Duty",
+    date: "2026-09-26",
+    start_time: "06:00",
+    end_time: "14:00",
+    location: "Public Market Main - Whole Market",
+    assigned_personnel: "Rafjun Somosa",
+    assigned_guard_id: "G-103",
+    shift_name: "1st Shift",
+    call_sign: "FALCON-3",
+    special_instructions: "Conduct hourly roving across wet market and triangular section. Ensure passageways remain unobstructed.",
+    description: "Daily morning guard duty and vendor crowd control.",
+    priority: "Normal",
+    status: "Ongoing",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-25T08:00:00Z"
+  },
+  {
+    id: "evt_shift_02",
+    title: "Guard Duty: 2nd Shift - Dry Goods & Gates",
+    category: "Guard Duty",
+    date: "2026-09-26",
+    start_time: "14:00",
+    end_time: "22:00",
+    location: "Public Market Main - Dry Goods & Gate 1",
+    assigned_personnel: "Melvin D. Sionosa",
+    assigned_guard_id: "G-102",
+    shift_name: "2nd Shift",
+    call_sign: "HAWK-2",
+    special_instructions: "Monitor closing hours, ensure stall shutter security, and assist afternoon terminal rush.",
+    description: "Afternoon shift security coverage.",
+    priority: "Normal",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-25T08:00:00Z"
+  },
+  {
+    id: "evt_shift_03",
+    title: "Guard Duty: 3rd Shift - Night Watch & Terminal",
+    category: "Guard Duty",
+    date: "2026-09-26",
+    start_time: "22:00",
+    end_time: "06:00",
+    location: "Public Market Main - Terminal & Unloading Bay",
+    assigned_personnel: "Jomar L. Castillo",
+    assigned_guard_id: "G-104",
+    shift_name: "3rd Shift",
+    call_sign: "SENTINEL-4",
+    special_instructions: "Strict monitoring of incoming midnight cargo, verify delivery receipts, check perimeter locks every 2 hours.",
+    description: "Graveyard shift facility and delivery surveillance.",
+    priority: "Normal",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-25T08:00:00Z"
+  },
+  {
+    id: "evt_insp_01",
+    title: "Comprehensive Food Safety & Meat Inspection",
+    category: "Market Inspection",
+    date: "2026-09-26",
+    start_time: "09:00",
+    end_time: "11:30",
+    location: "Meat Section & Fish Section",
+    assigned_personnel: "Dr. LGU Meat Inspector / Sanitation Team",
+    special_instructions: "Inspect ante-mortem and post-mortem meat clearance tags, check cold storage temperature logs, verify vendor health certificates.",
+    description: "Routine municipal health and sanitation compliance audit.",
+    priority: "Important",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-24T10:00:00Z"
+  },
+  {
+    id: "evt_clean_01",
+    title: "General Flushing & Wet Section Disinfection",
+    category: "Cleaning",
+    date: "2026-09-26",
+    start_time: "18:30",
+    end_time: "20:30",
+    location: "Wet Market Section & Drainage Grates",
+    assigned_personnel: "Market Sanitation Crew & BFP Water Assistance",
+    special_instructions: "High pressure hose down of fish/meat cutting tables, degrease floor drains, chlorine disinfection.",
+    description: "Bi-weekly scheduled wet section deep decontamination.",
+    priority: "Normal",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-24T10:00:00Z"
+  },
+  {
+    id: "evt_meet_01",
+    title: "Market Vendor Association Monthly Coordination",
+    category: "Meeting",
+    date: "2026-09-28",
+    start_time: "10:00",
+    end_time: "12:00",
+    location: "MEEDO Conference Hall - 2nd Floor",
+    assigned_personnel: "MEEDO Department Head & Market Supervisor",
+    special_instructions: "Agenda: Holiday market hours, Paleng-QR adoption rates, electrical utility billing reconciliations.",
+    description: "Quarterly alignment between stallholders and local government enterprise management.",
+    priority: "Important",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-22T09:00:00Z"
+  },
+  {
+    id: "evt_maint_01",
+    title: "Backup Generator & Electrical Panel PM Check",
+    category: "Maintenance",
+    date: "2026-09-29",
+    start_time: "13:00",
+    end_time: "16:00",
+    location: "Power Generator Room & Main Distribution Board",
+    assigned_personnel: "Municipal Engineering Electrical Team",
+    special_instructions: "Test automatic transfer switch (ATS), load bank test, inspect sub-meters across Zone Dry and Wet.",
+    description: "Preventive maintenance on high-capacity emergency power backup system.",
+    priority: "Normal",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-23T11:00:00Z"
+  },
+  {
+    id: "evt_dead_01",
+    title: "Monthly Stall Rental & Utility Clearance Cutoff",
+    category: "Administrative Deadline",
+    date: "2026-09-30",
+    start_time: "08:00",
+    end_time: "17:00",
+    location: "MEEDO Treasury Cashier Windows 1 & 2",
+    assigned_personnel: "Treasury Revenue Collectors",
+    special_instructions: "Final cutoff for September rental and electrical bills prior to statutory 25% surcharge assessment.",
+    description: "Statutory payment deadline for municipal enterprise tenants.",
+    priority: "Urgent",
+    status: "Scheduled",
+    created_by: "Municipal Administrator",
+    created_at: "2026-09-20T08:00:00Z"
+  }
+];
 
 export const initialButchers: ButcherProfile[] = [];
 

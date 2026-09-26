@@ -289,6 +289,8 @@ export interface MarketGuard {
   default_area?: string;
   contact_no?: string;
   radio_call_sign?: string;
+  assigned_facility?: string;
+  current_shift?: string;
   status: 'Active' | 'On Leave' | 'Inactive';
 }
 
@@ -305,10 +307,19 @@ export interface CsuPersonnelItem {
 export interface CsuIncidentItem {
   id?: string;
   time: string;
+  date?: string;
   location: string;
   type: string;
   description: string;
   status: string;
+  guard_id?: string;
+  guard_name?: string;
+  shift?: string;
+  facility?: string;
+  immediate_action?: string;
+  persons_involved?: string;
+  photo_url?: string;
+  severity?: 'Minor' | 'Moderate' | 'Critical';
 }
 
 export interface CsuViolationItem {
@@ -317,14 +328,93 @@ export interface CsuViolationItem {
   violation: string;
   action_taken: string;
   remarks?: string;
+  guard_id?: string;
+  guard_name?: string;
+  shift?: string;
+  facility?: string;
+  location?: string;
+  time?: string;
+  date?: string;
+  warning_level?: 'Verbal Reminder' | '1st Written Warning' | 'Referred / Escalated';
+  person_involved?: string;
+  photo_url?: string;
 }
 
 export interface CsuLostFoundItem {
   id?: string;
   description: string;
+  item_name?: string;
   found_by: string;
   claimed_by?: string;
+  location?: string;
+  date_found?: string;
+  time_found?: string;
+  turned_over_to?: string;
+  claimant_contact?: string;
+  claimant_date?: string;
+  photo_url?: string;
   status: 'In Custody' | 'Claimed' | 'Disposed';
+}
+
+export interface GuardShiftSession {
+  id: string;
+  calendar_event_id?: string;
+  guard_id: string;
+  guard_name: string;
+  facility: string;
+  area: string;
+  shift_name: string;
+  call_sign: string;
+  status: 'NOT_STARTED' | 'ON_DUTY' | 'ON_PATROL' | 'ENDED' | 'SUBMITTED';
+  time_in?: string;
+  time_out?: string;
+  patrol_logs: { time: string; area: string; notes: string }[];
+  date: string;
+  instructions?: string;
+}
+
+export type MarketEventCategory =
+  | 'Guard Duty'
+  | 'Market Inspection'
+  | 'Cleaning'
+  | 'Maintenance'
+  | 'Meeting'
+  | 'Market Event'
+  | 'Security Activity'
+  | 'Administrative Deadline'
+  | 'Other';
+
+export type EventPriority = 'Normal' | 'Important' | 'Urgent';
+export type EventStatus =
+  | 'Scheduled'
+  | 'Confirmed'
+  | 'Ongoing'
+  | 'Completed'
+  | 'Cancelled'
+  | 'Postponed';
+
+export interface MarketCalendarEvent {
+  id: string;
+  title: string;
+  category: MarketEventCategory;
+  date: string; // YYYY-MM-DD
+  start_time: string; // e.g. "06:00" or "0600H"
+  end_time: string; // e.g. "14:00" or "1400H"
+  location: string;
+  assigned_personnel?: string;
+  assigned_guard_id?: string;
+  shift_name?: string; // "1st Shift", "2nd Shift", "3rd Shift", "Custom"
+  call_sign?: string;
+  special_instructions?: string;
+  description?: string;
+  priority: EventPriority;
+  status: EventStatus;
+  is_recurring?: boolean;
+  recurrence_rule?: 'Daily' | 'Weekly' | 'Monthly';
+  blotter_report_id?: string;
+  created_by: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface CsuDailyReport {
@@ -345,6 +435,9 @@ export interface CsuDailyReport {
   incident_data: CsuIncidentItem[];
   violations_data: CsuViolationItem[];
   lost_found_data: CsuLostFoundItem[];
+  calendar_event_id?: string;
+  is_locked?: boolean;
+  locked_at?: string;
   created_at?: string;
 }
 

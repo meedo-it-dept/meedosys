@@ -1,0 +1,646 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useMeedo } from '@/lib/store';
+import {
+  CsuDailyReport,
+  CsuIncidentItem,
+  CsuViolationItem,
+  CsuLostFoundItem,
+  MarketGuard,
+} from '@/lib/types';
+import {
+  FileText,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Plus,
+  Trash2,
+  Printer,
+  CheckCircle2,
+  Clock,
+  Shield,
+  Send,
+  MessageSquare,
+  Package,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { QuickIncidentModal } from './QuickIncidentModal';
+
+interface GuardShiftBlotterProps {
+  currentGuard: MarketGuard;
+}
+
+export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGuard }) => {
+  const { csuReports, addCsuReport, updateCsuReport, requestBlotterCorrection, activeShiftSession } =
+    useMeedo();
+
+  // Find the latest blotter report belonging to this guard or today
+  const myReports = csuReports.filter(
+    (r) =>
+      r.prep_name.toLowerCase().includes(currentGuard.guard_name.toLowerCase()) ||
+      r.personnel_data.some((p) => p.guard_id === currentGuard.guard_id)
+  );
+
+  const [selectedReportId, setSelectedReportId] = useState<string>(
+    myReports[0]?.id || ''
+  );
+
+  const activeReport = myReports.find((r) => r.id === selectedReportId) || myReports[0];
+
+  // Modals
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const [correctionReason, setCorrectionReason] = useState('');
+
+  // Local draft additions if not locked
+  const [newViolation, setNewViolation] = useState({
+    identifier: '',
+    violation: '',
+    action_taken: 'Verbal reminder issued',
+  });
+  const [isAddViolationOpen, setIsAddViolationOpen] = useState(false);
+
+  const [newLostFound, setNewLostFound] = useState({
+    description: '',
+    location: '',
+  });
+  const [isAddLostFoundOpen, setIsAddLostFoundOpen] = useState(false);
+
+  const handleLockAndSubmit = (reportId: string) => {
+    updateCsuReport(reportId, {
+      is_locked: true,
+      locked_at: new Date().toISOString(),
+    });
+  };
+
+  const handleSendCorrectionRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeReport?.id || !correctionReason.trim()) return;
+    requestBlotterCorrection(activeReport.id, correctionReason.trim());
+    setIsCorrectionModalOpen(false);
+    setCorrectionReason('');
+  };
+
+  const handleIncidentLogged = (incident: CsuIncidentItem) => {
+    if (!activeReport) return;
+    const updatedIncidents = [...activeReport.incident_data, incident];
+    updateCsuReport(activeReport.id!, { incident_data: updatedIncidents });
+  };
+
+  const handleAddViolation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeReport || !newViolation.identifier || !newViolation.violation) return;
+    const item: CsuViolationItem = {
+      id: 'viol_' + Date.now(),
+      identifier: newViolation.identifier,
+      violation: newViolation.violation,
+      action_taken: newViolation.action_taken,
+      guard_id: currentGuard.guard_id,
+      guard_name: currentGuard.guard_name,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    updateCsuReport(activeReport.id!, {
+      violations_data: [...activeReport.violations_data, item],
+    });
+    setNewViolation({ identifier: '', violation: '', action_taken: 'Verbal reminder issued' });
+    setIsAddViolationOpen(false);
+  };
+
+  const handleAddLostFound = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeReport || !newLostFound.description) return;
+    const item: CsuLostFoundItem = {
+      id: 'lf_' + Date.now(),
+      description: newLostFound.description,
+      location: newLostFound.location || currentGuard.default_area,
+      found_by: `${currentGuard.guard_name} (${currentGuard.guard_id})`,
+      status: 'In Custody',
+      date_found: activeReport.report_date,
+      time_found: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    updateCsuReport(activeReport.id!, {
+      lost_found_data: [...activeReport.lost_found_data, item],
+    });
+    setNewLostFound({ description: '', location: '' });
+    setIsAddLostFoundOpen(false);
+  };
+
+  const isLocked = Boolean(activeReport?.is_locked);
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      {/* Top Header & Report Switcher */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-600/30">
+              <FileText className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                Guard Shift Blotter
+              </h1>
+              <p className="text-xs text-slate-500">
+                Official Peace & Order Daily Logbook for {currentGuard.guard_name}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              className="rounded-xl text-xs font-bold gap-1.5"
+            >
+              <Printer className="h-4 w-4" /> Print Blotter
+            </Button>
+          </div>
+        </div>
+
+        {/* Shift selector dropdown */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Select Shift Blotter:
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {myReports.map((r) => {
+              const isSelected = (r.id || '') === (activeReport?.id || '');
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedReportId(r.id || '')}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold border transition ${
+                    isSelected
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {r.report_date} • {r.shift.split('(')[0]?.trim()}
+                  {r.is_locked ? ' 🔒' : ''}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {!activeReport ? (
+        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-slate-500 space-y-3">
+          <Clock className="h-10 w-10 mx-auto text-slate-400" />
+          <h3 className="text-base font-bold text-slate-800">No Shift Blotters on File Yet</h3>
+          <p className="text-xs text-slate-500">
+            Once you start and complete an active duty shift from the "My Shift" tab, your compiled blotter will appear here automatically.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* Status & Submission Banner */}
+          <div
+            className={`rounded-3xl border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
+              isLocked
+                ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
+                : 'border-amber-200 bg-amber-50/70 text-amber-950'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
+                  isLocked ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                }`}
+              >
+                {isLocked ? <Lock className="h-5 w-5" /> : <Unlock className="h-5 w-5" />}
+              </div>
+              <div>
+                <p className="text-sm font-black uppercase tracking-wider">
+                  {isLocked ? 'Official Shift Blotter Submitted & Locked' : 'Draft Shift Blotter In Progress'}
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {isLocked
+                    ? `Locked for official audit at ${activeReport.locked_at ? new Date(activeReport.locked_at).toLocaleTimeString() : 'Shift Completion'}`
+                    : 'Changes and logged entries are actively saving to this shift.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isLocked ? (
+                <Button
+                  onClick={() => handleLockAndSubmit(activeReport.id!)}
+                  className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-600/20"
+                >
+                  <Lock className="h-4 w-4" /> Submit & Lock Shift Blotter
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCorrectionModalOpen(true)}
+                  className="rounded-2xl border-amber-300 bg-white text-amber-800 hover:bg-amber-100 font-bold text-xs gap-1.5 shadow-xs"
+                >
+                  <MessageSquare className="h-4 w-4" /> Request Correction
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Blotter Sheet Document View */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm space-y-6">
+            {/* Document Header */}
+            <div className="border-b pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-mono font-bold text-blue-700 uppercase">
+                  MEEDOSys Municipal Economic Enterprise Development Office
+                </span>
+                <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                  CSU Daily Shift Blotter Report
+                </h2>
+                <p className="text-xs text-slate-500 font-mono">
+                  Report ID: {activeReport.id} • Date: {activeReport.report_date} ({activeReport.day_of_week})
+                </p>
+              </div>
+
+              <div className="text-right">
+                <span className="block text-xs font-bold text-slate-700 uppercase">Shift Schedule</span>
+                <span className="block text-sm font-black text-blue-900">{activeReport.shift}</span>
+                <span className="block text-xs text-slate-500">{activeReport.area_covered}</span>
+              </div>
+            </div>
+
+            {/* Guard on Duty Roster */}
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2 flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-blue-600" />
+                Guards / Personnel on Duty
+              </h3>
+              <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase">
+                    <tr>
+                      <th className="p-3">Guard Name</th>
+                      <th className="p-3">Assigned Area</th>
+                      <th className="p-3">Time In</th>
+                      <th className="p-3">Time Out</th>
+                      <th className="p-3">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {activeReport.personnel_data.map((p, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold text-slate-900">
+                          {p.guard_name} <span className="font-mono text-slate-500">({p.guard_id})</span>
+                        </td>
+                        <td className="p-3 text-slate-700">{p.assigned_area}</td>
+                        <td className="p-3 font-mono font-bold text-emerald-700">{p.time_in}</td>
+                        <td className="p-3 font-mono font-bold text-slate-700">{p.time_out || '--'}</td>
+                        <td className="p-3 text-slate-500">{p.remarks || 'Standard duty'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Incidents Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  Incidents & Emergencies Recorded ({activeReport.incident_data.length})
+                </h3>
+                {!isLocked && (
+                  <Button
+                    size="sm"
+                    onClick={() => setIsIncidentModalOpen(true)}
+                    className="rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold h-7 gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Log Incident
+                  </Button>
+                )}
+              </div>
+
+              {activeReport.incident_data.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
+                  No security incidents or emergency events logged during this shift.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activeReport.incident_data.map((inc, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border border-red-200 bg-red-50/50 p-4 space-y-1.5 text-xs text-slate-800"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-red-900 text-sm">{inc.type}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-600">{inc.time}</span>
+                          <Badge variant="outline" className="bg-white text-[10px]">
+                            {inc.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-slate-700">{inc.description}</p>
+                      {inc.immediate_action && (
+                        <p className="text-emerald-800 font-semibold">
+                          Action Taken: {inc.immediate_action}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Violations & Citations Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-amber-600" />
+                  Stall Violations & Vendor Reminders ({activeReport.violations_data.length})
+                </h3>
+                {!isLocked && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsAddViolationOpen(true)}
+                    className="rounded-xl text-xs font-bold h-7 gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Log Violation
+                  </Button>
+                )}
+              </div>
+
+              {activeReport.violations_data.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
+                  No vendor or stall infractions recorded during this shift.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b font-bold text-slate-600">
+                      <tr>
+                        <th className="p-3">Vendor / Identifier</th>
+                        <th className="p-3">Infraction</th>
+                        <th className="p-3">Action Taken</th>
+                        <th className="p-3">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {activeReport.violations_data.map((v, idx) => (
+                        <tr key={idx}>
+                          <td className="p-3 font-bold text-slate-900">{v.identifier}</td>
+                          <td className="p-3 text-slate-700">{v.violation}</td>
+                          <td className="p-3 text-emerald-700 font-medium">{v.action_taken}</td>
+                          <td className="p-3 font-mono text-slate-500">{v.time || '--'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Lost & Found Section */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Package className="h-4 w-4 text-teal-600" />
+                  Lost & Found Items Handled ({activeReport.lost_found_data.length})
+                </h3>
+                {!isLocked && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsAddLostFoundOpen(true)}
+                    className="rounded-xl text-xs font-bold h-7 gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Item
+                  </Button>
+                )}
+              </div>
+
+              {activeReport.lost_found_data.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
+                  No lost items turned in during this shift.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activeReport.lost_found_data.map((lf, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border border-teal-200 bg-teal-50/40 p-3.5 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-teal-950 block">{lf.description}</span>
+                        <span className="text-slate-500 text-[11px]">
+                          Location: {lf.location || 'Market'} • Turned in by: {lf.found_by}
+                        </span>
+                      </div>
+                      <Badge className="bg-teal-700 text-white text-[10px]">{lf.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Activities & Turnover Notes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-1">
+                <span className="block text-xs font-bold uppercase text-slate-600">
+                  Summary of Activities
+                </span>
+                <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
+                  {activeReport.summary_activities || 'Normal shift roving conducted without incident.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-1">
+                <span className="block text-xs font-bold uppercase text-slate-600">
+                  Turnover Notes & Custody
+                </span>
+                <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
+                  {activeReport.turnover_notes || 'All posts accounted for.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Tri-Level Signatures Footer */}
+            <div className="pt-6 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs">
+              <div className="space-y-1">
+                <span className="block text-[10px] uppercase font-bold text-slate-400">Prepared By</span>
+                <p className="font-black text-slate-900 border-b pb-1">{activeReport.prep_name}</p>
+                <p className="text-slate-500 text-[11px]">{activeReport.prep_title}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="block text-[10px] uppercase font-bold text-slate-400">Verified By</span>
+                <p className="font-black text-slate-900 border-b pb-1">{activeReport.ver_name}</p>
+                <p className="text-slate-500 text-[11px]">{activeReport.ver_title}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="block text-[10px] uppercase font-bold text-slate-400">Approved By</span>
+                <p className="font-black text-slate-900 border-b pb-1">{activeReport.app_name}</p>
+                <p className="text-slate-500 text-[11px]">{activeReport.app_title}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Incident Modal */}
+      <QuickIncidentModal
+        isOpen={isIncidentModalOpen}
+        onClose={() => setIsIncidentModalOpen(false)}
+        onIncidentLogged={handleIncidentLogged}
+      />
+
+      {/* Request Correction Modal */}
+      {isCorrectionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-amber-600" />
+                Request Blotter Correction
+              </h3>
+              <button
+                onClick={() => setIsCorrectionModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendCorrectionRequest} className="space-y-4">
+              <p className="text-xs text-slate-600">
+                This locked shift blotter requires supervisor authorization to unlock. Explain the omission or correction needed:
+              </p>
+
+              <textarea
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                rows={3}
+                placeholder="e.g. Omitted stall violation citation for Stall D-06 during 11:00 roving..."
+                className="w-full rounded-xl border border-slate-300 p-3 text-xs text-slate-800"
+                required
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCorrectionModalOpen(false)}
+                  className="rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                >
+                  Submit Correction Request
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Violation Modal */}
+      {isAddViolationOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900">Log Stall Infraction</h3>
+              <button onClick={() => setIsAddViolationOpen(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddViolation} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Stall or Vendor *</label>
+                <input
+                  type="text"
+                  value={newViolation.identifier}
+                  onChange={(e) => setNewViolation({ ...newViolation, identifier: e.target.value })}
+                  placeholder="e.g. Stall W-04 or Transient Vendor"
+                  className="w-full rounded-xl border px-3 py-2 text-xs"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Violation *</label>
+                <input
+                  type="text"
+                  value={newViolation.violation}
+                  onChange={(e) => setNewViolation({ ...newViolation, violation: e.target.value })}
+                  placeholder="e.g. Obstructing walkway with crates"
+                  className="w-full rounded-xl border px-3 py-2 text-xs"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Action Taken</label>
+                <input
+                  type="text"
+                  value={newViolation.action_taken}
+                  onChange={(e) => setNewViolation({ ...newViolation, action_taken: e.target.value })}
+                  className="w-full rounded-xl border px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsAddViolationOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white font-bold">
+                  Save
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Lost & Found Modal */}
+      {isAddLostFoundOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-bold text-slate-900">Log Lost & Found Item</h3>
+              <button onClick={() => setIsAddLostFoundOpen(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddLostFound} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Item Description *</label>
+                <input
+                  type="text"
+                  value={newLostFound.description}
+                  onChange={(e) => setNewLostFound({ ...newLostFound, description: e.target.value })}
+                  placeholder="e.g. Set of house keys with red keychain"
+                  className="w-full rounded-xl border px-3 py-2 text-xs"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Found Location</label>
+                <input
+                  type="text"
+                  value={newLostFound.location}
+                  onChange={(e) => setNewLostFound({ ...newLostFound, location: e.target.value })}
+                  placeholder="e.g. Near Meat Section Wash Area"
+                  className="w-full rounded-xl border px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsAddLostFoundOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white font-bold">
+                  Save
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
