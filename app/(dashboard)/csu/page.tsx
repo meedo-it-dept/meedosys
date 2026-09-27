@@ -71,10 +71,61 @@ export default function CsuPage() {
     isDefaultGuard ? 'guard' : 'admin'
   );
 
+  useEffect(() => {
+    if (currentUser?.role === 'Staff' && currentUser?.section === 'F') {
+      setViewPersona('guard');
+    }
+  }, [currentUser]);
+
+  // Find guard that directly matches currentUser (only for Staff guards)
+  const userMatchedGuard =
+    currentUser?.role === 'Staff'
+      ? guards.find(
+          (g) =>
+            (currentUser?.guard_id && g.guard_id.toUpperCase() === currentUser.guard_id.toUpperCase()) ||
+            (currentUser?.username && g.guard_id.toUpperCase() === currentUser.username.toUpperCase()) ||
+            (currentUser?.full_name && g.guard_name.toLowerCase() === currentUser.full_name.toLowerCase()) ||
+            (currentUser?.username && g.guard_name.toLowerCase() === currentUser.username.toLowerCase())
+        )
+      : null;
+
+  // Fallback guard profile if roster is still empty
+  const defaultEmptyGuard: MarketGuard = userMatchedGuard || {
+    guard_id: currentUser?.guard_id || (currentUser?.username ? `G-${currentUser.username.toUpperCase()}` : 'G-101'),
+    guard_name: currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+    rank_title: currentUser?.rank_title || 'SO1',
+    default_area: currentUser?.default_area || 'General Public Market',
+    contact_no: '',
+    radio_call_sign: currentUser?.radio_call_sign || 'None',
+    assigned_facility: 'Public Market Main',
+    current_shift: '1st Shift (06:00 - 14:00)',
+    status: 'Active',
+  };
+
   // When admin previews guard mode, select which guard persona to preview
   const [previewGuardId, setPreviewGuardId] = useState<string>(
-    guards[0]?.guard_id || currentUser?.guard_id || 'G-101'
+    currentUser?.role === 'Staff'
+      ? currentUser?.guard_id || userMatchedGuard?.guard_id || guards[0]?.guard_id || 'G-101'
+      : guards[0]?.guard_id || 'G-101'
   );
+
+  useEffect(() => {
+    if (currentUser?.role === 'Staff') {
+      if (currentUser?.guard_id) {
+        setPreviewGuardId(currentUser.guard_id);
+      } else if (userMatchedGuard) {
+        setPreviewGuardId(userMatchedGuard.guard_id);
+      }
+    }
+  }, [currentUser, guards]);
+
+  // Selected guard object for guard view:
+  // If user is Staff (like Elijah), ALWAYS use their own guard persona!
+  // If user is Admin, they can preview other guards using previewGuardId.
+  const activeGuardObj =
+    currentUser?.role === 'Admin'
+      ? (guards.find((g) => g.guard_id === previewGuardId) || userMatchedGuard || defaultEmptyGuard)
+      : (userMatchedGuard || defaultEmptyGuard);
 
   // Admin Navigation Tabs:
   // 1. dashboard, 2. roster, 3. calendar, 4. blotter, 5. incidents, 6. violations, 7. lostfound, 8. analytics
@@ -113,29 +164,6 @@ export default function CsuPage() {
 
   // Calendar Event Creation Modal State
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
-
-  // Fallback guard profile if roster is still empty
-  const defaultEmptyGuard: MarketGuard = {
-    guard_id: 'G-101',
-    guard_name: currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
-    rank_title: 'Market Guard',
-    default_area: 'General Public Market',
-    contact_no: '',
-    radio_call_sign: 'EAGLE-1',
-    assigned_facility: 'Public Market Main',
-    current_shift: '1st Shift (06:00 - 14:00)',
-    status: 'Active',
-  };
-
-  // Selected guard object for guard view
-  const activeGuardObj =
-    guards.find((g) => g.guard_id === previewGuardId) ||
-    guards.find(
-      (g) =>
-        g.guard_name.toLowerCase().includes((currentUser?.full_name || currentUser?.username || '').toLowerCase())
-    ) ||
-    guards[0] ||
-    defaultEmptyGuard;
 
   // Flattened Incidents, Violations, Lost & Found for Admin tables
   const allIncidents = csuReports.flatMap((r) => r.incident_data || []);

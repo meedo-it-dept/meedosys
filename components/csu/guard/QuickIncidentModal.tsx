@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useMeedo } from '@/lib/store';
-import { CsuIncidentItem } from '@/lib/types';
+import { CsuIncidentItem, MarketGuard } from '@/lib/types';
 import {
   X,
   AlertTriangle,
@@ -23,6 +23,7 @@ interface QuickIncidentModalProps {
   onClose: () => void;
   onIncidentLogged?: (incident: CsuIncidentItem) => void;
   defaultLocation?: string;
+  currentGuard?: MarketGuard;
 }
 
 export const QuickIncidentModal: React.FC<QuickIncidentModalProps> = ({
@@ -30,13 +31,14 @@ export const QuickIncidentModal: React.FC<QuickIncidentModalProps> = ({
   onClose,
   onIncidentLogged,
   defaultLocation,
+  currentGuard,
 }) => {
   const { activeShiftSession, currentUser } = useMeedo();
 
   const [incidentType, setIncidentType] = useState('Theft / Shoplifting');
   const [severity, setSeverity] = useState<'Minor' | 'Moderate' | 'Critical'>('Minor');
   const [location, setLocation] = useState(
-    defaultLocation || activeShiftSession?.area || 'Public Market Main - Wet Section'
+    defaultLocation || currentGuard?.default_area || activeShiftSession?.area || 'Public Market Main - Wet Section'
   );
   const [description, setDescription] = useState('');
   const [immediateAction, setImmediateAction] = useState('');
@@ -85,10 +87,10 @@ export const QuickIncidentModal: React.FC<QuickIncidentModalProps> = ({
       immediate_action: immediateAction.trim() || 'Responded to scene and restored order.',
       persons_involved: personsInvolved.trim() || undefined,
       status: severity === 'Critical' ? 'Under Escalation' : 'Resolved On-Site',
-      guard_id: activeShiftSession?.guard_id || currentUser?.guard_id || 'G-101',
-      guard_name: activeShiftSession?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
-      shift: activeShiftSession?.shift_name || '1st Shift',
-      facility: activeShiftSession?.facility || 'Public Market Main',
+      guard_id: currentGuard?.guard_id || activeShiftSession?.guard_id || currentUser?.guard_id || 'G-101',
+      guard_name: currentGuard?.guard_name || activeShiftSession?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+      shift: activeShiftSession?.shift_name || currentGuard?.current_shift || '1st Shift',
+      facility: activeShiftSession?.facility || currentGuard?.assigned_facility || 'Public Market Main',
     };
 
     if (onIncidentLogged) {

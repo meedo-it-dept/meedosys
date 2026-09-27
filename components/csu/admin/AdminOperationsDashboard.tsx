@@ -29,7 +29,7 @@ export const AdminOperationsDashboard: React.FC<AdminOperationsDashboardProps> =
   onNavigateTab,
   onOpenCreateEvent,
 }) => {
-  const { marketCalendarEvents, guards, activeShiftSession, csuReports } = useMeedo();
+  const { marketCalendarEvents, guards, activeShiftSession, activeShiftSessions, csuReports } = useMeedo();
 
   const todayStr = '2026-09-26';
 
@@ -246,31 +246,48 @@ export const AdminOperationsDashboard: React.FC<AdminOperationsDashboardProps> =
               <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
             </div>
 
-            {activeShiftSession ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-black text-slate-900 text-sm">
-                    {activeShiftSession.guard_name}
-                  </span>
-                  <Badge className="bg-emerald-600 text-white font-mono text-[10px]">
-                    ON DUTY
-                  </Badge>
+            {(() => {
+              const liveSessions = Object.values(activeShiftSessions || {}).filter(
+                (s) => s && s.status !== 'ENDED'
+              );
+              if (liveSessions.length === 0 && activeShiftSession && activeShiftSession.status !== 'ENDED') {
+                liveSessions.push(activeShiftSession);
+              }
+
+              if (liveSessions.length === 0) {
+                return (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500 space-y-1">
+                    <p className="font-semibold text-slate-700">No Guard Clocked In Right Now</p>
+                    <p className="text-[11px] text-slate-400">
+                      Guards on duty clock in via their mobile "My Shift" dashboard.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {liveSessions.map((session) => (
+                    <div key={session.id || session.guard_id} className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-slate-900 text-sm">
+                          {session.guard_name}
+                        </span>
+                        <Badge className="bg-emerald-600 text-white font-mono text-[10px]">
+                          ON DUTY
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-slate-600 space-y-0.5">
+                        <p>Call Sign: <span className="font-mono font-bold text-slate-900">{session.call_sign}</span></p>
+                        <p>Sector: <span className="font-semibold text-slate-800">{session.area}</span></p>
+                        <p>Time In: <span className="font-mono font-bold text-emerald-800">{session.time_in}</span></p>
+                        <p>Checks: <span className="font-bold text-slate-900">{session.patrol_logs.length} roving checks logged</span></p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-xs text-slate-600 space-y-0.5">
-                  <p>Call Sign: <span className="font-mono font-bold text-slate-900">{activeShiftSession.call_sign}</span></p>
-                  <p>Sector: <span className="font-semibold text-slate-800">{activeShiftSession.area}</span></p>
-                  <p>Time In: <span className="font-mono font-bold text-emerald-800">{activeShiftSession.time_in}</span></p>
-                  <p>Checks: <span className="font-bold text-slate-900">{activeShiftSession.patrol_logs.length} roving checks logged</span></p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500 space-y-1">
-                <p className="font-semibold text-slate-700">No Guard Clocked In Right Now</p>
-                <p className="text-[11px] text-slate-400">
-                  Guards on duty clock in via their mobile "My Shift" dashboard.
-                </p>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Upcoming Activities Widget */}

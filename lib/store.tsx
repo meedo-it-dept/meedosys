@@ -59,7 +59,9 @@ interface MeedoContextType {
     guardId?: string,
     fullName?: string,
     rankTitle?: string,
-    password?: string
+    password?: string,
+    radioCallSign?: string,
+    defaultArea?: string
   ) => { success: boolean; message?: string };
   refreshUsers: () => Promise<void>;
 
@@ -137,9 +139,11 @@ interface MeedoContextType {
   ) => MarketCalendarEvent | null;
 
   activeShiftSession: GuardShiftSession | null;
+  activeShiftSessions: Record<string, GuardShiftSession>;
+  getActiveShiftSession: (guardId?: string) => GuardShiftSession | null;
   startGuardShift: (eventDetails?: Partial<GuardShiftSession>) => GuardShiftSession;
-  logPatrolCheck: (area: string, notes: string) => void;
-  endGuardShift: (turnoverNotes?: string, summaryActivities?: string) => CsuDailyReport;
+  logPatrolCheck: (area: string, notes: string, guardIdOverride?: string) => void;
+  endGuardShift: (turnoverNotes?: string, summaryActivities?: string, guardIdOverride?: string) => CsuDailyReport;
 
   inventoryItems: InventoryItem[];
   inventoryTransactions: InventoryTransaction[];
@@ -197,6 +201,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [guards, setGuards] = useState<MarketGuard[]>(initialMarketGuards);
   const [marketCalendarEvents, setMarketCalendarEvents] = useState<MarketCalendarEvent[]>(initialMarketCalendarEvents);
   const [activeShiftSession, setActiveShiftSession] = useState<GuardShiftSession | null>(null);
+  const [activeShiftSessions, setActiveShiftSessions] = useState<Record<string, GuardShiftSession>>({});
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
   const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>(initialInventoryTransactions);
   const [monitoringRecords, setMonitoringRecords] = useState<MonitoringRecord[]>([]);
@@ -205,19 +210,12 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        // One-time wipe of old mock data from previous demo sessions
-        if (localStorage.getItem('meedo_clean_csu_and_users_v6') !== 'true') {
-          localStorage.removeItem('meedo_csu');
-          localStorage.removeItem('meedo_guards');
-          localStorage.removeItem('meedo_calendar_events');
+        if (localStorage.getItem('meedo_clean_csu_and_users_v7') !== 'true') {
           localStorage.removeItem('meedo_active_guard_session');
-          localStorage.setItem('meedo_users', JSON.stringify(initialUsers));
-          setCsuReports([]);
-          setGuards([]);
-          setMarketCalendarEvents([]);
+          localStorage.removeItem('meedo_guard_shift_sessions');
           setActiveShiftSession(null);
-          setUsers(initialUsers);
-          localStorage.setItem('meedo_clean_csu_and_users_v6', 'true');
+          setActiveShiftSessions({});
+          localStorage.setItem('meedo_clean_csu_and_users_v7', 'true');
         }
 
         const legacyMockUsernames = new Set([
@@ -314,6 +312,31 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     !r.prep_name?.toLowerCase().includes('melvin d. sionosa')
                 );
                 setCsuReports(liveCsu);
+
+                // Restore active in-progress duty shifts from Supabase
+                const inProgressReports = liveCsu.filter((r: any) => !r.is_locked);
+                if (inProgressReports.length > 0) {
+                  const restoredSessions: Record<string, GuardShiftSession> = {};
+                  inProgressReports.forEach((r: any) => {
+                    const firstGuard = r.personnel_data?.[0];
+                    const guardId = firstGuard?.guard_id || 'G-101';
+                    restoredSessions[guardId] = {
+                      id: 'shift_sess_' + (r.id || Date.now()),
+                      calendar_event_id: r.calendar_event_id,
+                      guard_id: guardId,
+                      guard_name: firstGuard?.guard_name || r.prep_name,
+                      facility: 'Public Market Main',
+                      area: r.area_covered,
+                      shift_name: r.shift,
+                      call_sign: 'EAGLE-1',
+                      status: 'ON_DUTY',
+                      time_in: firstGuard?.time_in || '06:00',
+                      date: r.report_date,
+                      patrol_logs: firstGuard?.patrol_logs || [],
+                    };
+                  });
+                  setActiveShiftSessions((prev) => ({ ...restoredSessions, ...prev }));
+                }
               }
               if (invItemsRes.data) setInventoryItems(invItemsRes.data);
               if (invTxRes.data) setInventoryTransactions(invTxRes.data);
@@ -329,6 +352,31 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     !g.guard_name?.toLowerCase().includes('jomar l. castillo') &&
                     !g.guard_name?.toLowerCase().includes('danilo p. ramos')
                 );
+
+                // Also ensure any Section F profile is in the roster
+                if (profilesRes?.data) {
+                  profilesRes.data
+                    .filter((p: any) => p && p.section === 'F')
+                    .forEach((p: any) => {
+                      const guardId = p.guard_id || `G-${p.username.toUpperCase()}`;
+                      const exists = liveGuards.some(
+                        (g: any) => g.guard_id.toUpperCase() === guardId.toUpperCase()
+                      );
+                      if (!exists) {
+                        liveGuards.push({
+                          guard_id: guardId,
+                          guard_name: p.full_name || p.username,
+                          rank_title: p.rank_title || 'SO1',
+                          default_area: p.default_area || 'General Public Market',
+                          radio_call_sign: p.radio_call_sign || 'EAGLE-1',
+                          assigned_facility: 'Public Market Main',
+                          current_shift: '1st Shift (06:00 - 14:00)',
+                          status: 'Active',
+                        });
+                      }
+                    });
+                }
+
                 setGuards(liveGuards);
                 localStorage.setItem('meedo_guards', JSON.stringify(liveGuards));
               }
@@ -492,12 +540,25 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           } catch (e) {}
         }
 
+        const savedActiveSessions = localStorage.getItem('meedo_guard_shift_sessions');
+        if (savedActiveSessions) {
+          try {
+            const parsed = JSON.parse(savedActiveSessions);
+            if (parsed && typeof parsed === 'object') {
+              setActiveShiftSessions(parsed);
+            }
+          } catch (e) {}
+        }
+
         const savedActiveSession = localStorage.getItem('meedo_active_guard_session');
         if (savedActiveSession) {
           try {
             const parsed = JSON.parse(savedActiveSession);
             if (parsed && parsed.status && parsed.status !== 'ENDED') {
               setActiveShiftSession(parsed);
+              if (parsed.guard_id) {
+                setActiveShiftSessions((prev) => ({ ...prev, [parsed.guard_id]: parsed }));
+              }
             }
           } catch (e) {}
         }
@@ -766,7 +827,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const logout = () => {
     setCurrentUser(null);
+    setActiveShiftSession(null);
     localStorage.removeItem('meedo_current_user');
+    localStorage.removeItem('meedo_active_guard_session');
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }
@@ -793,7 +856,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     guardId?: string,
     fullName?: string,
     rankTitle?: string,
-    password?: string
+    password?: string,
+    radioCallSign?: string,
+    defaultArea?: string
   ): { success: boolean; message?: string } => {
     const trimmedUser = username.trim();
     if (!trimmedUser) {
@@ -811,6 +876,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const cleanFullName = fullName ? fullName.trim() : trimmedUser;
     const cleanRankTitle = rankTitle ? rankTitle.trim() : undefined;
     const cleanPassword = password?.trim() || undefined;
+    const cleanRadioCallSign = radioCallSign?.trim().toUpperCase() || undefined;
+    const cleanDefaultArea = defaultArea?.trim() || 'General Public Market';
 
     const newUser: UserProfile = {
       id: generateUUID(),
@@ -822,6 +889,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       guard_id: cleanGuardId,
       full_name: cleanFullName,
       rank_title: cleanRankTitle,
+      radio_call_sign: cleanRadioCallSign,
+      default_area: cleanDefaultArea,
       created_at: new Date().toISOString(),
     };
 
@@ -879,6 +948,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   ...g,
                   guard_name: cleanFullName,
                   rank_title: cleanRankTitle || g.rank_title,
+                  radio_call_sign: cleanRadioCallSign || g.radio_call_sign,
+                  default_area: cleanDefaultArea || g.default_area,
                 }
               : g
           );
@@ -889,7 +960,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               guard_id: cleanGuardId,
               guard_name: cleanFullName,
               rank_title: cleanRankTitle || 'SO1',
-              default_area: 'Market General Security',
+              default_area: cleanDefaultArea,
+              radio_call_sign: cleanRadioCallSign,
+              assigned_facility: 'Public Market Main',
+              current_shift: '1st Shift (06:00 - 14:00)',
               status: 'Active',
             },
           ];
@@ -906,7 +980,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               guard_id: cleanGuardId,
               guard_name: cleanFullName,
               rank_title: cleanRankTitle || 'SO1',
-              default_area: 'Market General Security',
+              default_area: cleanDefaultArea,
+              radio_call_sign: cleanRadioCallSign || null,
+              assigned_facility: 'Public Market Main',
+              current_shift: '1st Shift (06:00 - 14:00)',
               status: 'Active',
             },
             { onConflict: 'guard_id' }
@@ -1866,93 +1943,111 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // ---------------------------------------------------------------------------
-  // MARKET GUARD OPERATIONAL STATE MACHINE
+  // MARKET GUARD OPERATIONAL STATE MACHINE (Supabase Synced & Multi-Guard)
   // ---------------------------------------------------------------------------
+  const getActiveShiftSession = (guardId?: string): GuardShiftSession | null => {
+    const targetId = (guardId || (currentUser?.role === 'Staff' ? currentUser.guard_id : undefined))?.trim().toUpperCase();
+    if (targetId) {
+      if (activeShiftSessions && typeof activeShiftSessions === 'object') {
+        for (const [key, sess] of Object.entries(activeShiftSessions)) {
+          if (
+            key.trim().toUpperCase() === targetId &&
+            sess &&
+            sess.status !== 'ENDED' &&
+            sess.guard_id?.trim().toUpperCase() === targetId
+          ) {
+            return sess;
+          }
+        }
+      }
+      if (
+        activeShiftSession &&
+        activeShiftSession.guard_id?.trim().toUpperCase() === targetId &&
+        activeShiftSession.status !== 'ENDED'
+      ) {
+        return activeShiftSession;
+      }
+      return null;
+    }
+    return activeShiftSession && activeShiftSession.status !== 'ENDED' ? activeShiftSession : null;
+  };
+
   const startGuardShift = (eventDetails?: Partial<GuardShiftSession>): GuardShiftSession => {
     const now = new Date();
     const timeIn = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
     const dateStr = now.toISOString().split('T')[0];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOfWeek = dayNames[now.getDay()];
+
+    const targetGuardId =
+      eventDetails?.guard_id ||
+      currentUser?.guard_id ||
+      (currentUser?.role === 'Staff' && currentUser?.username ? currentUser.username : undefined);
 
     const matchedGuard =
       guards.find(
         (g) =>
-          g.guard_id === eventDetails?.guard_id ||
+          (targetGuardId && g.guard_id.toUpperCase() === targetGuardId.toUpperCase()) ||
+          (currentUser?.guard_id && g.guard_id.toUpperCase() === currentUser.guard_id.toUpperCase()) ||
+          (currentUser?.username && g.guard_id.toUpperCase() === currentUser.username.toUpperCase()) ||
+          (currentUser?.full_name && g.guard_name.toLowerCase() === currentUser.full_name.toLowerCase()) ||
           g.guard_name.toLowerCase().includes((currentUser?.full_name || currentUser?.username || '').toLowerCase())
-      ) || guards[0];
+      ) || {
+        guard_id: targetGuardId || 'G-101',
+        guard_name: eventDetails?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+        rank_title: currentUser?.rank_title || 'SO1',
+        default_area: 'General Public Market',
+        radio_call_sign: currentUser?.radio_call_sign || 'EAGLE-1',
+        assigned_facility: 'Public Market Main',
+        current_shift: '1st Shift (06:00 - 14:00)',
+        status: 'Active',
+      };
+
+    const initialLog = {
+      time: timeIn,
+      area: eventDetails?.area || matchedGuard.default_area || 'Main Gate / Post',
+      notes: 'Shift started. Post assumed and communication radio checked.',
+    };
 
     const session: GuardShiftSession = {
       id: 'shift_sess_' + Date.now(),
       calendar_event_id: eventDetails?.calendar_event_id,
-      guard_id: eventDetails?.guard_id || matchedGuard?.guard_id || currentUser?.guard_id || 'G-101',
-      guard_name: eventDetails?.guard_name || matchedGuard?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
-      facility: eventDetails?.facility || matchedGuard?.assigned_facility || 'Public Market Main',
-      area: eventDetails?.area || matchedGuard?.default_area || 'Whole Market / Main Hall',
-      shift_name: eventDetails?.shift_name || matchedGuard?.current_shift || '1st Shift (06:00 - 14:00)',
-      call_sign: eventDetails?.call_sign || matchedGuard?.radio_call_sign || 'EAGLE-1',
+      guard_id: matchedGuard.guard_id,
+      guard_name: eventDetails?.guard_name || matchedGuard.guard_name,
+      facility: eventDetails?.facility || matchedGuard.assigned_facility || 'Public Market Main',
+      area: eventDetails?.area || matchedGuard.default_area || 'General Public Market',
+      shift_name: eventDetails?.shift_name || matchedGuard.current_shift || '1st Shift (06:00 - 14:00)',
+      call_sign: eventDetails?.call_sign || matchedGuard.radio_call_sign || 'EAGLE-1',
       status: 'ON_DUTY',
       time_in: timeIn,
       date: dateStr,
-      patrol_logs: [
-        {
-          time: timeIn,
-          area: eventDetails?.area || matchedGuard?.default_area || 'Main Gate / Post',
-          notes: 'Shift started. Post assumed and communication radio checked.',
-        },
-      ],
+      patrol_logs: [initialLog],
       instructions: eventDetails?.instructions,
     };
 
+    // Store active session in memory and localStorage (multi-guard)
+    setActiveShiftSessions((prev) => {
+      const updated = { ...prev, [matchedGuard.guard_id]: session };
+      localStorage.setItem('meedo_guard_shift_sessions', JSON.stringify(updated));
+      return updated;
+    });
     setActiveShiftSession(session);
     localStorage.setItem('meedo_active_guard_session', JSON.stringify(session));
 
-    if (eventDetails?.calendar_event_id) {
-      updateCalendarEvent(eventDetails.calendar_event_id, { status: 'Ongoing' }, true);
-    }
+    // Create an in-progress draft CsuDailyReport
+    const reportId = `csu_${matchedGuard.guard_id.replace(/[^a-zA-Z0-9]/g, '')}_${Date.now()}`;
+    const initialActivities = `Shift started at ${timeIn}. Area covered: ${session.area}.\nPatrol checks logged (1):\n• ${timeIn} [${initialLog.area}]: ${initialLog.notes}`;
 
-    return session;
-  };
-
-  const logPatrolCheck = (area: string, notes: string) => {
-    if (!activeShiftSession) return;
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
-    const updatedSession: GuardShiftSession = {
-      ...activeShiftSession,
-      status: 'ON_PATROL',
-      patrol_logs: [
-        ...activeShiftSession.patrol_logs,
-        { time: timeStr, area: area || activeShiftSession.area, notes },
-      ],
-    };
-    setActiveShiftSession(updatedSession);
-    localStorage.setItem('meedo_active_guard_session', JSON.stringify(updatedSession));
-  };
-
-  const endGuardShift = (turnoverNotes?: string, summaryActivities?: string): CsuDailyReport => {
-    const now = new Date();
-    const timeOut = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
-    const sess = activeShiftSession;
-
-    const reportDate = sess?.date || now.toISOString().split('T')[0];
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayOfWeek = dayNames[now.getDay()];
-
-    const newReport: CsuDailyReport = {
-      id: 'csu_' + Date.now(),
-      report_date: reportDate,
+    const draftReport: CsuDailyReport = {
+      id: reportId,
+      report_date: dateStr,
       day_of_week: dayOfWeek,
-      shift: sess?.shift_name || '1st Shift (06:00 - 14:00)',
-      area_covered: sess?.area || 'Whole Market',
-      summary_activities:
-        summaryActivities ||
-        `Roving and monitoring conducted across assigned sector. Logged ${
-          sess?.patrol_logs.length || 1
-        } patrol checks. Maintained peaceful and orderly market environment.`,
-      turnover_notes:
-        turnoverNotes ||
-        'Properly turned over post, municipal keys, handheld radio, and peace & order logbook to incoming duty shift.',
-      prep_name: sess?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
-      prep_title: 'Market Guard-on-Duty',
+      shift: session.shift_name,
+      area_covered: session.area,
+      summary_activities: initialActivities,
+      turnover_notes: '',
+      prep_name: session.guard_name,
+      prep_title: matchedGuard.rank_title || 'SO1',
       ver_name: 'CSU Supervisor',
       ver_title: 'Chief Security Officer',
       app_name: 'Marife V. Cachuela',
@@ -1960,41 +2055,305 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       personnel_data: [
         {
           id: 'guard_duty_' + Date.now(),
-          guard_id: sess?.guard_id || currentUser?.guard_id || 'G-101',
-          guard_name: sess?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
-          assigned_area: sess?.area || 'Whole Market',
-          time_in: sess?.time_in || '06:00',
-          time_out: timeOut,
-          remarks: 'Completed duty rotation',
-        },
+          guard_id: matchedGuard.guard_id,
+          guard_name: session.guard_name,
+          assigned_area: session.area,
+          time_in: timeIn,
+          time_out: '',
+          remarks: 'Active roving (1 check)',
+          patrol_logs: [initialLog],
+        } as any,
       ],
       incident_data: [],
       violations_data: [],
       lost_found_data: [],
-      calendar_event_id: sess?.calendar_event_id,
-      is_locked: true,
-      locked_at: now.toISOString(),
+      calendar_event_id: session.calendar_event_id,
+      is_locked: false,
       created_at: now.toISOString(),
+      updated_at: now.toISOString(),
     };
 
     setCsuReports((prev) => {
-      const updated = [newReport, ...prev];
+      const filtered = prev.filter((r) => r.id !== reportId);
+      const updated = [draftReport, ...filtered];
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
       return updated;
     });
 
-    if (sess?.calendar_event_id) {
+    // DIRECT SYNC TO SUPABASE!
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('csu_daily_reports')
+        .upsert(draftReport, { onConflict: 'id' })
+        .then(({ error }) => {
+          if (error) console.error('Supabase error inserting draft shift blotter:', error.message);
+          else console.log('✓ Supabase draft shift blotter created for', matchedGuard.guard_name);
+        });
+
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: currentUser?.username || session.guard_name,
+          action: 'Shift Started',
+          details: `Guard ${session.guard_name} (${matchedGuard.guard_id}) clocked in at ${timeIn}. Shift: ${session.shift_name}. Ref: ${reportId}`,
+        })
+        .then();
+    }
+
+    if (eventDetails?.calendar_event_id) {
       updateCalendarEvent(
-        sess.calendar_event_id,
-        { status: 'Completed', blotter_report_id: newReport.id },
+        eventDetails.calendar_event_id,
+        { status: 'Ongoing', blotter_report_id: reportId },
         true
       );
     }
 
+    return session;
+  };
+
+  const logPatrolCheck = (area: string, notes: string, guardIdOverride?: string) => {
+    const targetGuardId =
+      guardIdOverride ||
+      (currentUser?.role === 'Staff' ? currentUser.guard_id : undefined) ||
+      activeShiftSession?.guard_id;
+
+    // Retrieve active session for this guard
+    const sess = (targetGuardId && activeShiftSessions[targetGuardId]) || activeShiftSession;
+    if (!sess) {
+      console.warn('Cannot log patrol check: no active duty session found for guard', targetGuardId);
+      return;
+    }
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const newLog = { time: timeStr, area: area || sess.area, notes };
+    const updatedLogs = [...sess.patrol_logs, newLog];
+
+    const updatedSession: GuardShiftSession = {
+      ...sess,
+      status: 'ON_PATROL',
+      patrol_logs: updatedLogs,
+    };
+
+    setActiveShiftSessions((prev) => {
+      const updated = { ...prev, [sess.guard_id]: updatedSession };
+      localStorage.setItem('meedo_guard_shift_sessions', JSON.stringify(updated));
+      return updated;
+    });
+    setActiveShiftSession(updatedSession);
+    localStorage.setItem('meedo_active_guard_session', JSON.stringify(updatedSession));
+
+    // Format readable summary activities for audit, report & print preview
+    const formattedActivities =
+      `Shift started at ${sess.time_in}. Area covered: ${sess.area}.\nPatrol checks logged (${updatedLogs.length}):\n` +
+      updatedLogs.map((l) => `• ${l.time} [${l.area}]: ${l.notes}`).join('\n');
+
+    let activeReportId: string | undefined;
+    let targetPersonnelData: any[] = [];
+
+    setCsuReports((prev) => {
+      const updated = prev.map((r) => {
+        // match un-locked report belonging to this guard
+        if (
+          !r.is_locked &&
+          (r.prep_name.toLowerCase() === sess.guard_name.toLowerCase() ||
+            r.personnel_data?.some((p) => p.guard_id === sess.guard_id))
+        ) {
+          activeReportId = r.id;
+          const updatedPersonnel = (r.personnel_data || []).map((p) =>
+            p.guard_id === sess.guard_id
+              ? {
+                  ...p,
+                  remarks: `Active roving (${updatedLogs.length} checks logged)`,
+                  patrol_logs: updatedLogs,
+                }
+              : p
+          );
+          targetPersonnelData = updatedPersonnel;
+          return {
+            ...r,
+            summary_activities: formattedActivities,
+            personnel_data: updatedPersonnel,
+            updated_at: now.toISOString(),
+          };
+        }
+        return r;
+      });
+      localStorage.setItem('meedo_csu', JSON.stringify(updated));
+      return updated;
+    });
+
+    // DIRECT SYNC TO SUPABASE!
+    if (isSupabaseConfigured && supabase) {
+      if (activeReportId) {
+        supabase
+          .from('csu_daily_reports')
+          .update({
+            summary_activities: formattedActivities,
+            personnel_data: targetPersonnelData,
+            updated_at: now.toISOString(),
+          })
+          .eq('id', activeReportId)
+          .then(({ error }) => {
+            if (error) console.error('Supabase error updating patrol check:', error.message);
+            else console.log('✓ Supabase patrol check saved for report:', activeReportId);
+          });
+      }
+
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: currentUser?.username || sess.guard_name,
+          action: 'Patrol Check Logged',
+          details: `Guard ${sess.guard_name} (${sess.guard_id}) logged patrol roving check at ${area || sess.area}: ${notes}`,
+        })
+        .then();
+    }
+  };
+
+  const endGuardShift = (
+    turnoverNotes?: string,
+    summaryActivities?: string,
+    guardIdOverride?: string
+  ): CsuDailyReport => {
+    const targetGuardId =
+      guardIdOverride ||
+      (currentUser?.role === 'Staff' ? currentUser.guard_id : undefined) ||
+      activeShiftSession?.guard_id;
+
+    const sess = (targetGuardId && activeShiftSessions[targetGuardId]) || activeShiftSession;
+    const now = new Date();
+    const timeOut = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    const dateStr = sess?.date || now.toISOString().split('T')[0];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOfWeek = dayNames[now.getDay()];
+
+    const finalSummary =
+      summaryActivities ||
+      (sess?.patrol_logs && sess.patrol_logs.length > 0
+        ? `Shift roving completed across ${sess.area}. Logged ${sess.patrol_logs.length} patrol checks:\n` +
+          sess.patrol_logs.map((l) => `• ${l.time} [${l.area}]: ${l.notes}`).join('\n')
+        : 'Roving and monitoring conducted across assigned sector. Maintained peaceful and orderly market environment.');
+
+    const finalTurnover =
+      turnoverNotes ||
+      'Properly turned over security post, keys, handheld radio, and peace & order logbook to incoming duty shift.';
+
+    let targetReport: CsuDailyReport | null = null;
+
+    setCsuReports((prev) => {
+      let matched = false;
+      const updated = prev.map((r) => {
+        if (
+          !r.is_locked &&
+          sess &&
+          (r.prep_name.toLowerCase() === sess.guard_name.toLowerCase() ||
+            r.personnel_data?.some((p) => p.guard_id === sess.guard_id))
+        ) {
+          matched = true;
+          const updatedPersonnel = (r.personnel_data || []).map((p) =>
+            p.guard_id === sess.guard_id
+              ? { ...p, time_out: timeOut, remarks: 'Completed duty rotation' }
+              : p
+          );
+          targetReport = {
+            ...r,
+            summary_activities: finalSummary,
+            turnover_notes: finalTurnover,
+            personnel_data: updatedPersonnel,
+            is_locked: true,
+            locked_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          };
+          return targetReport as CsuDailyReport;
+        }
+        return r;
+      });
+
+      if (!matched) {
+        targetReport = {
+          id: `csu_${sess?.guard_id || 'G-101'}_${Date.now()}`,
+          report_date: dateStr,
+          day_of_week: dayOfWeek,
+          shift: sess?.shift_name || '1st Shift (06:00 - 14:00)',
+          area_covered: sess?.area || 'General Public Market',
+          summary_activities: finalSummary,
+          turnover_notes: finalTurnover,
+          prep_name: sess?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+          prep_title: 'Market Guard-on-Duty',
+          ver_name: 'CSU Supervisor',
+          ver_title: 'Chief Security Officer',
+          app_name: 'Marife V. Cachuela',
+          app_title: 'MEEDO Department Head',
+          personnel_data: [
+            {
+              id: 'guard_duty_' + Date.now(),
+              guard_id: sess?.guard_id || currentUser?.guard_id || 'G-101',
+              guard_name: sess?.guard_name || currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
+              assigned_area: sess?.area || 'General Public Market',
+              time_in: sess?.time_in || '06:00',
+              time_out: timeOut,
+              remarks: 'Completed duty rotation',
+              patrol_logs: sess?.patrol_logs || [],
+            } as any,
+          ],
+          incident_data: [],
+          violations_data: [],
+          lost_found_data: [],
+          calendar_event_id: sess?.calendar_event_id,
+          is_locked: true,
+          locked_at: now.toISOString(),
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        };
+        updated.unshift(targetReport);
+      }
+
+      localStorage.setItem('meedo_csu', JSON.stringify(updated));
+      return updated;
+    });
+
+    // Remove active session for this guard
+    if (sess?.guard_id) {
+      setActiveShiftSessions((prev) => {
+        const copy = { ...prev };
+        delete copy[sess.guard_id];
+        localStorage.setItem('meedo_guard_shift_sessions', JSON.stringify(copy));
+        return copy;
+      });
+    }
     setActiveShiftSession(null);
     localStorage.removeItem('meedo_active_guard_session');
 
-    return newReport;
+    // DIRECT SYNC TO SUPABASE!
+    if (isSupabaseConfigured && supabase && targetReport) {
+      supabase
+        .from('csu_daily_reports')
+        .upsert(targetReport, { onConflict: 'id' })
+        .then(({ error }) => {
+          if (error) console.error('Supabase error ending shift and saving blotter:', error.message);
+          else console.log('✓ Supabase blotter report locked and saved:', (targetReport as any).id);
+        });
+
+      supabase
+        .from('audit_logs')
+        .insert({
+          username: currentUser?.username || sess?.guard_name || 'Market Guard',
+          action: 'Shift Ended & Blotter Submitted',
+          details: `Guard ${sess?.guard_name} (${sess?.guard_id}) completed shift at ${timeOut}. Blotter ref: ${(targetReport as any).id}`,
+        })
+        .then();
+    }
+
+    if (sess?.calendar_event_id) {
+      updateCalendarEvent(
+        sess.calendar_event_id,
+        { status: 'Completed', blotter_report_id: (targetReport as any)?.id },
+        true
+      );
+    }
+
+    return targetReport!;
   };
 
   const releaseInventoryItem = (params: {
@@ -2352,6 +2711,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteCalendarEvent,
         checkScheduleConflict,
         activeShiftSession,
+        activeShiftSessions,
+        getActiveShiftSession,
         startGuardShift,
         logPatrolCheck,
         endGuardShift,

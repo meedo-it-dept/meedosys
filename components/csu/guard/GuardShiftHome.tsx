@@ -38,6 +38,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
     guards,
     marketCalendarEvents,
     activeShiftSession,
+    activeShiftSessions,
     startGuardShift,
     logPatrolCheck,
     endGuardShift,
@@ -49,19 +50,54 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
     selectedGuardOverride ||
     guards.find(
       (g) =>
-        g.guard_name.toLowerCase().includes((currentUser?.full_name || currentUser?.username || '').toLowerCase()) ||
-        g.guard_id.toUpperCase() === (currentUser?.username || '').toUpperCase()
-    ) ||
-    guards[0] || {
-      guard_id: currentUser?.guard_id || 'G-101',
+        (currentUser?.guard_id && g.guard_id.toUpperCase() === currentUser.guard_id.toUpperCase()) ||
+        (currentUser?.username && g.guard_id.toUpperCase() === currentUser.username.toUpperCase()) ||
+        (currentUser?.full_name && g.guard_name.toLowerCase() === currentUser.full_name.toLowerCase()) ||
+        (currentUser?.username && g.guard_name.toLowerCase() === currentUser.username.toLowerCase()) ||
+        g.guard_name.toLowerCase().includes((currentUser?.full_name || currentUser?.username || '').toLowerCase())
+    ) || {
+      guard_id: currentUser?.guard_id || (currentUser?.username ? `G-${currentUser.username.toUpperCase()}` : 'G-101'),
       guard_name: currentUser?.full_name || currentUser?.username || 'Duty Market Guard',
-      rank_title: currentUser?.rank_title || 'Market Security Guard',
+      rank_title: currentUser?.rank_title || 'SO1',
       default_area: 'General Public Market',
-      radio_call_sign: 'EAGLE-1',
+      radio_call_sign: currentUser?.radio_call_sign || 'EAGLE-1',
       assigned_facility: 'Public Market Main',
       current_shift: '1st Shift (06:00 - 14:00)',
       status: 'Active',
     };
+
+  // Strict guard-specific active session isolation
+  const guardSession = (() => {
+    if (!currentGuard?.guard_id) return null;
+    const targetId = currentGuard.guard_id.trim().toUpperCase();
+
+    // 1. Check multi-guard session dictionary
+    if (activeShiftSessions && typeof activeShiftSessions === 'object') {
+      for (const [key, sess] of Object.entries(activeShiftSessions)) {
+        if (
+          key.trim().toUpperCase() === targetId &&
+          sess &&
+          sess.status !== 'ENDED' &&
+          sess.guard_id?.trim().toUpperCase() === targetId
+        ) {
+          return sess;
+        }
+      }
+    }
+
+    // 2. Check activeShiftSession ONLY if its guard_id strictly matches this guard
+    if (
+      activeShiftSession &&
+      activeShiftSession.guard_id?.trim().toUpperCase() === targetId &&
+      activeShiftSession.status !== 'ENDED'
+    ) {
+      return activeShiftSession;
+    }
+
+    return null;
+  })();
+
+  const isOnDuty = Boolean(guardSession && guardSession.status !== 'ENDED');
 
   // Find today's calendar assignment for this guard
   const todayStr = '2026-09-26';
@@ -89,13 +125,13 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
 
   useEffect(() => {
-    if (!activeShiftSession || !activeShiftSession.time_in) {
+    if (!guardSession || !guardSession.time_in) {
       setElapsedTime('00:00:00');
       return;
     }
 
     const interval = setInterval(() => {
-      const [h, m] = (activeShiftSession.time_in || '06:00').split(':').map(Number);
+      const [h, m] = (guardSession.time_in || '06:00').split(':').map(Number);
       const now = new Date();
       const startTime = new Date();
       startTime.setHours(h || 6, m || 0, 0, 0);
@@ -113,7 +149,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeShiftSession]);
+  }, [guardSession]);
 
   const handleStartShift = () => {
     startGuardShift({
@@ -121,28 +157,26 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
       guard_id: currentGuard.guard_id,
       guard_name: currentGuard.guard_name,
       facility: currentGuard.assigned_facility || 'Public Market Main',
-      area: todayScheduledEvent?.location || currentGuard.default_area || 'Whole Market / Main Hall',
+      area: todayScheduledEvent?.location || currentGuard.default_area || 'General Public Market',
       shift_name: todayScheduledEvent?.shift_name || currentGuard.current_shift || '1st Shift (06:00 - 14:00)',
-      call_sign: currentGuard.radio_call_sign || 'FALCON-3',
+      call_sign: currentGuard.radio_call_sign || 'EAGLE-1',
       instructions: todayScheduledEvent?.special_instructions,
     });
   };
 
   const handleLogPatrol = (e: React.FormEvent) => {
     e.preventDefault();
-    logPatrolCheck(patrolArea, patrolNotes);
+    logPatrolCheck(patrolArea, patrolNotes, currentGuard.guard_id);
     setIsPatrolModalOpen(false);
     setPatrolNotes('Area roving completed. Normal situation maintained.');
   };
 
   const handleConfirmEndShift = (e: React.FormEvent) => {
     e.preventDefault();
-    endGuardShift(turnoverNotes, summaryActivities);
+    endGuardShift(turnoverNotes, summaryActivities, currentGuard.guard_id);
     setIsEndShiftModalOpen(false);
     onNavigateTab('blotter');
   };
-
-  const isOnDuty = Boolean(activeShiftSession && activeShiftSession.status !== 'ENDED');
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto pb-12">
@@ -194,7 +228,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
               </span>
             </div>
             <span className="block text-xs font-medium text-slate-500 mt-0.5">
-              {isOnDuty ? `Time In: ${activeShiftSession?.time_in}` : 'Shift Not Started'}
+              {isOnDuty ? `Time In: ${guardSession?.time_in}` : 'Shift Not Started'}
             </span>
           </div>
         </div>
@@ -279,14 +313,14 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
                   Duty In Progress
                 </span>
                 <Badge className="bg-emerald-700 text-white font-mono text-xs">
-                  {activeShiftSession?.shift_name}
+                  {guardSession?.shift_name}
                 </Badge>
               </div>
               <h2 className="text-2xl font-black text-slate-900 mt-1">
-                {activeShiftSession?.area}
+                {guardSession?.area}
               </h2>
               <p className="text-xs text-slate-500">
-                Radio Call Sign: <span className="font-mono font-bold text-slate-800">{activeShiftSession?.call_sign}</span> • Post: {activeShiftSession?.facility}
+                Radio Call Sign: <span className="font-mono font-bold text-slate-800">{guardSession?.call_sign}</span> • Post: {guardSession?.facility}
               </p>
             </div>
 
@@ -299,7 +333,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
                 {elapsedTime}
               </span>
               <span className="block text-[11px] font-semibold text-slate-500 mt-0.5">
-                Started at {activeShiftSession?.time_in}
+                Started at {guardSession?.time_in}
               </span>
             </div>
           </div>
@@ -329,13 +363,13 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Footprints className="h-4 w-4 text-blue-600" />
-                Shift Roving & Inspection Logs ({activeShiftSession?.patrol_logs.length || 0})
+                Shift Roving & Inspection Logs ({guardSession?.patrol_logs.length || 0})
               </h3>
               <span className="text-[11px] text-slate-400 font-mono">Real-time GPS / Post Logs</span>
             </div>
 
             <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto pr-1">
-              {(activeShiftSession?.patrol_logs || []).map((log, i) => (
+              {(guardSession?.patrol_logs || []).map((log, i) => (
                 <div key={i} className="py-2.5 flex items-start gap-3">
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-700">
                     {log.time}
@@ -449,7 +483,8 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
       <QuickIncidentModal
         isOpen={isIncidentModalOpen}
         onClose={() => setIsIncidentModalOpen(false)}
-        defaultLocation={activeShiftSession?.area || currentGuard.default_area}
+        defaultLocation={guardSession?.area || currentGuard.default_area}
+        currentGuard={currentGuard}
       />
 
       {/* Patrol Check Modal */}
@@ -542,7 +577,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
                 </p>
                 <p className="text-slate-600">
                   Total Patrols Logged:{' '}
-                  <span className="font-bold text-slate-900">{activeShiftSession?.patrol_logs.length || 0} checks</span>
+                  <span className="font-bold text-slate-900">{guardSession?.patrol_logs.length || 0} checks</span>
                 </p>
               </div>
 

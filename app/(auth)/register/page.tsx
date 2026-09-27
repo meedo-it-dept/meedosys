@@ -15,6 +15,8 @@ export default function RegisterPage() {
   const [guardId, setGuardId] = useState('');
   const [fullName, setFullName] = useState('');
   const [rankTitle, setRankTitle] = useState('SO1');
+  const [radioCallSign, setRadioCallSign] = useState('');
+  const [defaultArea, setDefaultArea] = useState('General Public Market');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -47,7 +49,9 @@ export default function RegisterPage() {
       section === 'F' ? guardId.trim().toUpperCase() : undefined,
       section === 'F' ? fullName.trim() : undefined,
       section === 'F' ? rankTitle.trim() : undefined,
-      password
+      password,
+      section === 'F' ? radioCallSign.trim().toUpperCase() : undefined,
+      section === 'F' ? defaultArea.trim() : undefined
     );
 
     if (res.success) {
@@ -163,6 +167,39 @@ export default function RegisterPage() {
                     placeholder="e.g. SO1, SO2, Team Leader"
                     className="w-full px-3 py-1.5 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                    Radio Call Sign <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={radioCallSign}
+                    onChange={(e) => setRadioCallSign(e.target.value)}
+                    placeholder="e.g. EAGLE-1, FALCON-2"
+                    className="w-full px-3 py-1.5 text-xs font-mono font-bold uppercase border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-blue-950 mb-1">
+                    Designated Sector <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <select
+                    value={defaultArea}
+                    onChange={(e) => setDefaultArea(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="General Public Market">General Public Market</option>
+                    <option value="Wet Market Section">Wet Market Section</option>
+                    <option value="Dry Goods & Perimeter">Dry Goods & Perimeter</option>
+                    <option value="Whole Market / Main Hall">Whole Market / Main Hall</option>
+                    <option value="Terminal & Unloading Bay">Terminal & Unloading Bay</option>
+                    <option value="Commercial Plaza & Gates">Commercial Plaza & Gates</option>
+                    <option value="Market General Security">Market General Security</option>
+                  </select>
                 </div>
               </div>
             </div>
