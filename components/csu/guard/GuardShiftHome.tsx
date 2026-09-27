@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useMeedo } from '@/lib/store';
 import { MarketGuard, GuardShiftSession, CsuIncidentItem } from '@/lib/types';
 import {
@@ -19,6 +19,8 @@ import {
   Bell,
   Sparkles,
   Info,
+  ChevronDown,
+  Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -151,15 +153,100 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
     return () => clearInterval(interval);
   }, [guardSession]);
 
+  // Shift assignment and working hours configuration state
+  const [selectedShiftPreset, setSelectedShiftPreset] = useState<string>('1st Shift');
+  const [startTime, setStartTime] = useState<string>('06:00');
+  const [endTime, setEndTime] = useState<string>('14:00');
+  const [customShiftTitle, setCustomShiftTitle] = useState<string>('Custom Shift');
+  const [selectedArea, setSelectedArea] = useState<string>(
+    currentGuard.default_area || 'General Public Market'
+  );
+  const [selectedCallSign, setSelectedCallSign] = useState<string>(
+    currentGuard.radio_call_sign || 'EAGLE-1'
+  );
+
+  useEffect(() => {
+    const raw = todayScheduledEvent?.shift_name || currentGuard.current_shift || '1st Shift';
+    let preset = '1st Shift';
+    let sTime = '06:00';
+    let eTime = '14:00';
+
+    if (raw.toLowerCase().includes('2nd')) {
+      preset = '2nd Shift';
+      sTime = '14:00';
+      eTime = '22:00';
+    } else if (raw.toLowerCase().includes('3rd')) {
+      preset = '3rd Shift';
+      sTime = '22:00';
+      eTime = '06:00';
+    } else if (raw.toLowerCase().includes('office')) {
+      preset = 'Office Shift';
+      sTime = '08:00';
+      eTime = '17:00';
+    } else if (raw.toLowerCase().includes('custom')) {
+      preset = 'Custom Shift';
+      sTime = '08:00';
+      eTime = '17:00';
+    }
+
+    if (todayScheduledEvent?.start_time) sTime = todayScheduledEvent.start_time;
+    if (todayScheduledEvent?.end_time) eTime = todayScheduledEvent.end_time;
+
+    setSelectedShiftPreset(preset);
+    setStartTime(sTime);
+    setEndTime(eTime);
+    setSelectedArea(todayScheduledEvent?.location || currentGuard.default_area || 'General Public Market');
+    setSelectedCallSign(currentGuard.radio_call_sign || 'EAGLE-1');
+  }, [
+    currentGuard.guard_id,
+    currentGuard.current_shift,
+    currentGuard.default_area,
+    currentGuard.radio_call_sign,
+    todayScheduledEvent,
+  ]);
+
+  const handleShiftPresetChange = (preset: string) => {
+    setSelectedShiftPreset(preset);
+    if (preset === '1st Shift') {
+      setStartTime('06:00');
+      setEndTime('14:00');
+    } else if (preset === '2nd Shift') {
+      setStartTime('14:00');
+      setEndTime('22:00');
+    } else if (preset === '3rd Shift') {
+      setStartTime('22:00');
+      setEndTime('06:00');
+    } else if (preset === 'Office Shift') {
+      setStartTime('08:00');
+      setEndTime('17:00');
+    } else if (preset === 'Custom Shift') {
+      if (!startTime || !endTime) {
+        setStartTime('08:00');
+        setEndTime('17:00');
+      }
+    }
+  };
+
+  const formattedShiftName = useMemo(() => {
+    const baseTitle =
+      selectedShiftPreset === 'Custom Shift'
+        ? (customShiftTitle.trim() || 'Custom Shift')
+        : selectedShiftPreset;
+    if (startTime && endTime) {
+      return `${baseTitle} (${startTime} - ${endTime})`;
+    }
+    return baseTitle;
+  }, [selectedShiftPreset, customShiftTitle, startTime, endTime]);
+
   const handleStartShift = () => {
     startGuardShift({
       calendar_event_id: todayScheduledEvent?.id,
       guard_id: currentGuard.guard_id,
       guard_name: currentGuard.guard_name,
       facility: currentGuard.assigned_facility || 'Public Market Main',
-      area: todayScheduledEvent?.location || currentGuard.default_area || 'General Public Market',
-      shift_name: todayScheduledEvent?.shift_name || currentGuard.current_shift || '1st Shift (06:00 - 14:00)',
-      call_sign: currentGuard.radio_call_sign || 'EAGLE-1',
+      area: selectedArea || currentGuard.default_area || 'General Public Market',
+      shift_name: formattedShiftName,
+      call_sign: selectedCallSign || currentGuard.radio_call_sign || 'EAGLE-1',
       instructions: todayScheduledEvent?.special_instructions,
     });
   };
@@ -236,60 +323,234 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
 
       {/* STATE MACHINE: Shift Control Panel */}
       {!isOnDuty ? (
-        /* Case 1: NOT STARTED - Big Start Shift Card */
-        <div className="rounded-3xl border-2 border-dashed border-blue-300 bg-gradient-to-br from-blue-50/80 via-white to-slate-50 p-6 sm:p-8 text-center space-y-5 shadow-sm">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-xl shadow-blue-600/30">
-            <Shield className="h-8 w-8" />
+        /* Case 1: NOT STARTED - Interactive Assume Security Post Card */
+        <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50/60 via-white to-slate-50 p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="text-center space-y-2">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-xl shadow-blue-600/30">
+              <Shield className="h-8 w-8" />
+            </div>
+
+            <div className="max-w-md mx-auto space-y-1">
+              <h2 className="text-2xl font-black text-slate-900">Assume Security Post</h2>
+              <p className="text-xs text-slate-600">
+                Confirm your shift assignment, working hours, and post sector before logging Time-In.
+              </p>
+            </div>
           </div>
 
-          <div className="max-w-md mx-auto space-y-1">
-            <h2 className="text-2xl font-black text-slate-900">Assume Security Post</h2>
-            <p className="text-xs text-slate-600">
-              Check in for your scheduled duty shift, initialize communication, and log Time-In.
-            </p>
-          </div>
-
-          {/* Today's Scheduled Assignment Preview */}
-          {todayScheduledEvent ? (
-            <div className="max-w-lg mx-auto rounded-2xl border border-blue-200 bg-white p-4 text-left shadow-xs space-y-2">
+          {/* Today's Scheduled Assignment Alert (if scheduled in admin calendar) */}
+          {todayScheduledEvent && (
+            <div className="max-w-2xl mx-auto rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-left shadow-xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase text-blue-800 flex items-center gap-1.5">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                  Scheduled Assignment for Today
+                <span className="text-xs font-bold uppercase text-blue-900 flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4 text-blue-600" />
+                  Scheduled Assignment for Today (Admin Calendar)
                 </span>
-                <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-blue-700 border-blue-300">
-                  {todayScheduledEvent.shift_name || '1st Shift'}
+                <Badge className="bg-blue-600 text-white font-mono text-[10px]">
+                  {todayScheduledEvent.shift_name || 'Scheduled'}
                 </Badge>
               </div>
-
               <p className="text-sm font-bold text-slate-900">{todayScheduledEvent.title}</p>
-              <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Time Window</span>
-                  <span className="font-mono font-semibold">{todayScheduledEvent.start_time} - {todayScheduledEvent.end_time}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned Post</span>
-                  <span className="font-semibold truncate block">{todayScheduledEvent.location}</span>
-                </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-0.5">
+                <span>
+                  Scheduled Hours:{' '}
+                  <strong className="font-mono text-slate-800">
+                    {todayScheduledEvent.start_time} - {todayScheduledEvent.end_time}
+                  </strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Assigned Post: <strong className="text-slate-800">{todayScheduledEvent.location}</strong>
+                </span>
               </div>
-
               {todayScheduledEvent.special_instructions && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 mt-2">
-                  <span className="font-bold block">Administrator Orders:</span>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 mt-2">
+                  <span className="font-bold block text-[11px] uppercase">Administrator Orders:</span>
                   <span className="italic">{todayScheduledEvent.special_instructions}</span>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="max-w-md mx-auto rounded-xl bg-slate-100 p-3 text-xs text-slate-600 flex items-center justify-center gap-2">
-              <Info className="h-4 w-4 text-slate-500" />
-              <span>Standard Shift Assignment: {currentGuard.current_shift || '1st Shift (06:00 - 14:00)'}</span>
-            </div>
           )}
 
+          {/* Interactive Shift & Post Assignment Form */}
+          <div className="max-w-2xl mx-auto rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 text-left shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-blue-600" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                  Shift Assignment & Working Hours
+                </h3>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-mono text-xs font-bold border border-blue-200 self-start sm:self-auto">
+                Selected: {formattedShiftName}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Shift Assignment Dropdown */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Shift Assignment <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedShiftPreset}
+                    onChange={(e) => handleShiftPresetChange(e.target.value)}
+                    className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer pr-10"
+                  >
+                    <option value="1st Shift">1st Shift (06:00 - 14:00) • Morning / Day Patrol</option>
+                    <option value="2nd Shift">2nd Shift (14:00 - 22:00) • Afternoon / Closing Shift</option>
+                    <option value="3rd Shift">3rd Shift (22:00 - 06:00) • Night Watch / Graveyard</option>
+                    <option value="Office Shift">Office / Day Shift (08:00 - 17:00)</option>
+                    <option value="Custom Shift">Custom Shift (Specify Working Hours)</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+                <span className="text-[11px] text-slate-400 block">
+                  Select your assigned duty shift or choose Custom.
+                </span>
+              </div>
+
+              {/* Custom Shift Title Input or Quick Preset Switcher */}
+              {selectedShiftPreset === 'Custom Shift' ? (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Custom Shift Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customShiftTitle}
+                    onChange={(e) => setCustomShiftTitle(e.target.value)}
+                    placeholder="e.g. Special Night Roving"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-900 shadow-sm focus:border-blue-500"
+                  />
+                  <span className="text-[11px] text-slate-400 block">Enter operational assignment name.</span>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Quick Shift Switcher
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleShiftPresetChange('1st Shift')}
+                      className={`rounded-lg py-2 px-1 text-center text-[11px] font-bold transition border ${
+                        selectedShiftPreset === '1st Shift'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      1st Shift
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShiftPresetChange('2nd Shift')}
+                      className={`rounded-lg py-2 px-1 text-center text-[11px] font-bold transition border ${
+                        selectedShiftPreset === '2nd Shift'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      2nd Shift
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShiftPresetChange('3rd Shift')}
+                      className={`rounded-lg py-2 px-1 text-center text-[11px] font-bold transition border ${
+                        selectedShiftPreset === '3rd Shift'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      3rd Shift
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-slate-400 block">Click to populate standard hours.</span>
+                </div>
+              )}
+
+              {/* Shift Time Window (Start Time & End Time) */}
+              <div className="space-y-1.5 sm:col-span-2 rounded-xl bg-slate-50 border border-slate-200/80 p-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-600" />
+                    Duty Working Hours (Time Window)
+                  </label>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Adjust start or end time if starting early or on special hours
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                      Start Time (24-Hour)
+                    </span>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-bold text-slate-800 shadow-sm focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                      End Time (24-Hour)
+                    </span>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-mono font-bold text-slate-800 shadow-sm focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sector / Post Assignment */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 text-slate-500" />
+                  Designated Sector / Post
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedArea}
+                    onChange={(e) => setSelectedArea(e.target.value)}
+                    className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-900 shadow-sm focus:border-blue-500 pr-10 cursor-pointer"
+                  >
+                    <option value="General Public Market">General Public Market</option>
+                    <option value="Wet Market Section (Fish & Meat)">Wet Market Section (Fish & Meat)</option>
+                    <option value="Dry Goods & Grocery Section">Dry Goods & Grocery Section</option>
+                    <option value="Vegetables & Fruits Section">Vegetables & Fruits Section</option>
+                    <option value="Market Perimeter & Parking Area">Market Perimeter & Parking Area</option>
+                    <option value="Terminal & Loading Bay">Terminal & Loading Bay</option>
+                    <option value="MEEDO Admin Gate & Main Entrance">MEEDO Admin Gate & Main Entrance</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Radio Call Sign */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <Radio className="h-3.5 w-3.5 text-blue-600" />
+                  Active Radio Call Sign
+                </label>
+                <input
+                  type="text"
+                  value={selectedCallSign}
+                  onChange={(e) => setSelectedCallSign(e.target.value.toUpperCase())}
+                  placeholder="e.g. EAGLE-1"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 shadow-sm focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Big Start Button */}
-          <div className="pt-2 max-w-sm mx-auto">
+          <div className="pt-2 max-w-md mx-auto space-y-2">
             <Button
               onClick={handleStartShift}
               className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg gap-3 shadow-xl shadow-emerald-600/30 transition hover:scale-[1.02] active:scale-[0.98]"
@@ -297,8 +558,9 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
               <Play className="h-6 w-6 fill-current" />
               START SHIFT / TIME IN
             </Button>
-            <p className="text-[11px] text-slate-500 mt-2">
-              Pressing will record your exact Time-In and open your active blotter session.
+            <p className="text-[11px] text-slate-500 text-center">
+              Time-In will be recorded under <strong className="text-slate-800">{formattedShiftName}</strong> at{' '}
+              <strong className="text-slate-800">{selectedArea}</strong>.
             </p>
           </div>
         </div>
