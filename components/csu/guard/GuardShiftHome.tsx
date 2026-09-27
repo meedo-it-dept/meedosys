@@ -465,7 +465,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
             <span className="block text-sm font-mono font-bold text-white mt-0.5">(033) 501-2244</span>
           </div>
           <div className="rounded-xl bg-slate-800 p-2.5">
-            <span className="block text-[10px] text-slate-400 font-bold uppercase">CSU Security Chief</span>
+            <span className="block text-[10px] text-slate-400 font-bold uppercase">Market Guard Chief</span>
             <span className="block text-sm font-mono font-bold text-white mt-0.5">0917-888-MEEDO</span>
           </div>
           <div className="rounded-xl bg-slate-800 p-2.5">

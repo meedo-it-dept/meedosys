@@ -131,13 +131,13 @@ export const BlotterPrintSheet: React.FC<BlotterPrintSheetProps> = ({
             Republic of the Philippines
           </p>
           <p className="text-xs font-bold tracking-wide uppercase text-slate-800">
-            Province of Iloilo • Municipality of Pavia
+            Province of Sarangani • Municipality of Malungon
           </p>
           <p className="text-sm font-black tracking-wider uppercase text-slate-900">
             MUNICIPAL ECONOMIC ENTERPRISE DEVELOPMENT OFFICE (MEEDO)
           </p>
           <p className="text-[11px] font-semibold text-slate-700 italic">
-            Civil Security Unit (CSU) — Market Peace & Order Desk
+            Market Guard — Market Peace & Order Desk
           </p>
         </div>
 
@@ -406,7 +406,7 @@ export const BlotterPrintSheet: React.FC<BlotterPrintSheetProps> = ({
             <div className="space-y-1">
               <span className="text-[9px] uppercase font-bold text-slate-500 block">Verified by:</span>
               <div className="border-b border-slate-900 pb-1 mt-4">
-                <p className="font-black text-slate-900 text-xs uppercase">{report.ver_name || 'CSU Supervisor'}</p>
+                <p className="font-black text-slate-900 text-xs uppercase">{report.ver_name || 'Market Guard Supervisor'}</p>
               </div>
               <p className="text-[10px] text-slate-600 font-semibold">{report.ver_title || 'Chief Security Officer'}</p>
               <p className="text-[9px] text-slate-400 font-mono">Supervisory Verification</p>

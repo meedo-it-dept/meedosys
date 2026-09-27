@@ -123,7 +123,7 @@ export const GuardFacilityStats: React.FC = () => {
             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
             Active Duty Shift Standard Protocols
           </h2>
-          <span className="text-[11px] text-slate-400">MEEDO CSU Directive</span>
+          <span className="text-[11px] text-slate-400">MEEDO Market Guard Directive</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-300">
