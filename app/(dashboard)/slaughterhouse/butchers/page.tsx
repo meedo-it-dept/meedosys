@@ -22,6 +22,7 @@ import {
   RefreshCw,
   ArrowRight,
   ShieldCheck,
+  History,
   X,
 } from '@/components/icons';
 import { Card } from '@/components/ui/card';
@@ -37,13 +38,43 @@ const SPECIALIZATIONS = [
 ] as const;
 
 export default function ButcherProfilesPage() {
-  const { butchers, addButcher, updateButcher, deleteButcher, resetButchers, slaughterRecords } =
+  const { butchers, addButcher, updateButcher, deleteButcher, resetButchers, slaughterRecords, auditLogs } =
     useMeedo();
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'Active' | 'Inactive'>('ALL');
   const [specFilter, setSpecFilter] = useState<string>('ALL');
+
+  // Audit Trail Modal State
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditSearch, setAuditSearch] = useState('');
+
+  const butcherAuditLogs = useMemo(() => {
+    return (auditLogs || [])
+      .filter((log) => {
+        const action = log.action || '';
+        return action.startsWith('BUTCHER_') || action.startsWith('SLAUGHTER_');
+      })
+      .sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      });
+  }, [auditLogs]);
+
+  const filteredAuditLogs = useMemo(() => {
+    if (!auditSearch.trim()) return butcherAuditLogs;
+    const q = auditSearch.toLowerCase();
+    return butcherAuditLogs.filter((log) => {
+      const detailsStr = typeof log.details === 'string' ? log.details : JSON.stringify(log.details || '');
+      return (
+        log.username?.toLowerCase().includes(q) ||
+        log.action?.toLowerCase().includes(q) ||
+        detailsStr.toLowerCase().includes(q)
+      );
+    });
+  }, [butcherAuditLogs, auditSearch]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -253,6 +284,14 @@ export default function ButcherProfilesPage() {
               <Plus className="w-4 h-4 text-rose-700" />
               <span>Register New Butcher</span>
             </Button>
+
+            <button
+              onClick={() => setShowAuditModal(true)}
+              className="px-4 py-2.5 rounded-xl font-bold text-xs text-rose-100 bg-white/10 hover:bg-white/20 border border-white/10 backdrop-blur-sm transition-all flex items-center gap-2"
+            >
+              <History className="w-4 h-4 text-rose-300" />
+              <span>Audit Trail ({butcherAuditLogs.length})</span>
+            </button>
 
             <Link
               href="/slaughterhouse"
@@ -770,6 +809,115 @@ export default function ButcherProfilesPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Butcher & Slaughterhouse Audit Trail Modal */}
+      {showAuditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <Card className="w-full max-w-4xl bg-white shadow-2xl border-slate-200 p-6 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-rose-100 text-rose-700 rounded-lg">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    Accredited Butchers &amp; Operations Audit Trail
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
+                      Live Supabase Logged
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Immutable activity log of butcher accreditations, profile revisions, status changes, and intake logs.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAuditModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="py-4 border-b border-slate-100">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search by staff username, butcher name, action, or details..."
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+            </div>
+
+            {/* Logs List */}
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1 mt-2">
+              {filteredAuditLogs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs">
+                  No audit logs found.
+                </div>
+              ) : (
+                filteredAuditLogs.map((log) => {
+                  let parsed: any = null;
+                  try {
+                    parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                  } catch (e) {
+                    parsed = { summary: log.details };
+                  }
+
+                  const isDelete = log.action.includes('DELETED') || log.action.includes('DELISTED');
+                  const isButcher = log.action.includes('BUTCHER');
+
+                  return (
+                    <div key={log.id || Math.random()} className="py-3 px-2 hover:bg-slate-50 rounded-lg transition-colors text-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`text-[10px] font-bold ${
+                              isDelete
+                                ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                : isButcher
+                                ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {log.action.replace(/_/g, ' ')}
+                          </Badge>
+                          <span className="font-semibold text-slate-800">
+                            By: <span className="text-rose-700">{log.username || 'System'}</span>
+                          </span>
+                        </div>
+
+                        <span className="text-[11px] text-slate-400 font-mono whitespace-nowrap">
+                          {log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-slate-600 text-xs leading-relaxed">
+                        {parsed?.summary ||
+                          (parsed?.name
+                            ? `Butcher: ${parsed.name} (${parsed.butcher_code || ''}) - Status: ${parsed.status || 'Active'}`
+                            : typeof log.details === 'string'
+                            ? log.details
+                            : 'No details')}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-slate-200 mt-2 text-xs text-slate-500">
+              <span>Showing {filteredAuditLogs.length} of {butcherAuditLogs.length} audit records</span>
+              <Button variant="outline" size="sm" onClick={() => setShowAuditModal(false)}>
+                Close
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

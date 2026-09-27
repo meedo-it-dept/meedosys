@@ -27,6 +27,8 @@ import {
   X,
   Save,
   AlertTriangle,
+  History,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface IntakeItem {
@@ -45,6 +47,7 @@ export default function SlaughterhousePage() {
     updateSlaughterRecord,
     deleteSlaughterRecord,
     butchers,
+    auditLogs,
   } = useMeedo();
 
   // Intake Form State
@@ -82,6 +85,40 @@ export default function SlaughterhousePage() {
 
   // Delete Dialog State
   const [recordToDelete, setRecordToDelete] = useState<SlaughterRecord | null>(null);
+
+  // Audit Trail Modal State
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [auditFilter, setAuditFilter] = useState('ALL');
+  const [auditSearch, setAuditSearch] = useState('');
+
+  const slaughterAuditLogs = useMemo(() => {
+    return (auditLogs || [])
+      .filter((log) => {
+        const action = log.action || '';
+        return action.startsWith('SLAUGHTER_') || action.startsWith('BUTCHER_');
+      })
+      .sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      });
+  }, [auditLogs]);
+
+  const filteredAuditLogs = useMemo(() => {
+    return slaughterAuditLogs.filter((log) => {
+      if (auditFilter !== 'ALL' && log.action !== auditFilter) return false;
+      if (auditSearch.trim()) {
+        const q = auditSearch.toLowerCase();
+        const detailsStr = typeof log.details === 'string' ? log.details : JSON.stringify(log.details || '');
+        return (
+          log.username?.toLowerCase().includes(q) ||
+          log.action?.toLowerCase().includes(q) ||
+          detailsStr.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [slaughterAuditLogs, auditFilter, auditSearch]);
 
   // Known unique clients for autocomplete
   const clientSuggestions = useMemo(() => {
@@ -494,9 +531,24 @@ export default function SlaughterhousePage() {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={handlePrintReport} className="no-print">
-          <Printer className="w-4 h-4 mr-1.5" /> Print Monthly Report
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAuditModal(true)}
+            className="border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center gap-1.5"
+          >
+            <History className="w-4 h-4 text-blue-600" />
+            <span>Audit Trail</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+              {slaughterAuditLogs.length}
+            </span>
+          </Button>
+
+          <Button variant="primary" size="sm" onClick={handlePrintReport}>
+            <Printer className="w-4 h-4 mr-1.5" /> Print Monthly Report
+          </Button>
+        </div>
       </div>
 
       {/* 6 Exact Legacy Summary Cards */}
@@ -1172,6 +1224,147 @@ export default function SlaughterhousePage() {
                 className="bg-rose-600 hover:bg-rose-700 text-white"
               >
                 Delete Record
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Slaughterhouse Audit Trail Modal */}
+      {showAuditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <Card className="w-full max-w-4xl bg-white shadow-2xl border-slate-200 p-6 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    Slaughterhouse Operations Audit Trail
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
+                      Live Supabase Logged
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Real-time immutable log of livestock intake, records updates, and butcher accreditations.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAuditModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row gap-3 py-4 border-b border-slate-100">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search by staff, client, butcher, or keywords..."
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <select
+                value={auditFilter}
+                onChange={(e) => setAuditFilter(e.target.value)}
+                className="text-xs px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="ALL">All Event Types ({slaughterAuditLogs.length})</option>
+                <option value="SLAUGHTER_BATCH_LOGGED">Batch Intake Logged</option>
+                <option value="SLAUGHTER_LIVESTOCK_LOGGED">Single Livestock Logged</option>
+                <option value="SLAUGHTER_RECORD_UPDATED">Record Updated</option>
+                <option value="SLAUGHTER_RECORD_DELETED">Record Deleted</option>
+                <option value="BUTCHER_ACCREDITED">Butcher Accredited</option>
+                <option value="BUTCHER_PROFILE_UPDATED">Butcher Updated</option>
+                <option value="BUTCHER_DELISTED">Butcher Delisted</option>
+              </select>
+            </div>
+
+            {/* Logs List / Table */}
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1 mt-2">
+              {filteredAuditLogs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-xs">
+                  No slaughterhouse audit events found.
+                </div>
+              ) : (
+                filteredAuditLogs.map((log) => {
+                  let parsed: any = null;
+                  try {
+                    parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                  } catch (e) {
+                    parsed = { summary: log.details };
+                  }
+
+                  const isIntake = log.action.includes('LIVESTOCK') || log.action.includes('BATCH');
+                  const isButcher = log.action.includes('BUTCHER');
+                  const isDelete = log.action.includes('DELETED') || log.action.includes('DELISTED');
+
+                  return (
+                    <div key={log.id || Math.random()} className="py-3 px-2 hover:bg-slate-50 rounded-lg transition-colors text-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`text-[10px] font-bold ${
+                              isDelete
+                                ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                : isButcher
+                                ? 'bg-purple-100 text-purple-700 border-purple-200'
+                                : isIntake
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                : 'bg-blue-100 text-blue-700 border-blue-200'
+                            }`}
+                          >
+                            {log.action.replace(/_/g, ' ')}
+                          </Badge>
+                          <span className="font-semibold text-slate-800">
+                            By: <span className="text-blue-700">{log.username || 'System'}</span>
+                          </span>
+                        </div>
+
+                        <span className="text-[11px] text-slate-400 font-mono whitespace-nowrap">
+                          {log.created_at ? new Date(log.created_at).toLocaleString() : 'Recent'}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-slate-600 text-xs leading-relaxed">
+                        {parsed?.summary ||
+                          (parsed?.client_name
+                            ? `Client: ${parsed.client_name} - ${parsed.head_count || parsed.total_heads || ''} heads`
+                            : typeof log.details === 'string'
+                            ? log.details
+                            : 'No details')}
+                      </p>
+
+                      {parsed?.items && Array.isArray(parsed.items) && parsed.items.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {parsed.items.map((it: any, idx: number) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 border border-slate-200"
+                            >
+                              {it.livestock_type}: {it.head_count} head(s){it.kilos ? ` (${it.kilos}kg)` : ''} - ₱{(it.amount || 0).toLocaleString()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-slate-200 mt-2 text-xs text-slate-500">
+              <span>Showing {filteredAuditLogs.length} of {slaughterAuditLogs.length} audit records</span>
+              <Button variant="outline" size="sm" onClick={() => setShowAuditModal(false)}>
+                Close
               </Button>
             </div>
           </Card>

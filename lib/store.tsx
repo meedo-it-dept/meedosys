@@ -22,6 +22,7 @@ import {
   InventoryTransaction,
   ButcherProfile,
   MonitoringRecord,
+  AuditLog,
   formatAdditionalInfo,
 } from './types';
 import {
@@ -180,6 +181,9 @@ interface MeedoContextType {
   deleteInventoryItem: (id: string) => void;
   resetInventoryData: () => void;
 
+  auditLogs: AuditLog[];
+  addAuditLog: (action: string, details: string | Record<string, any>, usernameOverride?: string) => void;
+
   isLiveSupabase: boolean;
 }
 
@@ -205,6 +209,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
   const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>(initialInventoryTransactions);
   const [monitoringRecords, setMonitoringRecords] = useState<MonitoringRecord[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Initialize from Supabase and clean up legacy mock data
   useEffect(() => {
@@ -342,6 +347,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               if (invTxRes.data) setInventoryTransactions(invTxRes.data);
               if (butchersRes.data) setButchers(butchersRes.data);
               if (monitoringRes.data) setMonitoringRecords(monitoringRes.data);
+              if (auditRes.data) setAuditLogs(auditRes.data);
               if (guardsRes.data) {
                 const liveGuards = guardsRes.data.filter(
                   (g: any) =>
@@ -671,6 +677,19 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return list;
               });
             }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'audit_logs' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newLog = payload.new as AuditLog;
+            setAuditLogs((prev) => {
+              if (prev.some((l) => l.id === newLog.id)) return prev;
+              return [newLog, ...prev];
+            });
           }
         }
       )
@@ -1629,6 +1648,46 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const addAuditLog = (
+    action: string,
+    details: string | Record<string, any>,
+    usernameOverride?: string
+  ) => {
+    const actor =
+      usernameOverride || currentUser?.username || currentUser?.full_name || 'Slaughterhouse Staff';
+    const detailsStr = typeof details === 'string' ? details : JSON.stringify(details);
+    const tempLog: AuditLog = {
+      id: 'audit_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      username: actor,
+      action,
+      details: detailsStr,
+      created_at: new Date().toISOString(),
+    };
+
+    setAuditLogs((prev) => [tempLog, ...prev]);
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client
+        .from('audit_logs')
+        .insert({
+          username: actor,
+          action,
+          details: detailsStr,
+        })
+        .select()
+        .then(({ data, error }) => {
+          if (error) {
+            console.error(`Error logging audit action (${action}) to Supabase:`, error);
+          } else if (data && data[0]) {
+            setAuditLogs((prev) =>
+              prev.map((l) => (l.id === tempLog.id ? (data[0] as AuditLog) : l))
+            );
+          }
+        });
+    }
+  };
+
   const addSlaughterRecord = (record: Omit<SlaughterRecord, 'id' | 'created_at'>) => {
     const tempId = 'sh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
     const newRecord: SlaughterRecord = {
@@ -1699,6 +1758,22 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             );
           }
         });
+
+      // Write to public.audit_logs in Supabase
+      addAuditLog('SLAUGHTER_LIVESTOCK_LOGGED', {
+        client_id: record.client_id,
+        client_name: record.client_name,
+        livestock_type: record.livestock_type,
+        head_count: Number(record.head_count) || 1,
+        amount: Number(record.amount) || 0,
+        or_number: record.or_number || null,
+        status: record.status || 'Private',
+        butcher_name: record.butcher_name || null,
+        kilos: record.kilos ? Number(record.kilos) : null,
+        address: record.address || null,
+        summary: `Logged livestock intake for ${record.client_name} - ${record.head_count} head(s) of ${record.livestock_type} (₱${(Number(record.amount) || 0).toLocaleString()}). OR: ${record.or_number || 'N/A'}. Butcher: ${record.butcher_name || 'N/A'}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -1782,10 +1857,39 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
           }
         });
+
+      // Write to public.audit_logs in Supabase
+      const totalHeads = records.reduce((acc, r) => acc + (Number(r.head_count) || 0), 0);
+      const totalAmount = records.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+      const livestockTypes = Array.from(new Set(records.map((r) => r.livestock_type))).join(', ');
+      const butcherNames = Array.from(new Set(records.map((r) => r.butcher_name).filter(Boolean))).join(', ');
+
+      addAuditLog('SLAUGHTER_BATCH_LOGGED', {
+        client_id: records[0]?.client_id,
+        client_name: records[0]?.client_name,
+        total_items: records.length,
+        total_heads: totalHeads,
+        total_amount: totalAmount,
+        or_number: records[0]?.or_number || null,
+        status: records[0]?.status || 'Private',
+        livestock_types: livestockTypes,
+        butchers: butcherNames || 'None',
+        address: records[0]?.address || null,
+        items: records.map((r) => ({
+          livestock_type: r.livestock_type,
+          head_count: Number(r.head_count) || 1,
+          kilos: r.kilos ? Number(r.kilos) : null,
+          amount: Number(r.amount) || 0,
+          butcher: r.butcher_name || null,
+        })),
+        summary: `Batch intake logged for ${records[0]?.client_name}: ${totalHeads} total heads across ${records.length} item(s). Total fee: ₱${totalAmount.toLocaleString()}. OR: ${records[0]?.or_number || 'N/A'}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const updateSlaughterRecord = (id: string, updates: Partial<SlaughterRecord>) => {
+    const existing = slaughterRecords.find((r) => r.id === id);
     setSlaughterRecords((prev) => {
       const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
       localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
@@ -1819,10 +1923,23 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             console.error('Error updating slaughter record in Supabase:', error);
           }
         });
+
+      // Write to public.audit_logs in Supabase
+      addAuditLog('SLAUGHTER_RECORD_UPDATED', {
+        record_id: id,
+        client_name: updates.client_name || existing?.client_name,
+        livestock_type: updates.livestock_type || existing?.livestock_type,
+        head_count: updates.head_count !== undefined ? Number(updates.head_count) : existing?.head_count,
+        amount: updates.amount !== undefined ? Number(updates.amount) : existing?.amount,
+        updated_fields: Object.keys(updates),
+        summary: `Updated slaughter record (${id}) for ${updates.client_name || existing?.client_name || 'client'}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const deleteSlaughterRecord = (id: string) => {
+    const existing = slaughterRecords.find((r) => r.id === id);
     setSlaughterRecords((prev) => {
       const updated = prev.filter((r) => r.id !== id);
       localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
@@ -1838,6 +1955,18 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .then(({ error }) => {
           if (error) console.error('Error deleting slaughter record in Supabase:', error);
         });
+
+      // Write to public.audit_logs in Supabase
+      addAuditLog('SLAUGHTER_RECORD_DELETED', {
+        record_id: id,
+        client_name: existing?.client_name || 'Unknown Client',
+        livestock_type: existing?.livestock_type,
+        head_count: existing?.head_count,
+        amount: existing?.amount,
+        or_number: existing?.or_number,
+        summary: `Deleted slaughter record (${id}) for ${existing?.client_name || 'client'}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -1884,10 +2013,27 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .then(({ error }) => {
           if (error) console.error('Error inserting butcher into Supabase:', error);
         });
+
+      // Write to public.audit_logs in Supabase
+      addAuditLog('BUTCHER_ACCREDITED', {
+        butcher_id: newBtc.id,
+        butcher_code: newBtc.butcher_code,
+        name: newBtc.name,
+        contact_no: newBtc.contact_no || null,
+        address_barangay: newBtc.address_barangay || null,
+        specialization: newBtc.specialization || 'General',
+        health_card_no: newBtc.health_card_no || null,
+        health_card_expiry: newBtc.health_card_expiry || null,
+        status: newBtc.status || 'Active',
+        remarks: newBtc.remarks || null,
+        summary: `Accredited new butcher: ${newBtc.name} (${newBtc.butcher_code}) - Specialization: ${newBtc.specialization || 'General'}, Health Card: ${newBtc.health_card_no || 'N/A'}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const updateButcher = (id: string, updates: Partial<ButcherProfile>) => {
+    const existing = butchers.find((b) => b.id === id);
     setButchers((prev) => {
       const updated = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
       localStorage.setItem('meedo_butchers', JSON.stringify(updated));
@@ -1913,10 +2059,22 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .then(({ error }) => {
           if (error) console.error('Error updating butcher in Supabase:', error);
         });
+
+      // Write to public.audit_logs in Supabase
+      addAuditLog('BUTCHER_PROFILE_UPDATED', {
+        butcher_id: id,
+        butcher_code: updates.butcher_code || existing?.butcher_code,
+        name: updates.name || existing?.name,
+        updated_fields: Object.keys(updates),
+        status: updates.status || existing?.status,
+        summary: `Updated butcher profile (${id})${updates.name || existing?.name ? ' for ' + (updates.name || existing?.name) : ''}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const deleteButcher = (id: string) => {
+    const existing = butchers.find((b) => b.id === id);
     setButchers((prev) => {
       const updated = prev.filter((b) => b.id !== id);
       localStorage.setItem('meedo_butchers', JSON.stringify(updated));
@@ -1932,6 +2090,16 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .then(({ error }) => {
           if (error) console.error('Error deleting butcher in Supabase:', error);
         });
+
+      // Write to public.audit_logs in Supabase
+      addAuditLog('BUTCHER_DELISTED', {
+        butcher_id: id,
+        butcher_code: existing?.butcher_code,
+        name: existing?.name || 'Unknown Butcher',
+        status: existing?.status,
+        summary: `De-listed / deleted butcher profile (${id})${existing?.name ? ' - ' + existing.name : ''}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -3085,6 +3253,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateInventoryItem,
         deleteInventoryItem,
         resetInventoryData,
+        auditLogs,
+        addAuditLog,
         isLiveSupabase: isSupabaseConfigured,
       }}
     >
