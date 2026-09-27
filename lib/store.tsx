@@ -570,6 +570,117 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  // Realtime Supabase Sync for Slaughterhouse (Records & Butchers) and Peace & Order (CSU Blotters)
+  useEffect(() => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) return;
+
+    const channel = client
+      .channel('meedo-realtime-global')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'butchers' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newBtc = payload.new as ButcherProfile;
+            setButchers((prev) => {
+              if (prev.some((b) => b.id === newBtc.id || b.butcher_code === newBtc.butcher_code)) {
+                return prev.map((b) => (b.id === newBtc.id ? { ...b, ...newBtc } : b));
+              }
+              const updated = [newBtc, ...prev];
+              localStorage.setItem('meedo_butchers', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedBtc = payload.new as ButcherProfile;
+            setButchers((prev) => {
+              const updated = prev.map((b) => (b.id === updatedBtc.id ? { ...b, ...updatedBtc } : b));
+              localStorage.setItem('meedo_butchers', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              setButchers((prev) => {
+                const updated = prev.filter((b) => b.id !== oldId);
+                localStorage.setItem('meedo_butchers', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'slaughter_records' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newRecord = payload.new as SlaughterRecord;
+            setSlaughterRecords((prev) => {
+              if (prev.some((r) => r.id === newRecord.id)) {
+                return prev;
+              }
+              const updated = [newRecord, ...prev];
+              localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedRecord = payload.new as SlaughterRecord;
+            setSlaughterRecords((prev) => {
+              const updated = prev.map((r) => (r.id === updatedRecord.id ? { ...r, ...updatedRecord } : r));
+              localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              setSlaughterRecords((prev) => {
+                const updated = prev.filter((r) => r.id !== oldId);
+                localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'csu_daily_reports' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newReport = payload.new as CsuDailyReport;
+            setCsuReports((prev) => {
+              if (prev.some((r) => r.id === newReport.id)) return prev;
+              const updated = [newReport, ...prev];
+              localStorage.setItem('meedo_csu', JSON.stringify(updated));
+              return updated;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as CsuDailyReport;
+            setCsuReports((prev) => {
+              const list = prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r));
+              localStorage.setItem('meedo_csu', JSON.stringify(list));
+              return list;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              setCsuReports((prev) => {
+                const list = prev.filter((r) => r.id !== oldId);
+                localStorage.setItem('meedo_csu', JSON.stringify(list));
+                return list;
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, []);
+
   const addGuard = (guard: MarketGuard) => {
     setGuards((prev) => {
       const exists = prev.some((g) => g.guard_id.toUpperCase() === guard.guard_id.toUpperCase());
@@ -1519,9 +1630,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addSlaughterRecord = (record: Omit<SlaughterRecord, 'id' | 'created_at'>) => {
+    const tempId = 'sh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
     const newRecord: SlaughterRecord = {
       ...record,
-      id: 'sh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      id: tempId,
       created_at: new Date().toISOString(),
     };
     setSlaughterRecords((prev) => {
@@ -1529,6 +1641,65 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      const fullPayload: any = {
+        client_id: record.client_id,
+        client_name: record.client_name,
+        contact_no: record.contact_no || null,
+        or_number: record.or_number || null,
+        status: record.status || 'Private',
+        livestock_type: record.livestock_type,
+        head_count: Number(record.head_count) || 1,
+        amount: Number(record.amount) || 0,
+        address: record.address || null,
+        kilos: record.kilos ? Number(record.kilos) : null,
+        butcher_id: record.butcher_id || null,
+        butcher_name: record.butcher_name || null,
+      };
+
+      const basePayload: any = {
+        client_id: record.client_id,
+        client_name: record.client_name,
+        contact_no: record.contact_no || null,
+        or_number: record.or_number || null,
+        status: record.status || 'Private',
+        livestock_type: record.livestock_type,
+        head_count: Number(record.head_count) || 1,
+        amount: Number(record.amount) || 0,
+      };
+
+      client
+        .from('slaughter_records')
+        .insert(fullPayload)
+        .select()
+        .then(({ data, error }) => {
+          if (error && error.code === 'PGRST204') {
+            client
+              .from('slaughter_records')
+              .insert(basePayload)
+              .select()
+              .then(({ data: fbData, error: fbError }) => {
+                if (fbError) {
+                  console.error('Error inserting slaughter record to Supabase:', fbError);
+                } else if (fbData && fbData[0]) {
+                  const realId = fbData[0].id;
+                  setSlaughterRecords((prev) =>
+                    prev.map((r) => (r.id === tempId ? { ...r, id: realId } : r))
+                  );
+                }
+              });
+          } else if (error) {
+            console.error('Error inserting slaughter record to Supabase:', error);
+          } else if (data && data[0]) {
+            const realId = data[0].id;
+            setSlaughterRecords((prev) =>
+              prev.map((r) => (r.id === tempId ? { ...r, id: realId } : r))
+            );
+          }
+        });
+    }
   };
 
   const addSlaughterBatch = (records: Omit<SlaughterRecord, 'id' | 'created_at'>[]) => {
@@ -1543,6 +1714,75 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client && records.length > 0) {
+      const fullBatch = records.map((record) => ({
+        client_id: record.client_id,
+        client_name: record.client_name,
+        contact_no: record.contact_no || null,
+        or_number: record.or_number || null,
+        status: record.status || 'Private',
+        livestock_type: record.livestock_type,
+        head_count: Number(record.head_count) || 1,
+        amount: Number(record.amount) || 0,
+        address: record.address || null,
+        kilos: record.kilos ? Number(record.kilos) : null,
+        butcher_id: record.butcher_id || null,
+        butcher_name: record.butcher_name || null,
+      }));
+
+      const baseBatch = records.map((record) => ({
+        client_id: record.client_id,
+        client_name: record.client_name,
+        contact_no: record.contact_no || null,
+        or_number: record.or_number || null,
+        status: record.status || 'Private',
+        livestock_type: record.livestock_type,
+        head_count: Number(record.head_count) || 1,
+        amount: Number(record.amount) || 0,
+      }));
+
+      client
+        .from('slaughter_records')
+        .insert(fullBatch)
+        .select()
+        .then(({ data, error }) => {
+          if (error && error.code === 'PGRST204') {
+            client
+              .from('slaughter_records')
+              .insert(baseBatch)
+              .select()
+              .then(({ data: fbData, error: fbError }) => {
+                if (fbError) {
+                  console.error('Error inserting slaughter batch fallback:', fbError);
+                } else if (fbData && fbData.length > 0) {
+                  setSlaughterRecords((prev) => {
+                    let cur = [...prev];
+                    fbData.forEach((row: any, i: number) => {
+                      if (newRecords[i]) {
+                        cur = cur.map((r) => (r.id === newRecords[i].id ? { ...r, id: row.id } : r));
+                      }
+                    });
+                    return cur;
+                  });
+                }
+              });
+          } else if (error) {
+            console.error('Error inserting slaughter batch to Supabase:', error);
+          } else if (data && data.length > 0) {
+            setSlaughterRecords((prev) => {
+              let cur = [...prev];
+              data.forEach((row: any, i: number) => {
+                if (newRecords[i]) {
+                  cur = cur.map((r) => (r.id === newRecords[i].id ? { ...r, id: row.id } : r));
+                }
+              });
+              return cur;
+            });
+          }
+        });
+    }
   };
 
   const updateSlaughterRecord = (id: string, updates: Partial<SlaughterRecord>) => {
@@ -1551,6 +1791,35 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      const cleanUpdates: any = { ...updates };
+      delete cleanUpdates.id;
+      delete cleanUpdates.created_at;
+
+      client
+        .from('slaughter_records')
+        .update(cleanUpdates)
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error && error.code === 'PGRST204') {
+            const baseUpdates: any = {};
+            if (updates.client_id !== undefined) baseUpdates.client_id = updates.client_id;
+            if (updates.client_name !== undefined) baseUpdates.client_name = updates.client_name;
+            if (updates.contact_no !== undefined) baseUpdates.contact_no = updates.contact_no;
+            if (updates.or_number !== undefined) baseUpdates.or_number = updates.or_number;
+            if (updates.status !== undefined) baseUpdates.status = updates.status;
+            if (updates.livestock_type !== undefined) baseUpdates.livestock_type = updates.livestock_type;
+            if (updates.head_count !== undefined) baseUpdates.head_count = Number(updates.head_count);
+            if (updates.amount !== undefined) baseUpdates.amount = Number(updates.amount);
+
+            client.from('slaughter_records').update(baseUpdates).eq('id', id).then();
+          } else if (error) {
+            console.error('Error updating slaughter record in Supabase:', error);
+          }
+        });
+    }
   };
 
   const deleteSlaughterRecord = (id: string) => {
@@ -1559,19 +1828,63 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client
+        .from('slaughter_records')
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Error deleting slaughter record in Supabase:', error);
+        });
+    }
   };
 
   const addButcher = (butcher: Omit<ButcherProfile, 'id' | 'created_at'>) => {
+    const validDate = butcher.date_registered
+      ? (butcher.date_registered.includes('-') && !isNaN(Date.parse(butcher.date_registered))
+          ? butcher.date_registered
+          : new Date(butcher.date_registered).toISOString().split('T')[0])
+      : new Date().toISOString().split('T')[0];
+
     const newBtc: ButcherProfile = {
       ...butcher,
       id: 'btc_' + Date.now(),
       created_at: new Date().toISOString(),
+      health_card_expiry: butcher.health_card_expiry || undefined,
+      date_registered: validDate,
     };
     setButchers((prev) => {
       const updated = [newBtc, ...prev];
       localStorage.setItem('meedo_butchers', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      const dbPayload = {
+        id: newBtc.id,
+        butcher_code: newBtc.butcher_code,
+        name: newBtc.name,
+        contact_no: newBtc.contact_no || null,
+        address_barangay: newBtc.address_barangay || null,
+        specialization: newBtc.specialization || 'General',
+        health_card_no: newBtc.health_card_no || null,
+        health_card_expiry: newBtc.health_card_expiry || null,
+        status: newBtc.status || 'Active',
+        date_registered: newBtc.date_registered,
+        remarks: newBtc.remarks || null,
+        created_at: newBtc.created_at,
+      };
+
+      client
+        .from('butchers')
+        .insert(dbPayload)
+        .then(({ error }) => {
+          if (error) console.error('Error inserting butcher into Supabase:', error);
+        });
+    }
   };
 
   const updateButcher = (id: string, updates: Partial<ButcherProfile>) => {
@@ -1580,6 +1893,27 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_butchers', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      const dbUpdates: any = { ...updates };
+      delete dbUpdates.id;
+      delete dbUpdates.created_at;
+      if (dbUpdates.health_card_expiry === '') dbUpdates.health_card_expiry = null;
+      if (dbUpdates.date_registered && !dbUpdates.date_registered.includes('-')) {
+        try {
+          dbUpdates.date_registered = new Date(dbUpdates.date_registered).toISOString().split('T')[0];
+        } catch (e) {}
+      }
+
+      client
+        .from('butchers')
+        .update(dbUpdates)
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Error updating butcher in Supabase:', error);
+        });
+    }
   };
 
   const deleteButcher = (id: string) => {
@@ -1588,11 +1922,33 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_butchers', JSON.stringify(updated));
       return updated;
     });
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client
+        .from('butchers')
+        .delete()
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Error deleting butcher in Supabase:', error);
+        });
+    }
   };
 
   const resetButchers = () => {
     setButchers([]);
     localStorage.removeItem('meedo_butchers');
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client
+        .from('butchers')
+        .delete()
+        .neq('id', 'placeholder')
+        .then(({ error }) => {
+          if (error) console.error('Error resetting butchers in Supabase:', error);
+        });
+    }
   };
 
   const addCemeteryBooking = (booking: Omit<CemeteryBooking, 'id' | 'created_at'>) => {

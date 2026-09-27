@@ -133,11 +133,7 @@ export default function ButcherProfilesPage() {
       return;
     }
 
-    const todayFormatted = new Date().toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    const todayFormatted = new Date().toISOString().split('T')[0];
 
     if (editingButcher) {
       updateButcher(editingButcher.id, {
