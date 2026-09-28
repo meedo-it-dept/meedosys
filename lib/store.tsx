@@ -2161,6 +2161,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const resetButchers = () => {
+    const previousCount = butchers.length;
     setButchers([]);
     localStorage.removeItem('meedo_butchers');
 
@@ -2171,7 +2172,16 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .delete()
         .neq('id', 'placeholder')
         .then(({ error }) => {
-          if (error) console.error('Error resetting butchers in Supabase:', error);
+          if (error) {
+            console.error('Error resetting butchers in Supabase:', error);
+          } else {
+            // Audit log: record this destructive reset
+            addAuditLog('BUTCHER_ROSTER_RESET', {
+              records_deleted: previousCount,
+              summary: `Full butcher roster reset — ${previousCount} profile(s) deleted from Supabase by ${currentUser?.username || 'admin'}.`,
+              timestamp: new Date().toISOString(),
+            });
+          }
         });
     }
   };
