@@ -27,8 +27,8 @@ export const GuardFacilityStats: React.FC = () => {
   const allViolations = csuReports.flatMap((r) => r.violations_data || []);
   const allLostFound = csuReports.flatMap((r) => r.lost_found_data || []);
 
-  // Today's calendar activities
-  const todayActivities = marketCalendarEvents.filter((e) => e.date === '2026-09-26');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayActivities = marketCalendarEvents.filter((e) => e.date === todayStr);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">

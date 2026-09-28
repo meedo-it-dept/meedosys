@@ -101,16 +101,27 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
 
   const isOnDuty = Boolean(guardSession && guardSession.status !== 'ENDED');
 
-  // Find today's calendar assignment for this guard
-  const todayStr = '2026-09-26';
-  const todayScheduledEvent = marketCalendarEvents.find(
-    (e) =>
-      e.date === todayStr &&
-      e.category === 'Guard Duty' &&
-      (e.assigned_guard_id === currentGuard.guard_id ||
-        (e.assigned_personnel &&
-          e.assigned_personnel.toLowerCase().includes(currentGuard.guard_name.toLowerCase())))
-  );
+  // Find calendar assignment for this guard (dynamic real-time date matching)
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayScheduledEvent = useMemo(() => {
+    const isGuardAssigned = (e: any) =>
+      (e.assigned_guard_id && e.assigned_guard_id.toUpperCase() === currentGuard.guard_id.toUpperCase()) ||
+      (e.assigned_personnel &&
+        (e.assigned_personnel.toLowerCase().includes(currentGuard.guard_name.toLowerCase()) ||
+          currentGuard.guard_name.toLowerCase().includes(e.assigned_personnel.toLowerCase()))) ||
+      (currentUser?.username && e.assigned_guard_id?.toUpperCase() === currentUser.username.toUpperCase());
+
+    // 1. Match guard duty assigned for today
+    const todayMatch = marketCalendarEvents.find(
+      (e) => e.category === 'Guard Duty' && e.status !== 'Completed' && e.status !== 'Cancelled' && e.date === todayStr && isGuardAssigned(e)
+    );
+    if (todayMatch) return todayMatch;
+
+    // 2. Fallback: match any active/upcoming guard duty assigned for this guard
+    return marketCalendarEvents.find(
+      (e) => e.category === 'Guard Duty' && e.status !== 'Completed' && e.status !== 'Cancelled' && isGuardAssigned(e)
+    );
+  }, [marketCalendarEvents, todayStr, currentGuard.guard_id, currentGuard.guard_name, currentUser?.username]);
 
   // Modals & form state
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
@@ -340,35 +351,67 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
 
           {/* Today's Scheduled Assignment Alert (if scheduled in admin calendar) */}
           {todayScheduledEvent && (
-            <div className="max-w-2xl mx-auto rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-left shadow-xs space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="max-w-2xl mx-auto rounded-2xl border border-blue-200 bg-blue-50/90 p-4 sm:p-5 text-left shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold uppercase text-blue-900 flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  Scheduled Assignment for Today (Admin Calendar)
+                  <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
+                  Scheduled Assignment (Market Calendar)
                 </span>
                 <Badge className="bg-blue-600 text-white font-mono text-[10px]">
-                  {todayScheduledEvent.shift_name || 'Scheduled'}
+                  {todayScheduledEvent.shift_name || 'Scheduled Duty'}
                 </Badge>
               </div>
-              <p className="text-sm font-bold text-slate-900">{todayScheduledEvent.title}</p>
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-0.5">
-                <span>
-                  Scheduled Hours:{' '}
-                  <strong className="font-mono text-slate-800">
-                    {todayScheduledEvent.start_time} - {todayScheduledEvent.end_time}
-                  </strong>
-                </span>
-                <span>•</span>
-                <span>
-                  Assigned Post: <strong className="text-slate-800">{todayScheduledEvent.location}</strong>
-                </span>
-              </div>
-              {todayScheduledEvent.special_instructions && (
-                <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 mt-2">
-                  <span className="font-bold block text-[11px] uppercase">Administrator Orders:</span>
-                  <span className="italic">{todayScheduledEvent.special_instructions}</span>
+
+              <div>
+                <p className="text-base font-black text-slate-900">{todayScheduledEvent.title}</p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pt-1">
+                  <span>
+                    Date: <strong className="font-mono text-slate-800">{todayScheduledEvent.date}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Hours:{' '}
+                    <strong className="font-mono text-slate-800">
+                      {todayScheduledEvent.start_time} - {todayScheduledEvent.end_time}
+                    </strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Post Location: <strong className="text-slate-800">{todayScheduledEvent.location}</strong>
+                  </span>
                 </div>
-              )}
+              </div>
+
+              {/* Special Instructions & Scope of Work */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {todayScheduledEvent.special_instructions && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900">
+                    <span className="font-bold block text-[10px] uppercase text-amber-800">Special Instructions / Orders:</span>
+                    <span className="italic font-medium">{todayScheduledEvent.special_instructions}</span>
+                  </div>
+                )}
+                {todayScheduledEvent.description && (
+                  <div className="rounded-xl bg-slate-100 border border-slate-200 p-2.5 text-xs text-slate-800">
+                    <span className="font-bold block text-[10px] uppercase text-slate-600">Scope of Work / Description:</span>
+                    <span className="font-medium">{todayScheduledEvent.description}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-1 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    if (todayScheduledEvent.start_time) setStartTime(todayScheduledEvent.start_time);
+                    if (todayScheduledEvent.end_time) setEndTime(todayScheduledEvent.end_time);
+                    if (todayScheduledEvent.location) setSelectedArea(todayScheduledEvent.location);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs h-8 px-3.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Apply Scheduled Shift Details
+                </Button>
+              </div>
             </div>
           )}
 

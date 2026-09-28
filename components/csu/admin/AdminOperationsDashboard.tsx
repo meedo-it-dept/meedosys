@@ -31,7 +31,7 @@ export const AdminOperationsDashboard: React.FC<AdminOperationsDashboardProps> =
 }) => {
   const { marketCalendarEvents, guards, activeShiftSession, activeShiftSessions, csuReports } = useMeedo();
 
-  const todayStr = '2026-09-26';
+  const todayStr = new Date().toISOString().split('T')[0];
 
   // Today's events
   const todayEvents = marketCalendarEvents.filter((e) => e.date === todayStr);
