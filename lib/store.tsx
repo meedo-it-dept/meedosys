@@ -2313,22 +2313,107 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_todas', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('todas').insert({
+            id: newToda.id,
+            reg_no: newToda.reg_no,
+            name: newToda.name,
+            president: newToda.president,
+            contact_no: newToda.contact_no || null,
+            total_members: Number(newToda.total_members) || 0,
+            address: newToda.address || null,
+            created_at: newToda.created_at,
+          });
+          if (res.error) {
+            console.warn('Supabase TODA insert error:', res.error.message);
+          } else {
+            addAuditLog('TODA_REGISTERED', {
+              toda_id: newToda.id,
+              reg_no: newToda.reg_no,
+              name: newToda.name,
+              president: newToda.president,
+              total_members: newToda.total_members,
+              summary: `Registered TODA: ${newToda.name} (Reg #${newToda.reg_no}) - President: ${newToda.president}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase TODA insert notice:', e);
+        }
+      })();
+    }
   };
 
   const updateToda = (id: string, updates: Partial<Toda>) => {
+    const existing = todas.find((t) => t.id === id);
     setTodas((prev) => {
       const updated = prev.map((t) => (t.id === id ? { ...t, ...updates } : t));
       localStorage.setItem('meedo_todas', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const payload: any = { ...updates };
+      delete payload.id;
+      delete payload.created_at;
+
+      (async () => {
+        try {
+          const res = await client.from('todas').update(payload).eq('id', id);
+          if (res.error) {
+            console.warn('Supabase TODA update error:', res.error.message);
+          } else {
+            addAuditLog('TODA_UPDATED', {
+              toda_id: id,
+              name: updates.name || existing?.name,
+              reg_no: updates.reg_no || existing?.reg_no,
+              updated_fields: Object.keys(updates),
+              summary: `Updated TODA info for ${updates.name || existing?.name || 'Unknown TODA'} (ID: ${id})`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase TODA update notice:', e);
+        }
+      })();
+    }
   };
 
   const deleteToda = (id: string) => {
+    const existing = todas.find((t) => t.id === id);
     setTodas((prev) => {
       const updated = prev.filter((t) => t.id !== id);
       localStorage.setItem('meedo_todas', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('todas').delete().eq('id', id);
+          if (res.error) {
+            console.warn('Supabase TODA delete error:', res.error.message);
+          } else {
+            addAuditLog('TODA_DELETED', {
+              toda_id: id,
+              name: existing?.name || 'Unknown TODA',
+              reg_no: existing?.reg_no,
+              president: existing?.president,
+              summary: `Deleted TODA record: ${existing?.name || 'Unknown'} (Reg #${existing?.reg_no || 'N/A'})`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase TODA delete notice:', e);
+        }
+      })();
+    }
   };
 
   const addTodaMember = (member: Omit<TodaMember, 'id' | 'created_at'>) => {
@@ -2342,22 +2427,116 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_members', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('toda_members').insert({
+            id: newMember.id,
+            toda_id: newMember.toda_id || null,
+            toda_name: newMember.toda_name,
+            last_name: newMember.last_name,
+            first_name: newMember.first_name,
+            middle_name: newMember.middle_name || null,
+            ext_name: newMember.ext_name || null,
+            sex: newMember.sex,
+            barangay: newMember.barangay,
+            municipality: newMember.municipality || 'Malungon',
+            contact_no: newMember.contact_no || newMember.contact_number || null,
+            id_type: newMember.id_type || null,
+            id_number: newMember.id_number || null,
+            id_expiry: newMember.id_expiry || null,
+            created_at: newMember.created_at,
+          });
+          if (res.error) {
+            console.warn('Supabase TODA member insert error:', res.error.message);
+          } else {
+            const fullName = `${newMember.first_name} ${newMember.last_name}`;
+            addAuditLog('TODA_MEMBER_ADDED', {
+              member_id: newMember.id,
+              member_name: fullName,
+              toda_name: newMember.toda_name,
+              barangay: newMember.barangay,
+              summary: `Registered driver/operator: ${fullName} under TODA ${newMember.toda_name}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase TODA member insert notice:', e);
+        }
+      })();
+    }
   };
 
   const updateTodaMember = (id: string, updates: Partial<TodaMember>) => {
+    const existing = todaMembers.find((m) => m.id === id);
     setTodaMembers((prev) => {
       const updated = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
       localStorage.setItem('meedo_members', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const payload: any = { ...updates };
+      delete payload.id;
+      delete payload.created_at;
+
+      (async () => {
+        try {
+          const res = await client.from('toda_members').update(payload).eq('id', id);
+          if (res.error) {
+            console.warn('Supabase TODA member update error:', res.error.message);
+          } else {
+            const memberName = updates.first_name || updates.last_name
+              ? `${updates.first_name || existing?.first_name || ''} ${updates.last_name || existing?.last_name || ''}`.trim()
+              : `${existing?.first_name || ''} ${existing?.last_name || ''}`.trim();
+            addAuditLog('TODA_MEMBER_UPDATED', {
+              member_id: id,
+              member_name: memberName,
+              updated_fields: Object.keys(updates),
+              summary: `Updated profile for driver/member: ${memberName} (ID: ${id})`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase TODA member update notice:', e);
+        }
+      })();
+    }
   };
 
   const deleteTodaMember = (id: string) => {
+    const existing = todaMembers.find((m) => m.id === id);
     setTodaMembers((prev) => {
       const updated = prev.filter((m) => m.id !== id);
       localStorage.setItem('meedo_members', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('toda_members').delete().eq('id', id);
+          if (res.error) {
+            console.warn('Supabase TODA member delete error:', res.error.message);
+          } else {
+            const memberName = `${existing?.first_name || ''} ${existing?.last_name || ''}`.trim() || 'Unknown Driver';
+            addAuditLog('TODA_MEMBER_DELETED', {
+              member_id: id,
+              member_name: memberName,
+              toda_name: existing?.toda_name,
+              summary: `Deleted driver/operator profile: ${memberName} (${existing?.toda_name || 'N/A'})`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase TODA member delete notice:', e);
+        }
+      })();
+    }
   };
 
   const updateOpifIndicator = (id: string, updates: Partial<OpifIndicator>) => {
