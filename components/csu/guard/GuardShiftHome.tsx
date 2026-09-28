@@ -133,6 +133,26 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
     'Properly turned over security post, keys, handheld radio, and peace & order logbook.'
   );
   const [summaryActivities, setSummaryActivities] = useState('');
+  const [applySuccessMessage, setApplySuccessMessage] = useState<string | null>(null);
+
+  const handleApplyScheduledShift = () => {
+    if (!todayScheduledEvent) return;
+
+    if (todayScheduledEvent.start_time) setStartTime(todayScheduledEvent.start_time);
+    if (todayScheduledEvent.end_time) setEndTime(todayScheduledEvent.end_time);
+    if (todayScheduledEvent.location) setSelectedArea(todayScheduledEvent.location);
+    if (todayScheduledEvent.title) setCustomShiftTitle(todayScheduledEvent.title);
+
+    const raw = todayScheduledEvent.shift_name || todayScheduledEvent.title || '';
+    if (raw.toLowerCase().includes('2nd')) setSelectedShiftPreset('2nd Shift');
+    else if (raw.toLowerCase().includes('3rd')) setSelectedShiftPreset('3rd Shift');
+    else if (raw.toLowerCase().includes('office')) setSelectedShiftPreset('Office Shift');
+    else if (raw.toLowerCase().includes('1st')) setSelectedShiftPreset('1st Shift');
+    else setSelectedShiftPreset('Custom Shift');
+
+    setApplySuccessMessage(`Applied: ${todayScheduledEvent.title} (${todayScheduledEvent.start_time || '06:00'} - ${todayScheduledEvent.end_time || '14:00'})`);
+    setTimeout(() => setApplySuccessMessage(null), 5000);
+  };
 
   // Live timer for active duty
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
@@ -398,19 +418,38 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
                 )}
               </div>
 
-              <div className="pt-1 flex justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    if (todayScheduledEvent.start_time) setStartTime(todayScheduledEvent.start_time);
-                    if (todayScheduledEvent.end_time) setEndTime(todayScheduledEvent.end_time);
-                    if (todayScheduledEvent.location) setSelectedArea(todayScheduledEvent.location);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs h-8 px-3.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Apply Scheduled Shift Details
-                </Button>
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-blue-200/60 mt-2">
+                {applySuccessMessage ? (
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    {applySuccessMessage}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-medium text-blue-800 italic">
+                    Click to populate shift details or start duty shift directly.
+                  </span>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleApplyScheduledShift}
+                    className="bg-white hover:bg-blue-100 text-blue-700 border border-blue-300 text-xs font-bold shadow-xs h-8 px-3"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1 text-blue-600" /> Apply Details to Form
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      handleApplyScheduledShift();
+                      setTimeout(() => handleStartShift(), 100);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs h-8 px-3.5"
+                  >
+                    <Play className="w-3.5 h-3.5 mr-1 fill-white" /> Clock In Shift Now
+                  </Button>
+                </div>
               </div>
             </div>
           )}
