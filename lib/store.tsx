@@ -2197,22 +2197,109 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_cemetery', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('cemetery_bookings').insert({
+            id: newBooking.id,
+            deceased_name: newBooking.deceased_name,
+            address_barangay: newBooking.address_barangay,
+            phone_number: newBooking.phone_number || null,
+            burial_date: newBooking.burial_date,
+            burial_time: newBooking.burial_time || null,
+            burial_type: newBooking.burial_type,
+            amount: Number(newBooking.amount) || 0,
+            created_at: newBooking.created_at,
+          });
+          if (res.error) {
+            console.warn('Supabase cemetery insert error:', res.error.message);
+          } else {
+            addAuditLog('CEMETERY_BOOKING_ADDED', {
+              booking_id: newBooking.id,
+              deceased_name: newBooking.deceased_name,
+              address_barangay: newBooking.address_barangay,
+              burial_date: newBooking.burial_date,
+              burial_type: newBooking.burial_type,
+              amount: newBooking.amount,
+              summary: `New burial booking: ${newBooking.deceased_name} (${newBooking.burial_type}) on ${newBooking.burial_date}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase cemetery insert notice:', e);
+        }
+      })();
+    }
   };
 
   const updateCemeteryBooking = (id: string, updates: Partial<CemeteryBooking>) => {
+    const existing = cemeteryBookings.find((b) => b.id === id);
     setCemeteryBookings((prev) => {
       const updated = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
       localStorage.setItem('meedo_cemetery', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const payload: any = { ...updates };
+      delete payload.id;
+      delete payload.created_at;
+
+      (async () => {
+        try {
+          const res = await client.from('cemetery_bookings').update(payload).eq('id', id);
+          if (res.error) {
+            console.warn('Supabase cemetery update error:', res.error.message);
+          } else {
+            addAuditLog('CEMETERY_BOOKING_UPDATED', {
+              booking_id: id,
+              deceased_name: updates.deceased_name || existing?.deceased_name,
+              updated_fields: Object.keys(updates),
+              summary: `Updated burial booking for ${updates.deceased_name || existing?.deceased_name || 'Unknown'} (ID: ${id})`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase cemetery update notice:', e);
+        }
+      })();
+    }
   };
 
   const deleteCemeteryBooking = (id: string) => {
+    const existing = cemeteryBookings.find((b) => b.id === id);
     setCemeteryBookings((prev) => {
       const updated = prev.filter((b) => b.id !== id);
       localStorage.setItem('meedo_cemetery', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('cemetery_bookings').delete().eq('id', id);
+          if (res.error) {
+            console.warn('Supabase cemetery delete error:', res.error.message);
+          } else {
+            addAuditLog('CEMETERY_BOOKING_DELETED', {
+              booking_id: id,
+              deceased_name: existing?.deceased_name || 'Unknown',
+              burial_date: existing?.burial_date,
+              burial_type: existing?.burial_type,
+              amount: existing?.amount,
+              summary: `Deleted burial booking for ${existing?.deceased_name || 'Unknown'} (${existing?.burial_type}) on ${existing?.burial_date}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('Supabase cemetery delete notice:', e);
+        }
+      })();
+    }
   };
 
   const addToda = (toda: Omit<Toda, 'id' | 'created_at'>) => {
