@@ -1498,15 +1498,32 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (updates.additional_info !== undefined) payload.additional_info = updates.additional_info;
           payload.is_current = true;
 
+          // Fix: scope update to only the active (is_current) tenant row
           const res = await client
             .from('stall_tenants')
             .update(payload)
-            .eq('stall_no', stallNo);
+            .eq('stall_no', stallNo)
+            .eq('is_current', true);
 
           if (res.error) {
             console.warn('Supabase tenant update error:', res.error.message);
           } else {
             console.log('Saved to Supabase stall_tenants for stall:', stallNo);
+            // Audit log: record who updated this stall tenant
+            const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
+            const changedFields = Object.keys(payload).filter((k) => k !== 'is_current');
+            client
+              .from('audit_logs')
+              .insert({
+                username: auditActor,
+                action: 'STALL_TENANT_UPDATED',
+                details: JSON.stringify({
+                  stall_no: stallNo,
+                  updated_fields: changedFields,
+                  timestamp: new Date().toISOString(),
+                }),
+              })
+              .then();
           }
         } catch (e) {
           console.warn('Supabase tenant update notice:', e);
@@ -1557,7 +1574,26 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             additional_info: tenant.additional_info || null,
             is_current: true,
           });
-          if (res.error) console.warn('Supabase tenant insert error:', res.error.message);
+          if (res.error) {
+            console.warn('Supabase tenant insert error:', res.error.message);
+          } else {
+            // Audit log: record who added this new stall tenant
+            const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
+            client
+              .from('audit_logs')
+              .insert({
+                username: auditActor,
+                action: 'STALL_TENANT_ADDED',
+                details: JSON.stringify({
+                  stall_no: stallNo,
+                  stall_owner: tenant.stall_owner,
+                  line_of_business: tenant.line_of_business || null,
+                  compliance_status: tenant.compliance_status,
+                  timestamp: new Date().toISOString(),
+                }),
+              })
+              .then();
+          }
         } catch (e) {
           console.warn('Supabase tenant add notice:', e);
         }
@@ -1617,12 +1653,33 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           electric_bill_amount: record.electric_bill_amount || 0,
           electric_bill_status: record.electric_bill_status || 'Unpaid',
           electric_bill_due_date: record.electric_bill_due_date || null,
+          // Fix 2: include remarks in Supabase payload (was missing before)
+          remarks: record.remarks || null,
         };
         const res = await supabase.from('monitoring_records').insert(payload);
         if (res.error) {
           console.warn('Supabase monitoring insert warning:', res.error.message);
           return false;
         }
+        // Audit log: record who submitted this monitoring entry
+        const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
+        supabase
+          .from('audit_logs')
+          .insert({
+            username: auditActor,
+            action: 'MONITORING_ENTRY_SAVED',
+            details: JSON.stringify({
+              stall_no: record.stall_no,
+              monitoring_date: record.monitoring_date,
+              operational_status: record.operational_status,
+              claygo_compliant: record.claygo_compliant,
+              cctv_available: record.cctv_available,
+              palengqr_implemented: record.palengqr_implemented,
+              remarks: record.remarks || null,
+              timestamp: new Date().toISOString(),
+            }),
+          })
+          .then();
         return true;
       } catch (err) {
         console.warn('Supabase monitoring insert error:', err);
