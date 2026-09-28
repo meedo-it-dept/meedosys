@@ -711,10 +711,19 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     if (isSupabaseConfigured && supabase) {
       supabase.from('market_guards').upsert(guard).then();
+      addAuditLog('GUARD_ROSTER_UPDATED', {
+        guard_id: guard.guard_id,
+        guard_name: guard.guard_name,
+        rank_title: guard.rank_title,
+        assigned_facility: guard.assigned_facility,
+        summary: `Added/upserted market guard: ${guard.guard_name} (${guard.guard_id}) - ${guard.rank_title}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const updateGuard = (guardId: string, updates: Partial<MarketGuard>) => {
+    const existing = guards.find((g) => g.guard_id.toUpperCase() === guardId.toUpperCase());
     setGuards((prev) => {
       const updated = prev.map((g) =>
         g.guard_id.toUpperCase() === guardId.toUpperCase() ? { ...g, ...updates } : g
@@ -724,10 +733,18 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     if (isSupabaseConfigured && supabase) {
       supabase.from('market_guards').update(updates).eq('guard_id', guardId).then();
+      addAuditLog('GUARD_PROFILE_UPDATED', {
+        guard_id: guardId,
+        guard_name: updates.guard_name || existing?.guard_name,
+        updated_fields: Object.keys(updates),
+        summary: `Updated profile for guard ${updates.guard_name || existing?.guard_name || guardId}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const deleteGuard = (guardId: string) => {
+    const existing = guards.find((g) => g.guard_id.toUpperCase() === guardId.toUpperCase());
     setGuards((prev) => {
       const updated = prev.filter((g) => g.guard_id.toUpperCase() !== guardId.toUpperCase());
       localStorage.setItem('meedo_guards', JSON.stringify(updated));
@@ -735,6 +752,12 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     if (isSupabaseConfigured && supabase) {
       supabase.from('market_guards').delete().eq('guard_id', guardId).then();
+      addAuditLog('GUARD_PROFILE_DELETED', {
+        guard_id: guardId,
+        guard_name: existing?.guard_name || 'Unknown Guard',
+        summary: `Deleted guard profile: ${existing?.guard_name || guardId}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -2581,10 +2604,19 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     if (isSupabaseConfigured && supabase) {
       supabase.from('csu_daily_reports').insert(newReport).then();
+      addAuditLog('BLOTTER_REPORT_CREATED', {
+        report_id: newReport.id,
+        report_date: newReport.report_date,
+        shift: newReport.shift,
+        prep_name: newReport.prep_name,
+        summary: `Created security blotter report (${newReport.id}) for shift ${newReport.shift} on ${newReport.report_date}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
   const updateCsuReport = (id: string, updates: Partial<CsuDailyReport>) => {
+    const existing = csuReports.find((r) => r.id === id);
     setCsuReports((prev) => {
       const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
@@ -2592,6 +2624,13 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     if (isSupabaseConfigured && supabase) {
       supabase.from('csu_daily_reports').update(updates).eq('id', id).then();
+      addAuditLog('BLOTTER_REPORT_UPDATED', {
+        report_id: id,
+        report_date: updates.report_date || existing?.report_date,
+        updated_fields: Object.keys(updates),
+        summary: `Updated security blotter report (${id})`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -2619,6 +2658,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         is_locked: false,
         turnover_notes: (updatedReport as any).turnover_notes,
       }).eq('id', reportId).then();
+
+      addAuditLog('BLOTTER_CORRECTION_REQUESTED', {
+        report_id: reportId,
+        reason,
+        requested_by: currentUser?.full_name || currentUser?.username || 'Market Staff',
+        summary: `Requested blotter report unlock/correction for ${reportId}. Reason: ${reason}`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -2655,6 +2702,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         app_title: (updatedReport as any).app_title,
         turnover_notes: (updatedReport as any).turnover_notes,
       }).eq('id', reportId).then();
+
+      addAuditLog('BLOTTER_REPORT_APPROVED', {
+        report_id: reportId,
+        approved_by: currentUser?.full_name || currentUser?.username || 'Market Administrator',
+        reviewer_notes: reviewerNotes || 'Approved without notes',
+        summary: `Approved and locked security blotter report (${reportId})`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
@@ -2740,6 +2795,16 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (isSupabaseConfigured && supabase) {
       supabase.from('market_calendar_events').insert(newEvt).then();
+      addAuditLog('CALENDAR_EVENT_CREATED', {
+        event_id: newEvt.id,
+        title: newEvt.title,
+        category: newEvt.category,
+        date: newEvt.date,
+        time: `${newEvt.start_time} - ${newEvt.end_time}`,
+        assigned_guard: newEvt.assigned_guard_id || 'None',
+        summary: `Created calendar event / guard schedule: "${newEvt.title}" (${newEvt.category}) on ${newEvt.date}`,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     return { success: true };
@@ -2782,12 +2847,20 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (isSupabaseConfigured && supabase) {
       supabase.from('market_calendar_events').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).then();
+      addAuditLog('CALENDAR_EVENT_UPDATED', {
+        event_id: id,
+        title: updates.title || existing.title,
+        updated_fields: Object.keys(updates),
+        summary: `Updated calendar event / schedule: "${updates.title || existing.title}" (${id})`,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     return { success: true };
   };
 
   const deleteCalendarEvent = (id: string) => {
+    const existing = marketCalendarEvents.find((e) => e.id === id);
     setMarketCalendarEvents((prev) => {
       const updated = prev.filter((e) => e.id !== id);
       localStorage.setItem('meedo_calendar_events', JSON.stringify(updated));
@@ -2796,6 +2869,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (isSupabaseConfigured && supabase) {
       supabase.from('market_calendar_events').delete().eq('id', id).then();
+      addAuditLog('CALENDAR_EVENT_DELETED', {
+        event_id: id,
+        title: existing?.title || 'Unknown Event',
+        date: existing?.date,
+        category: existing?.category,
+        summary: `Deleted calendar event: "${existing?.title || id}" (${existing?.category || 'N/A'})`,
+        timestamp: new Date().toISOString(),
+      });
     }
   };
 
