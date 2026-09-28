@@ -3357,6 +3357,30 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setInventoryTransactions(updatedTx);
     localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
 
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('inventory_items').update({ quantity: updatedQty, updated_at: nowIso }).eq('id', item.id);
+          await client.from('inventory_transactions').insert(newTx);
+          addAuditLog('INVENTORY_RELEASED', {
+            transaction_id: newTx.id,
+            item_id: item.id,
+            item_name: item.item,
+            quantity: params.quantity,
+            unit: item.unit,
+            department: params.department,
+            received_by: params.receivedBy,
+            released_by: releasingOfficer,
+            summary: `Released ${params.quantity} ${item.unit} of "${item.item}" to ${params.department} (Received by: ${params.receivedBy})`,
+            timestamp: nowIso,
+          });
+        } catch (e) {
+          console.warn('Supabase inventory release notice:', e);
+        }
+      })();
+    }
+
     return { success: true };
   };
 
@@ -3389,6 +3413,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let targetItemId = params.itemId || '';
 
     let updatedItems: InventoryItem[];
+    let isNewItem = false;
+    let newItemObj: InventoryItem | null = null;
+    let existingItemQty = 0;
 
     if (params.itemId) {
       const existing = inventoryItems.find((i) => i.id === params.itemId);
@@ -3398,6 +3425,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetItemName = existing.item;
       targetDesc = existing.description;
       targetUnit = existing.unit;
+      existingItemQty = existing.quantity;
       updatedItems = inventoryItems.map((i) =>
         i.id === params.itemId
           ? {
@@ -3412,12 +3440,13 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!params.item || !params.unit) {
         return { success: false, message: 'Item name and unit are required for new inventory items.' };
       }
+      isNewItem = true;
       targetItemId = 'inv_' + Date.now();
       targetItemName = params.item.trim();
       targetDesc = params.description || '';
       targetUnit = params.unit.trim();
 
-      const newItem: InventoryItem = {
+      newItemObj = {
         id: targetItemId,
         item: targetItemName,
         description: targetDesc,
@@ -3428,7 +3457,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         created_at: nowIso,
         updated_at: nowIso,
       };
-      updatedItems = [newItem, ...inventoryItems];
+      updatedItems = [newItemObj, ...inventoryItems];
     }
 
     setInventoryItems(updatedItems);
@@ -3453,6 +3482,38 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updatedTx = [newTx, ...inventoryTransactions];
     setInventoryTransactions(updatedTx);
     localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          if (isNewItem && newItemObj) {
+            await client.from('inventory_items').insert(newItemObj);
+          } else {
+            await client.from('inventory_items').update({
+              quantity: existingItemQty + params.quantity,
+              date_received: params.dateReceived,
+              updated_at: nowIso,
+            }).eq('id', targetItemId);
+          }
+          await client.from('inventory_transactions').insert(newTx);
+          addAuditLog('INVENTORY_STOCK_IN', {
+            transaction_id: newTx.id,
+            item_id: targetItemId,
+            item_name: targetItemName,
+            quantity: params.quantity,
+            unit: targetUnit,
+            department: params.department || 'MEEDO',
+            received_by: params.receivedBy || 'Supply Custodian',
+            is_new_item: isNewItem,
+            summary: `Replenished stock (+${params.quantity} ${targetUnit}) for "${targetItemName}"`,
+            timestamp: nowIso,
+          });
+        } catch (e) {
+          console.warn('Supabase inventory stock-in notice:', e);
+        }
+      })();
+    }
 
     return { success: true };
   };
@@ -3499,6 +3560,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updatedTx = [newTx, ...inventoryTransactions];
     setInventoryTransactions(updatedTx);
     localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('inventory_items').update({ quantity: Math.max(0, newQuantity), updated_at: nowIso }).eq('id', id);
+          await client.from('inventory_transactions').insert(newTx);
+          addAuditLog('INVENTORY_ADJUSTED', {
+            transaction_id: newTx.id,
+            item_id: id,
+            item_name: item.item,
+            previous_qty: item.quantity,
+            new_qty: Math.max(0, newQuantity),
+            diff,
+            reason,
+            summary: `Inventory audit adjustment for "${item.item}": ${item.quantity} -> ${Math.max(0, newQuantity)} ${item.unit} (Reason: ${reason})`,
+            timestamp: nowIso,
+          });
+        } catch (e) {
+          console.warn('Supabase inventory adjustment notice:', e);
+        }
+      })();
+    }
   };
 
   const returnInventoryItem = (params: {
@@ -3548,6 +3632,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setInventoryTransactions(updatedTx);
     localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
 
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('inventory_items').update({ quantity: item.quantity + params.quantity, updated_at: nowIso }).eq('id', item.id);
+          await client.from('inventory_transactions').insert(newTx);
+          addAuditLog('INVENTORY_RETURNED', {
+            transaction_id: newTx.id,
+            item_id: item.id,
+            item_name: item.item,
+            quantity: params.quantity,
+            unit: item.unit,
+            department: params.department,
+            returned_by: params.returnedBy,
+            summary: `Returned supply (+${params.quantity} ${item.unit}) of "${item.item}" from ${params.department} (Returned by: ${params.returnedBy})`,
+            timestamp: nowIso,
+          });
+        } catch (e) {
+          console.warn('Supabase inventory return notice:', e);
+        }
+      })();
+    }
+
     return { success: true };
   };
 
@@ -3556,6 +3663,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('Unauthorized: Administrator privilege required for inventory updates.');
       return;
     }
+    const existing = inventoryItems.find((i) => i.id === id);
     setInventoryItems((prev) => {
       const updated = prev.map((item) =>
         item.id === id ? { ...item, ...updates, updated_at: new Date().toISOString() } : item
@@ -3563,6 +3671,27 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('meedo_inventory_items', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const payload: any = { ...updates, updated_at: new Date().toISOString() };
+      delete payload.id;
+      delete payload.created_at;
+      (async () => {
+        try {
+          await client.from('inventory_items').update(payload).eq('id', id);
+          addAuditLog('INVENTORY_ITEM_UPDATED', {
+            item_id: id,
+            item_name: updates.item || existing?.item,
+            updated_fields: Object.keys(updates),
+            summary: `Updated inventory item details for "${updates.item || existing?.item || id}"`,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Supabase inventory update notice:', e);
+        }
+      })();
+    }
   };
 
   const deleteInventoryItem = (id: string) => {
@@ -3570,11 +3699,29 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.warn('Unauthorized: Administrator privilege required for inventory deletion.');
       return;
     }
+    const existing = inventoryItems.find((i) => i.id === id);
     setInventoryItems((prev) => {
       const updated = prev.filter((item) => item.id !== id);
       localStorage.setItem('meedo_inventory_items', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('inventory_items').delete().eq('id', id);
+          addAuditLog('INVENTORY_ITEM_DELETED', {
+            item_id: id,
+            item_name: existing?.item || 'Unknown Item',
+            summary: `Deleted inventory item: "${existing?.item || id}"`,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Supabase inventory delete notice:', e);
+        }
+      })();
+    }
   };
 
   const resetInventoryData = () => {
@@ -3586,6 +3733,22 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setInventoryTransactions(initialInventoryTransactions);
     localStorage.setItem('meedo_inventory_items', JSON.stringify(initialInventoryItems));
     localStorage.setItem('meedo_inventory_transactions', JSON.stringify(initialInventoryTransactions));
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          await client.from('inventory_items').upsert(initialInventoryItems);
+          await client.from('inventory_transactions').upsert(initialInventoryTransactions);
+          addAuditLog('INVENTORY_RESET', {
+            summary: `Reset inventory & transaction data to initial baseline by ${currentUser?.username || 'admin'}.`,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Supabase inventory reset notice:', e);
+        }
+      })();
+    }
   };
 
   return (
