@@ -328,7 +328,7 @@ export const GuardHistoryView: React.FC<GuardHistoryViewProps> = ({ currentGuard
 
       {/* Dedicated Print Sheet Modal */}
       {printReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 md:p-8 backdrop-blur-sm overflow-y-auto no-print:bg-black/75">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 md:p-8 overflow-y-auto">
           <div className="relative w-full max-w-5xl rounded-3xl bg-slate-100 p-4 sm:p-6 shadow-2xl max-h-[96vh] overflow-y-auto">
             <BlotterPrintSheet
               report={printReport}

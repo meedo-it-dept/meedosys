@@ -128,43 +128,54 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome & Department Clearance Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 rounded-3xl p-6 md:p-8 text-white shadow-lg relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-sm text-white">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                RBAC Security Active
-              </span>
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 text-slate-950 shadow-sm">
-                {secMeta.badge} {secMeta.shortName}
-              </span>
+      {/* Welcome & Department Clearance Banner (Light Premium) */}
+      <div className="bg-white rounded-2xl border border-slate-200/85 shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_24px_-8px_rgba(37,99,235,0.10)] overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500" />
+        <div className="p-5 sm:p-7 bg-gradient-to-br from-blue-50/45 via-white to-slate-50/40 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-slate-200/90 shadow-xs p-1.5 flex items-center justify-center shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/favicon_LGUMalungon/LGU_LOGO1.png"
+                alt="Municipality of Malungon Seal"
+                className="w-full h-full object-contain"
+              />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black tracking-tight">
-              Municipality of Malungon
-            </h2>
-            <p className="text-blue-100 text-xs md:text-sm max-w-xl leading-relaxed">
-              Municipal Economic Enterprise Development Office • Role-Based Portal
-            </p>
+            <div className="space-y-1.5">
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
+                Municipality of Malungon
+              </h2>
+              <p className="text-slate-600 text-xs md:text-sm max-w-xl leading-relaxed">
+                Municipal Economic Enterprise Development Office • Role-Based Portal
+              </p>
+              <div className="flex items-center gap-2 flex-wrap pt-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  RBAC Security Active
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
+                  {secMeta.badge} {secMeta.shortName}
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 min-w-[260px] space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-blue-100 font-medium">Active Account:</span>
-              <span className="font-bold text-white">
+          <div className="border-t md:border-t-0 md:border-l border-slate-200/80 pt-4 md:pt-0 md:pl-6 min-w-[260px] space-y-2 tabular-nums">
+            <div className="flex items-center justify-between gap-4 text-xs">
+              <span className="text-slate-500 font-medium">Active Account:</span>
+              <span className="font-bold text-slate-900">
                 {currentUser?.full_name || currentUser?.username || 'Guest'}
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-blue-100 font-medium">Assigned Section:</span>
-              <span className="font-semibold text-white">
+            <div className="flex items-center justify-between gap-4 text-xs">
+              <span className="text-slate-500 font-medium">Assigned Section:</span>
+              <span className="font-semibold text-slate-800">
                 {secMeta.name} ({currentSec})
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-white/15">
-              <span className="text-blue-100 font-medium">Clearance:</span>
-              <span className="font-bold text-emerald-300">
+            <div className="flex items-center justify-between gap-4 text-xs pt-1.5 border-t border-slate-200/75">
+              <span className="text-slate-500 font-medium">Clearance:</span>
+              <span className="font-bold text-emerald-700">
                 {isAdmin ? 'Full Unrestricted (ALL)' : `Siloed to Section ${currentSec}`}
               </span>
             </div>

@@ -207,17 +207,21 @@ export const MasterBlotterReview: React.FC = () => {
 
       {/* Review & Approval Modal */}
       {selectedReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-3xl rounded-3xl bg-white shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 overflow-y-auto">
+          <div className="relative w-full max-w-3xl rounded-2xl bg-white border border-slate-200/90 shadow-[0_20px_50px_rgba(15,23,42,0.18)] overflow-hidden my-auto max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
             {/* Header */}
-            <div className="flex items-center justify-between border-b bg-slate-900 px-6 py-4 text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-6 py-4 text-slate-900">
               <div>
-                <h3 className="text-lg font-bold">Shift Blotter Review & Signoff</h3>
-                <p className="text-xs text-slate-400">
+                <h3 className="text-lg font-bold text-slate-900">Shift Blotter Review &amp; Signoff</h3>
+                <p className="text-xs text-slate-600">
                   {selectedReport.report_date} • {selectedReport.shift} • Prepared by {selectedReport.prep_name}
                 </p>
               </div>
-              <button onClick={() => setSelectedReport(null)} className="text-slate-400 hover:text-white">
+              <button
+                onClick={() => setSelectedReport(null)}
+                aria-label="Close review modal"
+                className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -364,7 +368,7 @@ export const MasterBlotterReview: React.FC = () => {
 
       {/* Dedicated A4 / US Letter Print Preview Modal */}
       {printModalReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 md:p-8 backdrop-blur-sm overflow-y-auto no-print:bg-black/75">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 md:p-8 overflow-y-auto">
           <div className="relative w-full max-w-5xl rounded-3xl bg-slate-100 p-4 sm:p-6 shadow-2xl max-h-[96vh] overflow-y-auto">
             <BlotterPrintSheet
               report={printModalReport}

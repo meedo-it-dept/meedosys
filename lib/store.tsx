@@ -1,6 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  updateProfile as updateFirebaseProfile,
+  sendEmailVerification,
+  signOut as firebaseSignOut,
+  User as FirebaseUser,
+} from 'firebase/auth';
 import {
   UserProfile,
   UserRole,
@@ -26,7 +36,20 @@ import {
   formatAdditionalInfo,
 } from './types';
 import {
-  initialUsers,
+  Permission,
+  hasPermission,
+  isAdminUser,
+  isApprovedUser,
+} from './rbac';
+import {
+  firebaseAuth,
+  googleProvider,
+  isFirebaseConfigured,
+  mapFirebaseAuthError,
+  provisionFirebaseEmailUser,
+  sendUserPasswordReset,
+} from './firebase/client';
+import {
   initialStalls,
   initialElectricBills,
   initialSlaughterRecords,
@@ -41,19 +64,223 @@ import {
   initialInventoryTransactions,
   initialButchers,
 } from './supabase/mockData';
-import { isSupabaseConfigured, supabase } from './supabase/client';
+import {
+  isPocketBaseConfigured,
+  pb,
+  pbClient,
+  toPbId,
+  isPocketBaseConfigured as isSupabaseConfigured,
+  pbClient as supabase,
+} from './pocketbase/client';
+
+const normalizeOpifRow = (raw: any): OpifIndicator => ({
+  ...raw,
+  id: raw.id,
+  section: (raw.section || raw.division || 'A') as OpifIndicator['section'],
+  col3: raw.col3 ?? '',
+  col4: raw.col4 ?? raw.major_output ?? '',
+  col5: raw.col5 ?? raw.indicator_code ?? '',
+  col6: raw.col6 ?? raw.indicator_name ?? raw.indicator ?? '',
+  col7: String(raw.col7 ?? raw.annual_target ?? raw.annual ?? ''),
+  actual: String(raw.actual ?? raw.actual_annual ?? ''),
+  semi: String(raw.semi ?? raw.semi_annual_target ?? ''),
+  q1t: String(raw.q1t ?? raw.q1_target ?? ''),
+  q1a: String(raw.q1a ?? raw.q1_actual ?? ''),
+  q1p: String(raw.q1p ?? raw.q1_percent ?? ''),
+  q2t: String(raw.q2t ?? raw.q2_target ?? ''),
+  q2a: String(raw.q2a ?? raw.q2_actual ?? ''),
+  q2p: String(raw.q2p ?? raw.q2_percent ?? ''),
+  q3t: String(raw.q3t ?? raw.q3_target ?? ''),
+  q3a: String(raw.q3a ?? raw.q3_actual ?? ''),
+  q3p: String(raw.q3p ?? raw.q3_percent ?? ''),
+  q4t: String(raw.q4t ?? raw.q4_target ?? ''),
+  q4a: String(raw.q4a ?? raw.q4_actual ?? ''),
+  q4p: String(raw.q4p ?? raw.q4_percent ?? ''),
+});
+
+const toOpifPbPayload = (ind: Partial<OpifIndicator>, includeId = false, sortOrder?: number): Record<string, any> => {
+  const toNum = (v: any) => {
+    const n = Number(String(v ?? '').replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const payload: Record<string, any> = {
+    section: ind.section || 'A',
+    division: ind.section || 'A',
+    major_output: ind.col4 || ind.major_final_output || '',
+    indicator_code: ind.col5 || '',
+    indicator_name: ind.col6 || ind.performance_indicator || '',
+    col3: ind.col3 || '',
+    col4: ind.col4 || '',
+    col5: ind.col5 || '',
+    col6: ind.col6 || '',
+    col7: ind.col7 || '',
+    annual_target: toNum(ind.col7),
+    actual: ind.actual || '',
+    semi: ind.semi || '',
+    q1t: ind.q1t || '',
+    q1a: ind.q1a || '',
+    q1p: ind.q1p || '',
+    q2t: ind.q2t || '',
+    q2a: ind.q2a || '',
+    q2p: ind.q2p || '',
+    q3t: ind.q3t || '',
+    q3a: ind.q3a || '',
+    q3p: ind.q3p || '',
+    q4t: ind.q4t || '',
+    q4a: ind.q4a || '',
+    q4p: ind.q4p || '',
+    q1_target: toNum(ind.q1t),
+    q1_actual: toNum(ind.q1a),
+    q2_target: toNum(ind.q2t),
+    q2_actual: toNum(ind.q2a),
+    q3_target: toNum(ind.q3t),
+    q3_actual: toNum(ind.q3a),
+    q4_target: toNum(ind.q4t),
+    q4_actual: toNum(ind.q4a),
+    year: ind.year || new Date().getFullYear(),
+    specialSpan: ind.specialSpan || 0,
+    specialText: ind.specialText || '',
+    spanCol3: ind.spanCol3 || 0,
+    spanCol4: ind.spanCol4 || 0,
+    spanCol5: ind.spanCol5 || 0,
+  };
+  if (sortOrder !== undefined) payload.sort_order = sortOrder;
+  if (includeId && ind.id) payload.id = toPbId(ind.id);
+  return payload;
+};
+
+const sanitizeUserProfile = (raw: any): UserProfile => ({
+  id: raw.id,
+  username: String(raw.username || '').trim(),
+  email: raw.email || undefined,
+  firebase_uid: raw.firebase_uid || undefined,
+  auth_provider: raw.auth_provider || undefined,
+  photo_url: raw.photo_url || undefined,
+  role: (raw.role || 'Staff') as UserRole,
+  section: (raw.section || 'A') as UserSection,
+  status: (raw.status || 'Pending') as UserStatus,
+  guard_id: raw.guard_id || undefined,
+  full_name: raw.full_name || undefined,
+  rank_title: raw.rank_title || undefined,
+  radio_call_sign: raw.radio_call_sign || undefined,
+  default_area: raw.default_area || undefined,
+  created_at: raw.created_at || raw.created || undefined,
+  updated_at: raw.updated_at || raw.updated || undefined,
+});
+
+const generateRandomInternalPassword = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const arr = new Uint32Array(28);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, (n) => chars[n % chars.length]).join('');
+  }
+  let out = '';
+  for (let i = 0; i < 28; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+};
+
+const extractPbErrorMessage = (err: any, fallback: string): string => {
+  const fieldErrors = err?.response?.data || err?.data?.data;
+  if (fieldErrors && typeof fieldErrors === 'object') {
+    const firstKey = Object.keys(fieldErrors)[0];
+    const firstMsg = firstKey && fieldErrors[firstKey]?.message;
+    if (firstMsg) return `${firstKey}: ${firstMsg}`;
+  }
+  return err?.response?.message || err?.message || fallback;
+};
+
+const applyCollectionRealtime = <T extends { id?: string }>(
+  setter: React.Dispatch<React.SetStateAction<T[]>>,
+  storageKey: string | null,
+  payload: any,
+  transform?: (row: any) => T
+) => {
+  const mapRow = (r: any) => (transform ? transform(r) : (r as T));
+  if (payload.eventType === 'INSERT' && payload.new) {
+    const item = mapRow(payload.new);
+    setter((prev) => {
+      if (prev.some((x) => x.id === item.id)) {
+        const updated = prev.map((x) => (x.id === item.id ? { ...x, ...item } : x));
+        if (storageKey) try { localStorage.setItem(storageKey, JSON.stringify(updated)); } catch {}
+        return updated;
+      }
+      const updated = [item, ...prev];
+      if (storageKey) try { localStorage.setItem(storageKey, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  } else if (payload.eventType === 'UPDATE' && payload.new) {
+    const item = mapRow(payload.new);
+    setter((prev) => {
+      const updated = prev.map((x) => (x.id === item.id ? { ...x, ...item } : x));
+      if (storageKey) try { localStorage.setItem(storageKey, JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  } else if (payload.eventType === 'DELETE') {
+    const oldId = (payload.old as any)?.id;
+    if (oldId) {
+      setter((prev) => {
+        const updated = prev.filter((x) => x.id !== oldId);
+        if (storageKey) try { localStorage.setItem(storageKey, JSON.stringify(updated)); } catch {}
+        return updated;
+      });
+    }
+  }
+};
+
+export interface FirebaseAuthGateState {
+  mode:
+    | 'PROFILE_REQUIRED'
+    | 'ACCOUNT_PENDING'
+    | 'ACCOUNT_BLOCKED'
+    | 'ACCOUNT_INACTIVE'
+    | 'EMAIL_VERIFICATION_REQUIRED'
+    | 'ACCOUNT_CONFLICT';
+  email?: string;
+  displayName?: string;
+  provider?: string;
+  emailVerified?: boolean;
+  message: string;
+}
+
+export interface FirebaseRegistrationInput {
+  username: string;
+  section: string;
+  guardId?: string;
+  fullName?: string;
+  rankTitle?: string;
+  radioCallSign?: string;
+  defaultArea?: string;
+}
 
 interface MeedoContextType {
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
   authLoading: boolean;
-  login: (username: string, password?: string) => { success: boolean; message?: string };
-  logout: () => void;
-  switchSectionUser: (sectionCode: UserSection) => boolean;
+  firebaseGateState: FirebaseAuthGateState | null;
+  login: (identifier: string, password?: string) => Promise<{ success: boolean; code?: string; message?: string }>;
+  loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; code?: string; message?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; code?: string; message?: string }>;
+  registerWithEmail: (
+    params: FirebaseRegistrationInput & { email: string; password: string }
+  ) => Promise<{ success: boolean; code?: string; message?: string }>;
+  completeFirebaseRegistration: (
+    params: FirebaseRegistrationInput
+  ) => Promise<{ success: boolean; code?: string; message?: string }>;
+  linkExistingAccount: (
+    identifier: string,
+    password: string
+  ) => Promise<{ success: boolean; code?: string; message?: string }>;
+  sendPasswordReset: (email: string) => Promise<{ success: boolean; message?: string }>;
+  resendVerificationEmail: () => Promise<{ success: boolean; message?: string }>;
+  retryFirebaseSession: () => Promise<{ success: boolean; code?: string; message?: string }>;
+  logout: () => Promise<void>;
   users: UserProfile[];
-  updateUserStatus: (username: string, action: 'approve' | 'block' | 'delete') => void;
-  updateUserProfile: (username: string, updates: Partial<UserProfile>) => void;
-  createUser: (userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }) => Promise<{ success: boolean; message?: string }>;
+  updateUserStatus: (username: string, action: 'approve' | 'block' | 'delete') => Promise<{ success: boolean; message?: string }>;
+  updateUserProfile: (username: string, updates: Partial<UserProfile>) => Promise<{ success: boolean; message?: string }>;
+  createUser: (userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection; email?: string }) => Promise<{ success: boolean; message?: string }>;
   registerUser: (
     username: string,
     section: string,
@@ -62,8 +289,9 @@ interface MeedoContextType {
     rankTitle?: string,
     password?: string,
     radioCallSign?: string,
-    defaultArea?: string
-  ) => { success: boolean; message?: string };
+    defaultArea?: string,
+    email?: string
+  ) => Promise<{ success: boolean; code?: string; message?: string }>;
   refreshUsers: () => Promise<void>;
 
   guards: MarketGuard[];
@@ -80,7 +308,7 @@ interface MeedoContextType {
 
   electricBills: ElectricBill[];
   addElectricBill: (bill: ElectricBill) => void;
-  updateBillStatus: (stallNo: string, status: 'Unpaid' | 'Partial' | 'Fully Paid') => void;
+  updateBillStatus: (stallNo: string, status: 'Unpaid' | 'Partial' | 'Fully Paid', billId?: string) => void;
 
   slaughterRecords: SlaughterRecord[];
   addSlaughterRecord: (record: Omit<SlaughterRecord, 'id' | 'created_at'>) => void;
@@ -155,7 +383,7 @@ interface MeedoContextType {
     receivedBy: string;
     dateReceived: string;
     remarks?: string;
-  }) => { success: boolean; message?: string };
+  }) => Promise<{ success: boolean; message?: string }>;
   stockInInventoryItem: (params: {
     itemId?: string;
     item?: string;
@@ -167,8 +395,8 @@ interface MeedoContextType {
     department?: string;
     receivedBy?: string;
     remarks?: string;
-  }) => { success: boolean; message?: string };
-  adjustInventoryItem: (id: string, newQuantity: number, reason: string) => void;
+  }) => Promise<{ success: boolean; message?: string }>;
+  adjustInventoryItem: (id: string, newQuantity: number, reason: string) => Promise<{ success: boolean; message?: string }>;
   returnInventoryItem: (params: {
     itemId: string;
     department: string;
@@ -176,7 +404,7 @@ interface MeedoContextType {
     returnedBy: string;
     dateReturned: string;
     remarks?: string;
-  }) => { success: boolean; message?: string };
+  }) => Promise<{ success: boolean; message?: string }>;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => void;
   deleteInventoryItem: (id: string) => void;
   resetInventoryData: () => void;
@@ -184,6 +412,7 @@ interface MeedoContextType {
   auditLogs: AuditLog[];
   addAuditLog: (action: string, details: string | Record<string, any>, usernameOverride?: string) => void;
 
+  isLivePocketBase: boolean;
   isLiveSupabase: boolean;
 }
 
@@ -192,401 +421,506 @@ const MeedoContext = createContext<MeedoContextType | undefined>(undefined);
 export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [users, setUsers] = useState<UserProfile[]>(initialUsers);
-  const [stalls, setStalls] = useState<Stall[]>(initialStalls);
-  const [electricBills, setElectricBills] = useState<ElectricBill[]>(initialElectricBills);
-  const [slaughterRecords, setSlaughterRecords] = useState<SlaughterRecord[]>(initialSlaughterRecords);
-  const [butchers, setButchers] = useState<ButcherProfile[]>(initialButchers);
-  const [cemeteryBookings, setCemeteryBookings] = useState<CemeteryBooking[]>(initialCemeteryBookings);
-  const [todas, setTodas] = useState<Toda[]>(initialTodas);
-  const [todaMembers, setTodaMembers] = useState<TodaMember[]>(initialTodaMembers);
-  const [opifIndicators, setOpifIndicators] = useState<OpifIndicator[]>(initialOpifIndicators);
-  const [csuReports, setCsuReports] = useState<CsuDailyReport[]>(initialCsuReports);
-  const [guards, setGuards] = useState<MarketGuard[]>(initialMarketGuards);
-  const [marketCalendarEvents, setMarketCalendarEvents] = useState<MarketCalendarEvent[]>(initialMarketCalendarEvents);
+  const [firebaseGateState, setFirebaseGateState] = useState<FirebaseAuthGateState | null>(null);
+  const authFlowInProgressRef = useRef(false);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [stalls, setStalls] = useState<Stall[]>(isPocketBaseConfigured ? [] : initialStalls);
+  const [electricBills, setElectricBills] = useState<ElectricBill[]>(isPocketBaseConfigured ? [] : initialElectricBills);
+  const [slaughterRecords, setSlaughterRecords] = useState<SlaughterRecord[]>(isPocketBaseConfigured ? [] : initialSlaughterRecords);
+  const [butchers, setButchers] = useState<ButcherProfile[]>(isPocketBaseConfigured ? [] : initialButchers);
+  const [cemeteryBookings, setCemeteryBookings] = useState<CemeteryBooking[]>(isPocketBaseConfigured ? [] : initialCemeteryBookings);
+  const [todas, setTodas] = useState<Toda[]>(isPocketBaseConfigured ? [] : initialTodas);
+  const [todaMembers, setTodaMembers] = useState<TodaMember[]>(isPocketBaseConfigured ? [] : initialTodaMembers);
+  const [opifIndicators, setOpifIndicators] = useState<OpifIndicator[]>(isPocketBaseConfigured ? [] : initialOpifIndicators);
+  const [csuReports, setCsuReports] = useState<CsuDailyReport[]>(isPocketBaseConfigured ? [] : initialCsuReports);
+  const [guards, setGuards] = useState<MarketGuard[]>(isPocketBaseConfigured ? [] : initialMarketGuards);
+  const [marketCalendarEvents, setMarketCalendarEvents] = useState<MarketCalendarEvent[]>(isPocketBaseConfigured ? [] : initialMarketCalendarEvents);
   const [activeShiftSession, setActiveShiftSession] = useState<GuardShiftSession | null>(null);
   const [activeShiftSessions, setActiveShiftSessions] = useState<Record<string, GuardShiftSession>>({});
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
-  const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>(initialInventoryTransactions);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(isPocketBaseConfigured ? [] : initialInventoryItems);
+  const [inventoryTransactions, setInventoryTransactions] = useState<InventoryTransaction[]>(isPocketBaseConfigured ? [] : initialInventoryTransactions);
   const [monitoringRecords, setMonitoringRecords] = useState<MonitoringRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  // Initialize from Supabase and clean up legacy mock data
+  const requirePermission = (permission: Permission, targetSection?: UserSection): boolean => {
+    if (hasPermission(currentUser, permission, targetSection)) return true;
+    console.warn(
+      `[RBAC] Denied action "${permission}" for user "${currentUser?.username || 'anonymous'}" (${currentUser?.role || 'None'}/${currentUser?.section || 'None'}).`
+    );
+    return false;
+  };
+
+  const exchangeFirebaseSession = async (
+    fbUser: FirebaseUser
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    if (!isPocketBaseConfigured) {
+      return {
+        success: false,
+        code: 'PB_UNCONFIGURED',
+        message: 'Authentication backend server is not configured.',
+      };
+    }
+
+    try {
+      const idToken = await fbUser.getIdToken(true);
+      const res = await pb.send('/api/meedo/firebase-auth', {
+        method: 'POST',
+        body: { idToken },
+        requestKey: null,
+      });
+
+      if (res?.token && res?.record) {
+        pb.authStore.save(res.token, res.record);
+        const profile = sanitizeUserProfile(res.record);
+        setCurrentUser(profile);
+        setFirebaseGateState(null);
+        localStorage.setItem('meedo_current_user', JSON.stringify(profile));
+        localStorage.removeItem('meedo_users');
+        return { success: true };
+      }
+
+      pb.authStore.clear();
+      setCurrentUser(null);
+      return {
+        success: false,
+        code: 'EXCHANGE_FAILED',
+        message: 'Unable to establish an authenticated session.',
+      };
+    } catch (err: any) {
+      const errBody = err?.response || err?.data || {};
+      const code = String(errBody?.code || '');
+      const message =
+        errBody?.message ||
+        (!err?.status
+          ? 'Unable to connect to authentication server. Please ensure PocketBase is running.'
+          : 'Authentication verification failed.');
+
+      pb.authStore.clear();
+      setCurrentUser(null);
+      localStorage.removeItem('meedo_current_user');
+
+      if (
+        code === 'PROFILE_REQUIRED' ||
+        code === 'ACCOUNT_PENDING' ||
+        code === 'ACCOUNT_BLOCKED' ||
+        code === 'ACCOUNT_INACTIVE' ||
+        code === 'EMAIL_VERIFICATION_REQUIRED' ||
+        code === 'ACCOUNT_CONFLICT'
+      ) {
+        setFirebaseGateState({
+          mode: code as FirebaseAuthGateState['mode'],
+          email: errBody?.firebaseUser?.email || errBody?.email || fbUser.email || undefined,
+          displayName: errBody?.firebaseUser?.displayName || fbUser.displayName || undefined,
+          provider: errBody?.firebaseUser?.provider || undefined,
+          emailVerified: fbUser.emailVerified,
+          message,
+        });
+      } else {
+        setFirebaseGateState(null);
+      }
+
+      return { success: false, code: code || 'AUTH_ERROR', message };
+    }
+  };
+
+  // Restore and validate Firebase Auth -> PocketBase session (never pre-fetch DB before authentication)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (localStorage.getItem('meedo_clean_csu_and_users_v7') !== 'true') {
-          localStorage.removeItem('meedo_active_guard_session');
-          localStorage.removeItem('meedo_guard_shift_sessions');
-          setActiveShiftSession(null);
-          setActiveShiftSessions({});
-          localStorage.setItem('meedo_clean_csu_and_users_v7', 'true');
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+
+    // Purge legacy plaintext user directory cache from prior client builds
+    localStorage.removeItem('meedo_users');
+
+    if (localStorage.getItem('meedo_clean_csu_and_users_v7') !== 'true') {
+      localStorage.removeItem('meedo_active_guard_session');
+      localStorage.removeItem('meedo_guard_shift_sessions');
+      setActiveShiftSession(null);
+      setActiveShiftSessions({});
+      localStorage.setItem('meedo_clean_csu_and_users_v7', 'true');
+    }
+
+    if (isPocketBaseConfigured) {
+      const savedActiveSessions = localStorage.getItem('meedo_guard_shift_sessions');
+      if (savedActiveSessions) {
+        try {
+          const parsed = JSON.parse(savedActiveSessions);
+          if (parsed && typeof parsed === 'object') {
+            setActiveShiftSessions(parsed);
+          }
+        } catch {}
+      }
+
+      const savedActiveSession = localStorage.getItem('meedo_active_guard_session');
+      if (savedActiveSession) {
+        try {
+          const parsed = JSON.parse(savedActiveSession);
+          if (parsed && parsed.status && parsed.status !== 'ENDED') {
+            setActiveShiftSession(parsed);
+            if (parsed.guard_id) {
+              setActiveShiftSessions((prev) => ({ ...prev, [parsed.guard_id]: parsed }));
+            }
+          }
+        } catch {}
+      }
+
+      if (!isFirebaseConfigured || !firebaseAuth) {
+        pb.authStore.clear();
+        localStorage.removeItem('meedo_current_user');
+        setCurrentUser(null);
+        setFirebaseGateState(null);
+        setAuthLoading(false);
+        return;
+      }
+
+      const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
+        if (cancelled) return;
+
+        if (!fbUser) {
+          pb.authStore.clear();
+          localStorage.removeItem('meedo_current_user');
+          setCurrentUser(null);
+          setUsers([]);
+          setFirebaseGateState(null);
+          setAuthLoading(false);
+          return;
         }
 
-        const legacyMockUsernames = new Set([
-          'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
-          'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
-          'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
-          'rexmonteliza', 'alvin'
-        ]);
+        if (authFlowInProgressRef.current) {
+          return;
+        }
 
+        try {
+          if (
+            pb.authStore.isValid &&
+            pb.authStore.record &&
+            pb.authStore.record.firebase_uid === fbUser.uid
+          ) {
+            try {
+              const refreshed = await pb.collection('profiles').authRefresh({ requestKey: null });
+              const rec = refreshed?.record;
+              if (rec && rec.status === 'Approved') {
+                const profile = sanitizeUserProfile(rec);
+                if (!cancelled) {
+                  setCurrentUser(profile);
+                  setFirebaseGateState(null);
+                  localStorage.setItem('meedo_current_user', JSON.stringify(profile));
+                }
+                return;
+              }
+            } catch {
+              // Token invalidated or expired; fall through to re-exchange via Firebase ID token
+            }
+          }
+
+          await exchangeFirebaseSession(fbUser);
+        } catch (err) {
+          console.error('Failed to synchronize Firebase Auth session:', err);
+          pb.authStore.clear();
+          localStorage.removeItem('meedo_current_user');
+          if (!cancelled) setCurrentUser(null);
+        } finally {
+          if (!cancelled) setAuthLoading(false);
+        }
+      });
+
+      return () => {
+        cancelled = true;
+        unsubscribe();
+      };
+    } else {
+      // Offline non-PocketBase fallback mode (never auto-login initialUsers[0])
+      try {
         const savedUser = localStorage.getItem('meedo_current_user');
         if (savedUser) {
           try {
             const parsed = JSON.parse(savedUser);
-            if (
-              !parsed ||
-              !parsed.username ||
-              legacyMockUsernames.has(parsed.username.toLowerCase()) ||
-              (parsed.full_name && parsed.full_name.toLowerCase().includes('rafjun'))
-            ) {
-              localStorage.removeItem('meedo_current_user');
-              setCurrentUser(initialUsers[0]);
+            if (parsed && parsed.username && parsed.status === 'Approved') {
+              setCurrentUser(sanitizeUserProfile(parsed));
             } else {
-              setCurrentUser(parsed);
+              localStorage.removeItem('meedo_current_user');
             }
-          } catch (e) {
-            setCurrentUser(initialUsers[0]);
+          } catch {
+            localStorage.removeItem('meedo_current_user');
           }
         }
 
-        const savedUsersStr = localStorage.getItem('meedo_users');
-        if (savedUsersStr) {
-          try {
-            const parsed = JSON.parse(savedUsersStr);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const filtered = parsed.filter((u: UserProfile) => u && u.username && !legacyMockUsernames.has(u.username.toLowerCase()));
-              setUsers(filtered.length > 0 ? filtered : initialUsers);
-            }
-          } catch (e) {}
-        }
-
-        if (isSupabaseConfigured && supabase) {
-          // Fetch live production data from Supabase
-          const fetchSupabase = async () => {
-            const client = supabase;
-            if (!client) return;
-            try {
-              const [
-                tenantsRes,
-                billsRes,
-                slaughterRes,
-                cemRes,
-                todasRes,
-                membersRes,
-                opifRes,
-                csuRes,
-                invItemsRes,
-                invTxRes,
-                butchersRes,
-                profilesRes,
-                auditRes,
-                monitoringRes,
-                guardsRes,
-                calendarRes,
-              ] = await Promise.all([
-                client.from('stall_tenants').select('*'),
-                client.from('electric_bills').select('*'),
-                client.from('slaughter_records').select('*'),
-                client.from('cemetery_bookings').select('*'),
-                client.from('todas').select('*'),
-                client.from('toda_members').select('*'),
-                client.from('opif_indicators').select('*'),
-                client.from('csu_daily_reports').select('*'),
-                client.from('inventory_items').select('*'),
-                client.from('inventory_transactions').select('*'),
-                client.from('butchers').select('*'),
-                client.from('profiles').select('*'),
-                client.from('audit_logs').select('*').order('created_at', { ascending: true }),
-                client.from('monitoring_records').select('*').order('monitoring_date', { ascending: false }),
-                client.from('market_guards').select('*'),
-                client.from('market_calendar_events').select('*').order('date', { ascending: true }),
-              ]);
-
-              if (billsRes.data) setElectricBills(billsRes.data);
-              if (slaughterRes.data) setSlaughterRecords(slaughterRes.data);
-              if (cemRes.data) setCemeteryBookings(cemRes.data);
-              if (todasRes.data) setTodas(todasRes.data);
-              if (membersRes.data) setTodaMembers(membersRes.data);
-              if (opifRes.data) setOpifIndicators(opifRes.data);
-              if (csuRes.data) {
-                const liveCsu = csuRes.data.filter(
-                  (r: any) =>
-                    r &&
-                    !r.prep_name?.toLowerCase().includes('rafjun') &&
-                    !r.prep_name?.toLowerCase().includes('melvin d. sionosa')
-                );
-                setCsuReports(liveCsu);
-
-                // Restore active in-progress duty shifts from Supabase
-                const inProgressReports = liveCsu.filter((r: any) => !r.is_locked);
-                if (inProgressReports.length > 0) {
-                  const restoredSessions: Record<string, GuardShiftSession> = {};
-                  inProgressReports.forEach((r: any) => {
-                    const firstGuard = r.personnel_data?.[0];
-                    const guardId = firstGuard?.guard_id || 'G-101';
-                    restoredSessions[guardId] = {
-                      id: 'shift_sess_' + (r.id || Date.now()),
-                      calendar_event_id: r.calendar_event_id,
-                      guard_id: guardId,
-                      guard_name: firstGuard?.guard_name || r.prep_name,
-                      facility: 'Public Market Main',
-                      area: r.area_covered,
-                      shift_name: r.shift,
-                      call_sign: 'EAGLE-1',
-                      status: 'ON_DUTY',
-                      time_in: firstGuard?.time_in || '06:00',
-                      date: r.report_date,
-                      patrol_logs: firstGuard?.patrol_logs || [],
-                    };
-                  });
-                  setActiveShiftSessions((prev) => ({ ...restoredSessions, ...prev }));
-                }
-              }
-              if (invItemsRes.data) setInventoryItems(invItemsRes.data);
-              if (invTxRes.data) setInventoryTransactions(invTxRes.data);
-              if (butchersRes.data) setButchers(butchersRes.data);
-              if (monitoringRes.data) setMonitoringRecords(monitoringRes.data);
-              if (auditRes.data) setAuditLogs(auditRes.data);
-              if (guardsRes.data) {
-                const liveGuards = guardsRes.data.filter(
-                  (g: any) =>
-                    g &&
-                    !g.guard_name?.toLowerCase().includes('rafjun') &&
-                    !g.guard_name?.toLowerCase().includes('roberto alcantara') &&
-                    !g.guard_name?.toLowerCase().includes('melvin d. sionosa') &&
-                    !g.guard_name?.toLowerCase().includes('jomar l. castillo') &&
-                    !g.guard_name?.toLowerCase().includes('danilo p. ramos')
-                );
-
-                // Also ensure any Section F profile is in the roster
-                if (profilesRes?.data) {
-                  profilesRes.data
-                    .filter((p: any) => p && p.section === 'F')
-                    .forEach((p: any) => {
-                      const guardId = p.guard_id || `G-${p.username.toUpperCase()}`;
-                      const exists = liveGuards.some(
-                        (g: any) => g.guard_id.toUpperCase() === guardId.toUpperCase()
-                      );
-                      if (!exists) {
-                        liveGuards.push({
-                          guard_id: guardId,
-                          guard_name: p.full_name || p.username,
-                          rank_title: p.rank_title || 'SO1',
-                          default_area: p.default_area || 'General Public Market',
-                          radio_call_sign: p.radio_call_sign || 'EAGLE-1',
-                          assigned_facility: 'Public Market Main',
-                          current_shift: '1st Shift (06:00 - 14:00)',
-                          status: 'Active',
-                        });
-                      }
-                    });
-                }
-
-                setGuards(liveGuards);
-                localStorage.setItem('meedo_guards', JSON.stringify(liveGuards));
-              }
-              if (calendarRes.data) {
-                const liveCalendar = calendarRes.data.filter(
-                  (e: any) =>
-                    e &&
-                    !e.assigned_personnel?.toLowerCase().includes('rafjun') &&
-                    e.id !== 'evt_shift_01'
-                );
-                setMarketCalendarEvents(liveCalendar);
-                localStorage.setItem('meedo_calendar_events', JSON.stringify(liveCalendar));
-              }
-
-              if (tenantsRes.data) {
-                const tenantMap = new Map();
-                tenantsRes.data.forEach((t: any) => {
-                  if (t.is_current) tenantMap.set(t.stall_no, t);
-                });
-                setStalls((prev) =>
-                  prev.map((s) => ({
-                    ...s,
-                    status: (tenantMap.has(s.stall_no) ? 'Occupied' : 'Vacant') as any,
-                    current_tenant: tenantMap.get(s.stall_no) || null,
-                  }))
-                );
-              }
-
-              const legacyMockUsernames = new Set([
-                'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
-                'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
-                'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
-                'rexmonteliza', 'alvin'
-              ]);
-
-              // Consolidate users directory from initial seeds, local cache, profiles, and audit log events
-              const userMap = new Map<string, UserProfile>();
-              initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
-
-              const cachedUsers = localStorage.getItem('meedo_users');
-              if (cachedUsers) {
-                try {
-                  const parsed = JSON.parse(cachedUsers);
-                  if (Array.isArray(parsed)) {
-                    parsed.forEach((u: UserProfile) => {
-                      if (u && u.username && !legacyMockUsernames.has(u.username.toLowerCase())) {
-                        const existing = userMap.get(u.username.toLowerCase()) || {};
-                        userMap.set(u.username.toLowerCase(), { ...existing, ...u });
-                      }
-                    });
-                  }
-                } catch (e) {}
-              }
-
-              if (profilesRes.data && profilesRes.data.length > 0) {
-                profilesRes.data.forEach((p: any) => {
-                  if (p && p.username && !legacyMockUsernames.has(p.username.toLowerCase())) {
-                    const existing = userMap.get(p.username.toLowerCase()) || {};
-                    userMap.set(p.username.toLowerCase(), { ...existing, ...p });
-                  }
-                });
-              }
-
-              if (auditRes.data && auditRes.data.length > 0) {
-                auditRes.data.forEach((log: any) => {
-                  try {
-                    const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
-                    if (!details) return;
-                    if (log.action === 'USER_REGISTERED' || log.action === 'USER_CREATED_BY_ADMIN') {
-                      const u = details.user || details;
-                      if (u && u.username) {
-                        const existing = userMap.get(u.username.toLowerCase()) || {};
-                        userMap.set(u.username.toLowerCase(), { ...existing, ...u });
-                      }
-                    } else if (log.action === 'USER_APPROVED') {
-                      const un = (details.target_username || details.username || '').toLowerCase();
-                      if (un && userMap.has(un)) {
-                        const curr = userMap.get(un)!;
-                        userMap.set(un, { ...curr, status: 'Approved' });
-                      }
-                    } else if (log.action === 'USER_BLOCKED') {
-                      const un = (details.target_username || details.username || '').toLowerCase();
-                      if (un && userMap.has(un)) {
-                        const curr = userMap.get(un)!;
-                        userMap.set(un, { ...curr, status: 'Blocked' });
-                      }
-                    } else if (log.action === 'USER_DELETED') {
-                      const un = (details.target_username || details.username || '').toLowerCase();
-                      if (un) userMap.delete(un);
-                    } else if (log.action === 'USER_PROFILE_UPDATED') {
-                      const un = (details.target_username || details.username || '').toLowerCase();
-                      if (un && userMap.has(un) && details.updates) {
-                        const curr = userMap.get(un)!;
-                        userMap.set(un, { ...curr, ...details.updates });
-                      }
-                    }
-                  } catch (e) {}
-                });
-              }
-
-              const consolidated = Array.from(userMap.values());
-              setUsers(consolidated);
-              localStorage.setItem('meedo_users', JSON.stringify(consolidated));
-            } catch (err) {
-              console.warn('Supabase sync note:', err);
-            }
-          };
-          fetchSupabase();
-        } else {
-          // Local storage fallback if offline
-          const savedStalls = localStorage.getItem('meedo_stalls');
-          if (savedStalls) setStalls(JSON.parse(savedStalls));
-
-          const savedBills = localStorage.getItem('meedo_bills');
-          if (savedBills) setElectricBills(JSON.parse(savedBills));
-
-          const savedSlaughter = localStorage.getItem('meedo_slaughter');
-          if (savedSlaughter) setSlaughterRecords(JSON.parse(savedSlaughter));
-
-          const savedCem = localStorage.getItem('meedo_cemetery');
-          if (savedCem) setCemeteryBookings(JSON.parse(savedCem));
-
-          const savedTodas = localStorage.getItem('meedo_todas');
-          if (savedTodas) setTodas(JSON.parse(savedTodas));
-
-          const savedMembers = localStorage.getItem('meedo_members');
-          if (savedMembers) setTodaMembers(JSON.parse(savedMembers));
-
-          const savedOpif = localStorage.getItem('meedo_opif');
-          if (savedOpif) setOpifIndicators(JSON.parse(savedOpif));
-
-          const savedCsu = localStorage.getItem('meedo_csu');
-          if (savedCsu) setCsuReports(JSON.parse(savedCsu));
-
-          const savedGuards = localStorage.getItem('meedo_guards');
-          if (savedGuards) setGuards(JSON.parse(savedGuards));
-
-          const savedInvItems = localStorage.getItem('meedo_inventory_items');
-          if (savedInvItems) setInventoryItems(JSON.parse(savedInvItems));
-
-          const savedInvTx = localStorage.getItem('meedo_inventory_transactions');
-          if (savedInvTx) setInventoryTransactions(JSON.parse(savedInvTx));
-
-          const savedButchers = localStorage.getItem('meedo_butchers');
-          if (savedButchers) setButchers(JSON.parse(savedButchers));
-
-          const savedUsers = localStorage.getItem('meedo_users');
-          if (savedUsers) setUsers(JSON.parse(savedUsers));
-
-          const savedMonitoring = localStorage.getItem('meedo_monitoring_records');
-          if (savedMonitoring) setMonitoringRecords(JSON.parse(savedMonitoring));
-        }
-
+        const savedStalls = localStorage.getItem('meedo_stalls');
+        if (savedStalls) setStalls(JSON.parse(savedStalls));
+        const savedBills = localStorage.getItem('meedo_bills');
+        if (savedBills) setElectricBills(JSON.parse(savedBills));
+        const savedSlaughter = localStorage.getItem('meedo_slaughter');
+        if (savedSlaughter) setSlaughterRecords(JSON.parse(savedSlaughter));
+        const savedCem = localStorage.getItem('meedo_cemetery');
+        if (savedCem) setCemeteryBookings(JSON.parse(savedCem));
+        const savedTodas = localStorage.getItem('meedo_todas');
+        if (savedTodas) setTodas(JSON.parse(savedTodas));
+        const savedMembers = localStorage.getItem('meedo_members');
+        if (savedMembers) setTodaMembers(JSON.parse(savedMembers));
+        const savedOpif = localStorage.getItem('meedo_opif');
+        if (savedOpif) setOpifIndicators(JSON.parse(savedOpif));
+        const savedCsu = localStorage.getItem('meedo_csu');
+        if (savedCsu) setCsuReports(JSON.parse(savedCsu));
+        const savedGuards = localStorage.getItem('meedo_guards');
+        if (savedGuards) setGuards(JSON.parse(savedGuards));
+        const savedInvItems = localStorage.getItem('meedo_inventory_items');
+        if (savedInvItems) setInventoryItems(JSON.parse(savedInvItems));
+        const savedInvTx = localStorage.getItem('meedo_inventory_transactions');
+        if (savedInvTx) setInventoryTransactions(JSON.parse(savedInvTx));
+        const savedButchers = localStorage.getItem('meedo_butchers');
+        if (savedButchers) setButchers(JSON.parse(savedButchers));
+        const savedMonitoring = localStorage.getItem('meedo_monitoring_records');
+        if (savedMonitoring) setMonitoringRecords(JSON.parse(savedMonitoring));
         const savedCalendar = localStorage.getItem('meedo_calendar_events');
-        if (savedCalendar) {
-          try {
-            const parsed = JSON.parse(savedCalendar);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setMarketCalendarEvents(parsed);
-            }
-          } catch (e) {}
-        }
-
-        const savedActiveSessions = localStorage.getItem('meedo_guard_shift_sessions');
-        if (savedActiveSessions) {
-          try {
-            const parsed = JSON.parse(savedActiveSessions);
-            if (parsed && typeof parsed === 'object') {
-              setActiveShiftSessions(parsed);
-            }
-          } catch (e) {}
-        }
-
-        const savedActiveSession = localStorage.getItem('meedo_active_guard_session');
-        if (savedActiveSession) {
-          try {
-            const parsed = JSON.parse(savedActiveSession);
-            if (parsed && parsed.status && parsed.status !== 'ENDED') {
-              setActiveShiftSession(parsed);
-              if (parsed.guard_id) {
-                setActiveShiftSessions((prev) => ({ ...prev, [parsed.guard_id]: parsed }));
-              }
-            }
-          } catch (e) {}
-        }
+        if (savedCalendar) setMarketCalendarEvents(JSON.parse(savedCalendar));
       } catch (e) {
-        console.error('Failed to load saved state:', e);
+        console.error('Failed to restore local session state:', e);
       } finally {
         setAuthLoading(false);
       }
+      return () => {
+        cancelled = true;
+      };
     }
   }, []);
 
-  // Realtime Supabase Sync for Slaughterhouse (Records & Butchers) and Peace & Order (CSU Blotters)
+  // Fetch section- and role-authorized data ONLY after authentication
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !currentUser?.id || !pb.authStore.isValid || !isApprovedUser(currentUser)) {
+      return;
+    }
+
+    const client = supabase;
+    const isAdmin = currentUser.role === 'Admin' || currentUser.section === 'ALL';
+    const sec = currentUser.section;
+    const canA = isAdmin || sec === 'A';
+    const canB = isAdmin || sec === 'B';
+    const canC = isAdmin || sec === 'C';
+    const canD = isAdmin || sec === 'D';
+    const canF = isAdmin || sec === 'F';
+    const canOpif = isAdmin || ['A', 'B', 'C', 'D', 'E'].includes(sec);
+
+    const fetchAuthorizedData = async () => {
+      const emptyRes = { data: null, error: null };
+      const runIf = (cond: boolean, fn: () => PromiseLike<any>) =>
+        cond ? fn : () => Promise.resolve(emptyRes);
+
+      try {
+        // Run in bounded batches of 4 so Ngrok/PocketBase connections never drop under a 17-request burst
+        const tasks: Array<() => PromiseLike<any>> = [
+          runIf(canA, () => client.from('stalls').select('*')),
+          runIf(canA, () => client.from('stall_tenants').select('*')),
+          runIf(canA, () => client.from('electric_bills').select('*')),
+          runIf(canA, () => client.from('monitoring_records').select('*').order('monitoring_date', { ascending: false })),
+          runIf(canB, () => client.from('slaughter_records').select('*')),
+          runIf(canB, () => client.from('butchers').select('*')),
+          runIf(canC, () => client.from('cemetery_bookings').select('*')),
+          runIf(canD, () => client.from('todas').select('*')),
+          runIf(canD, () => client.from('toda_members').select('*')),
+          runIf(canOpif, () => client.from('opif_indicators').select('*')),
+          runIf(canF, () => client.from('csu_daily_reports').select('*')),
+          runIf(canF, () => client.from('market_guards').select('*')),
+          runIf(canF, () => client.from('market_calendar_events').select('*').order('date', { ascending: true })),
+          runIf(isAdmin, () => client.from('inventory_items').select('*')),
+          runIf(isAdmin, () => client.from('inventory_transactions').select('*')),
+          runIf(isAdmin, () => client.from('profiles').select('*')),
+          runIf(isAdmin, () => client.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(500)),
+        ];
+
+        const results: any[] = [];
+        for (let i = 0; i < tasks.length; i += 4) {
+          const chunk = await Promise.all(tasks.slice(i, i + 4).map((fn) => fn()));
+          results.push(...chunk);
+        }
+
+        const [
+          stallsRes,
+          tenantsRes,
+          billsRes,
+          monitoringRes,
+          slaughterRes,
+          butchersRes,
+          cemRes,
+          todasRes,
+          membersRes,
+          opifRes,
+          csuRes,
+          guardsRes,
+          calendarRes,
+          invItemsRes,
+          invTxRes,
+          profilesRes,
+          auditRes,
+        ] = results;
+
+        if (billsRes.data) setElectricBills(billsRes.data);
+        if (monitoringRes.data) setMonitoringRecords(monitoringRes.data);
+        if (slaughterRes.data) setSlaughterRecords(slaughterRes.data);
+        if (butchersRes.data) setButchers(butchersRes.data);
+        if (cemRes.data) setCemeteryBookings(cemRes.data);
+        if (todasRes.data) setTodas(todasRes.data);
+        if (membersRes.data) setTodaMembers(membersRes.data);
+        if (opifRes.data && opifRes.data.length > 0) {
+          const sortedOpif = [...opifRes.data]
+            .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+            .map(normalizeOpifRow);
+          setOpifIndicators(sortedOpif);
+        }
+        if (csuRes.data) {
+          const liveCsu = csuRes.data.filter((r: any) => Boolean(r && r.report_date));
+          setCsuReports(liveCsu);
+
+          const inProgressReports = liveCsu.filter((r: any) => !r.is_locked);
+          if (inProgressReports.length > 0) {
+            const restoredSessions: Record<string, GuardShiftSession> = {};
+            inProgressReports.forEach((r: any) => {
+              const firstGuard = r.personnel_data?.[0];
+              const guardId = firstGuard?.guard_id || 'G-101';
+              restoredSessions[guardId] = {
+                id: 'shift_sess_' + (r.id || Date.now()),
+                calendar_event_id: r.calendar_event_id,
+                guard_id: guardId,
+                guard_name: firstGuard?.guard_name || r.prep_name,
+                facility: 'Public Market Main',
+                area: r.area_covered,
+                shift_name: r.shift,
+                call_sign: 'EAGLE-1',
+                status: 'ON_DUTY',
+                time_in: firstGuard?.time_in || '06:00',
+                date: r.report_date,
+                patrol_logs: firstGuard?.patrol_logs || [],
+              };
+            });
+            setActiveShiftSessions((prev) => ({ ...restoredSessions, ...prev }));
+          }
+        }
+        if (invItemsRes.data) setInventoryItems(invItemsRes.data);
+        if (invTxRes.data) setInventoryTransactions(invTxRes.data);
+        if (auditRes.data) setAuditLogs(auditRes.data);
+
+        if (profilesRes.data) {
+          setUsers(profilesRes.data.map(sanitizeUserProfile));
+        } else {
+          setUsers([currentUser]);
+        }
+
+        if (guardsRes.data) {
+          const liveGuards: MarketGuard[] = [...guardsRes.data.filter((g: any) => Boolean(g && g.guard_id))];
+          if (profilesRes?.data) {
+            profilesRes.data
+              .filter((p: any) => p && p.section === 'F')
+              .forEach((p: any) => {
+                const guardId = p.guard_id || `G-${String(p.username || '').trim().toUpperCase()}`;
+                const exists = liveGuards.some(
+                  (g: any) => g.guard_id.toUpperCase() === guardId.toUpperCase()
+                );
+                if (!exists) {
+                  liveGuards.push({
+                    guard_id: guardId,
+                    guard_name: p.full_name || p.username,
+                    rank_title: p.rank_title || 'SO1',
+                    default_area: p.default_area || 'General Public Market',
+                    radio_call_sign: p.radio_call_sign || 'EAGLE-1',
+                    assigned_facility: 'Public Market Main',
+                    current_shift: '1st Shift (06:00 - 14:00)',
+                    status: 'Active',
+                  });
+                }
+              });
+          }
+          setGuards(liveGuards);
+        }
+
+        if (calendarRes.data) {
+          const liveCalendar = calendarRes.data.filter((e: any) => Boolean(e && e.id !== 'evt_shift_01'));
+          setMarketCalendarEvents(liveCalendar);
+        }
+
+        if (tenantsRes.data || stallsRes.data) {
+          const groupedTenants = new Map<string, StallTenant[]>();
+          (tenantsRes.data || []).forEach((t: any) => {
+            if (!t?.stall_no) return;
+            const list = groupedTenants.get(t.stall_no) || [];
+            list.push(t);
+            groupedTenants.set(t.stall_no, list);
+          });
+
+          const dbStallMap = new Map<string, any>();
+          (stallsRes.data || []).forEach((st: any) => {
+            if (st?.stall_no) dbStallMap.set(st.stall_no, st);
+          });
+
+          const inferZone = (stallNo: string): Stall['zone'] => {
+            const s = stallNo.toUpperCase();
+            if (s.startsWith('W')) return 'wet';
+            if (s.startsWith('O')) return 'old';
+            if (s.startsWith('T')) return 'triangular';
+            return 'dry';
+          };
+
+          const allStallNos = Array.from(
+            new Set([
+              ...initialStalls.map((s) => s.stall_no),
+              ...Array.from(dbStallMap.keys()),
+              ...Array.from(groupedTenants.keys()),
+            ])
+          );
+
+          const initialStallMap = new Map(initialStalls.map((s) => [s.stall_no, s]));
+
+          const mergedStalls: Stall[] = allStallNos.map((stallNo) => {
+            const seedStall = initialStallMap.get(stallNo);
+            const pbStall = dbStallMap.get(stallNo);
+            const rows = groupedTenants.get(stallNo) || [];
+
+            const sortedRows = [...rows].sort((a: any, b: any) => {
+              if (Boolean(b.is_current) !== Boolean(a.is_current)) {
+                return b.is_current ? 1 : -1;
+              }
+              const yDiff = Number(b.year || 0) - Number(a.year || 0);
+              if (yDiff !== 0) return yDiff;
+              return Number(b.period_index || 0) - Number(a.period_index || 0);
+            });
+
+            const currentRow = sortedRows.find((t) => Boolean(t.is_current)) || sortedRows[0] || null;
+            const historyRows = currentRow ? sortedRows.filter((t) => t !== currentRow) : sortedRows;
+            const hasOwner = Boolean(currentRow?.stall_owner && String(currentRow.stall_owner).trim());
+            const resolvedStatus: Stall['status'] = hasOwner
+              ? 'Occupied'
+              : pbStall?.status === 'Occupied' && currentRow
+              ? 'Occupied'
+              : 'Vacant';
+
+            return {
+              stall_no: stallNo,
+              zone: (pbStall?.zone || seedStall?.zone || inferZone(stallNo)) as Stall['zone'],
+              status: resolvedStatus,
+              current_tenant: currentRow,
+              tenant_history: historyRows,
+            };
+          });
+
+          setStalls(mergedStalls);
+        }
+      } catch (err) {
+        console.warn('PocketBase sync note:', err);
+      }
+    };
+
+    fetchAuthorizedData();
+  }, [currentUser?.id, currentUser?.role, currentUser?.section, currentUser?.status]);
+
+  // Authenticated section-scoped Realtime PocketBase Sync
   useEffect(() => {
     const client = supabase;
-    if (!isSupabaseConfigured || !client) return;
+    if (!isSupabaseConfigured || !client || !currentUser?.id || !pb.authStore.isValid || !isApprovedUser(currentUser)) return;
 
-    const channel = client
-      .channel('meedo-realtime-global')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'butchers' },
-        (payload) => {
+    const isAdmin = currentUser.role === 'Admin' || currentUser.section === 'ALL';
+    const sec = currentUser.section;
+    const channel = client.channel('meedo-realtime-global');
+
+    if (isAdmin || sec === 'B') {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'butchers' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             const newBtc = payload.new as ButcherProfile;
             setButchers((prev) => {
@@ -614,18 +948,12 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               });
             }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'slaughter_records' },
-        (payload) => {
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'slaughter_records' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             const newRecord = payload.new as SlaughterRecord;
             setSlaughterRecords((prev) => {
-              if (prev.some((r) => r.id === newRecord.id)) {
-                return prev;
-              }
+              if (prev.some((r) => r.id === newRecord.id)) return prev;
               const updated = [newRecord, ...prev];
               localStorage.setItem('meedo_slaughter', JSON.stringify(updated));
               return updated;
@@ -647,12 +975,12 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               });
             }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'csu_daily_reports' },
-        (payload) => {
+        });
+    }
+
+    if (isAdmin || sec === 'F') {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'csu_daily_reports' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             const newReport = payload.new as CsuDailyReport;
             setCsuReports((prev) => {
@@ -678,12 +1006,15 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               });
             }
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'audit_logs' },
-        (payload) => {
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'market_calendar_events' }, (payload) =>
+          applyCollectionRealtime(setMarketCalendarEvents, 'meedo_calendar_events', payload)
+        );
+    }
+
+    if (isAdmin) {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs' }, (payload) => {
           if (payload.eventType === 'INSERT') {
             const newLog = payload.new as AuditLog;
             setAuditLogs((prev) => {
@@ -691,16 +1022,71 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               return [newLog, ...prev];
             });
           }
-        }
-      )
-      .subscribe();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_items' }, (payload) =>
+          applyCollectionRealtime(setInventoryItems, 'meedo_inventory_items', payload)
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_transactions' }, (payload) =>
+          applyCollectionRealtime(setInventoryTransactions, 'meedo_inventory_transactions', payload)
+        );
+    }
+
+    if (isAdmin || sec === 'A') {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'electric_bills' }, (payload) =>
+          applyCollectionRealtime(setElectricBills, 'meedo_bills', payload)
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'monitoring_records' }, (payload) =>
+          applyCollectionRealtime(setMonitoringRecords, 'meedo_monitoring_records', payload)
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'stall_tenants' }, (payload) => {
+          const rec = (payload.new || payload.old) as StallTenant | null;
+          if (!rec?.stall_no) return;
+          setStalls((prev) =>
+            prev.map((st) => {
+              if (st.stall_no !== rec.stall_no) return st;
+              if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                if (rec.is_current) {
+                  return { ...st, status: rec.stall_owner ? 'Occupied' : st.status, current_tenant: { ...st.current_tenant, ...rec } };
+                }
+              }
+              return st;
+            })
+          );
+        });
+    }
+
+    if (isAdmin || sec === 'C') {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'cemetery_bookings' }, (payload) =>
+        applyCollectionRealtime(setCemeteryBookings, 'meedo_cemetery', payload)
+      );
+    }
+
+    if (isAdmin || sec === 'D') {
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'todas' }, (payload) =>
+          applyCollectionRealtime(setTodas, 'meedo_todas', payload)
+        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'toda_members' }, (payload) =>
+          applyCollectionRealtime(setTodaMembers, 'meedo_members', payload)
+        );
+    }
+
+    if (isAdmin || ['A', 'B', 'C', 'D', 'E'].includes(sec)) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'opif_indicators' }, (payload) =>
+        applyCollectionRealtime(setOpifIndicators, 'meedo_opif', payload, normalizeOpifRow)
+      );
+    }
+
+    channel.subscribe();
 
     return () => {
       client.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.role, currentUser?.section, currentUser?.status]);
 
   const addGuard = (guard: MarketGuard) => {
+    if (!requirePermission('csu:manage_guards')) return;
     setGuards((prev) => {
       const exists = prev.some((g) => g.guard_id.toUpperCase() === guard.guard_id.toUpperCase());
       const updated = exists
@@ -723,6 +1109,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateGuard = (guardId: string, updates: Partial<MarketGuard>) => {
+    if (!requirePermission('csu:manage_guards')) return;
     const existing = guards.find((g) => g.guard_id.toUpperCase() === guardId.toUpperCase());
     setGuards((prev) => {
       const updated = prev.map((g) =>
@@ -744,6 +1131,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteGuard = (guardId: string) => {
+    if (!requirePermission('csu:manage_guards')) return;
     const existing = guards.find((g) => g.guard_id.toUpperCase() === guardId.toUpperCase());
     setGuards((prev) => {
       const updated = prev.filter((g) => g.guard_id.toUpperCase() !== guardId.toUpperCase());
@@ -772,238 +1160,408 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const syncSectionFGuardRoster = (user: {
+    guard_id?: string;
+    full_name?: string;
+    username: string;
+    rank_title?: string;
+    radio_call_sign?: string;
+    default_area?: string;
+  }) => {
+    const cleanGuardId = user.guard_id?.trim().toUpperCase();
+    if (!cleanGuardId) return;
+    const cleanName = user.full_name?.trim() || user.username;
+    const cleanRank = user.rank_title?.trim() || 'SO1';
+    const cleanCall = user.radio_call_sign?.trim().toUpperCase() || 'EAGLE-1';
+    const cleanArea = user.default_area?.trim() || 'General Public Market';
+
+    setGuards((prev) => {
+      const idx = prev.findIndex((g) => g.guard_id.toUpperCase() === cleanGuardId);
+      if (idx >= 0) {
+        return prev.map((g, i) =>
+          i === idx
+            ? {
+                ...g,
+                guard_name: cleanName,
+                rank_title: cleanRank || g.rank_title,
+                radio_call_sign: cleanCall || g.radio_call_sign,
+                default_area: cleanArea || g.default_area,
+              }
+            : g
+        );
+      }
+      return [
+        ...prev,
+        {
+          guard_id: cleanGuardId,
+          guard_name: cleanName,
+          rank_title: cleanRank,
+          default_area: cleanArea,
+          radio_call_sign: cleanCall,
+          assigned_facility: 'Public Market Main',
+          current_shift: '1st Shift (06:00 - 14:00)',
+          status: 'Active',
+        },
+      ];
+    });
+
+    if (isSupabaseConfigured && supabase && pb.authStore.isValid) {
+      supabase
+        .from('market_guards')
+        .upsert(
+          {
+            guard_id: cleanGuardId,
+            guard_name: cleanName,
+            rank_title: cleanRank,
+            default_area: cleanArea,
+            radio_call_sign: cleanCall,
+            assigned_facility: 'Public Market Main',
+            current_shift: '1st Shift (06:00 - 14:00)',
+            status: 'Active',
+          },
+          { onConflict: 'guard_id' }
+        )
+        .then();
+    }
+  };
+
   const refreshUsers = async (): Promise<void> => {
     if (!isSupabaseConfigured || !supabase) return;
+    if (!pb.authStore.isValid) {
+      throw new Error('Authentication session expired. Please sign in again.');
+    }
+    if (!hasPermission(currentUser, 'users:manage')) {
+      throw new Error('Administrator privilege required to synchronize directory.');
+    }
     try {
-      const [profilesRes, auditRes] = await Promise.all([
-        supabase.from('profiles').select('*'),
-        supabase.from('audit_logs').select('*').order('created_at', { ascending: true }),
-      ]);
-
+      const profilesRes = await supabase.from('profiles').select('*');
       if (profilesRes.error) {
         console.error('Failed to query profiles:', profilesRes.error);
         throw profilesRes.error;
       }
-
-      const legacyMockUsernames = new Set([
-        'mimi', 'mapingloloy', 'maisiao', 'ana marie nunez', 'dadivas',
-        'rafjunsomosa', 'constantino', 'barlon peñalber', 'melsion04',
-        'jomar', 'redentor', 'aiellbernil1996@gmail.com', 'domingorios',
-        'rexmonteliza', 'alvin'
-      ]);
-
-      const userMap = new Map<string, UserProfile>();
-      initialUsers.forEach((u) => userMap.set(u.username.toLowerCase(), u));
-
-      const localUsers = localStorage.getItem('meedo_users');
-      if (localUsers) {
-        try {
-          const parsed = JSON.parse(localUsers);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((u: UserProfile) => {
-              if (u && u.username && !legacyMockUsernames.has(u.username.toLowerCase())) {
-                userMap.set(u.username.toLowerCase(), {
-                  ...userMap.get(u.username.toLowerCase()),
-                  ...u,
-                });
-              }
-            });
-          }
-        } catch (e) {}
-      }
-
-      if (profilesRes.data && profilesRes.data.length > 0) {
-        profilesRes.data.forEach((p: any) => {
-          if (p && p.username && !legacyMockUsernames.has(p.username.toLowerCase())) {
-            const existing = userMap.get(p.username.toLowerCase()) || {};
-            userMap.set(p.username.toLowerCase(), { ...existing, ...p });
-          }
-        });
-      }
-
-      if (auditRes.data && auditRes.data.length > 0) {
-        auditRes.data.forEach((log: any) => {
-          try {
-            const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
-            if (!details) return;
-            if (log.action === 'USER_REGISTERED' || log.action === 'USER_CREATED_BY_ADMIN') {
-              const u = details.user || details;
-              if (u && u.username && !legacyMockUsernames.has(u.username.toLowerCase())) {
-                const existing = userMap.get(u.username.toLowerCase()) || {};
-                userMap.set(u.username.toLowerCase(), { ...existing, ...u });
-              }
-            } else if (log.action === 'USER_APPROVED') {
-              const un = (details.target_username || details.username || '').toLowerCase();
-              if (un && userMap.has(un)) {
-                const curr = userMap.get(un)!;
-                userMap.set(un, { ...curr, status: 'Approved' });
-              }
-            } else if (log.action === 'USER_BLOCKED') {
-              const un = (details.target_username || details.username || '').toLowerCase();
-              if (un && userMap.has(un)) {
-                const curr = userMap.get(un)!;
-                userMap.set(un, { ...curr, status: 'Blocked' });
-              }
-            } else if (log.action === 'USER_DELETED') {
-              const un = (details.target_username || details.username || '').toLowerCase();
-              if (un) userMap.delete(un);
-            } else if (log.action === 'USER_PROFILE_UPDATED') {
-              const un = (details.target_username || details.username || '').toLowerCase();
-              if (un && userMap.has(un) && details.updates) {
-                const curr = userMap.get(un)!;
-                userMap.set(un, { ...curr, ...details.updates });
-              }
-            }
-          } catch (e) {}
-        });
-      }
-
-      const mergedUsers = Array.from(userMap.values());
-      setUsers(mergedUsers);
-      localStorage.setItem('meedo_users', JSON.stringify(mergedUsers));
-
-      // Auto-sync any locally cached valid users missing from Supabase profiles
-      const supabaseUsernames = new Set(
-        (profilesRes.data || []).map((p: any) => (p.username || '').toLowerCase())
-      );
-      const entriesToSync = Array.from(userMap.entries()).filter(
-        ([uname]) => !supabaseUsernames.has(uname) && !legacyMockUsernames.has(uname) && uname !== 'admin'
-      );
-      for (const [, u] of entriesToSync) {
-        try {
-          const basePayload: Record<string, any> = {
-            id: u.id || generateUUID(),
-            username: u.username,
-            role: u.role || 'Staff',
-            section: u.section || 'A',
-            status: u.status || 'Approved',
-            full_name: u.full_name || u.username,
-            password: u.password || null,
-            guard_id: u.guard_id || null,
-            rank_title: u.rank_title || null,
-            created_at: u.created_at || new Date().toISOString(),
-          };
-          await supabase.from('profiles').upsert(basePayload, { onConflict: 'username' });
-        } catch (e) {
-          console.warn('Auto-sync profile note:', e);
-        }
-      }
+      const nextUsers = (profilesRes.data || []).map(sanitizeUserProfile);
+      setUsers(nextUsers);
+      localStorage.removeItem('meedo_users');
     } catch (err) {
-      console.warn('Failed to refresh users directory from Supabase:', err);
+      console.warn('Failed to refresh users directory from PocketBase:', err);
       throw err;
     }
   };
 
-  const login = (
-    identifier: string,
-    passwordInput?: string
-  ): { success: boolean; message?: string } => {
-    const trimmed = identifier.trim().toLowerCase();
-    if (!trimmed) {
-      return { success: false, message: 'Please enter your username or Guard ID.' };
+  const loginWithEmail = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      return { success: false, message: 'Please enter your email address.' };
+    }
+    if (!password) {
+      return { success: false, message: 'Please enter your password.' };
+    }
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      return { success: false, message: 'Firebase Authentication is not configured.' };
     }
 
-    const existing = users.find(
-      (u) =>
-        u.username.toLowerCase() === trimmed ||
-        (u.guard_id && u.guard_id.toLowerCase() === trimmed)
-    );
-
-    if (existing) {
-      if (existing.status === 'Pending') {
-        return {
-          success: false,
-          message: 'Account approval pending. Please contact the MEEDO Office to activate your departmental credentials.',
-        };
-      }
-      if (existing.status === 'Blocked') {
-        return {
-          success: false,
-          message: 'Account suspended. This user account has been deactivated by the Administrator.',
-        };
-      }
-
-      // Password verification: if account has a designated password, check it
-      if (existing.password && passwordInput !== undefined) {
-        if (existing.password !== passwordInput.trim()) {
-          return {
-            success: false,
-            message: 'Invalid password. Please enter the correct password for this account.',
-          };
-        }
-      }
-
-      setCurrentUser(existing);
-      localStorage.setItem('meedo_current_user', JSON.stringify(existing));
-
-      if (isSupabaseConfigured && supabase) {
-        supabase
-          .from('audit_logs')
-          .insert({
-            username: existing.username,
-            action: 'USER_LOGIN',
-            details: JSON.stringify({
-              role: existing.role,
-              section: existing.section,
-              timestamp: new Date().toISOString(),
-            }),
-          })
-          .then();
-      }
-
-      return { success: true };
+    authFlowInProgressRef.current = true;
+    try {
+      const cred = await signInWithEmailAndPassword(firebaseAuth, cleanEmail, password);
+      return await exchangeFirebaseSession(cred.user);
+    } catch (err: any) {
+      return { success: false, code: err?.code, message: mapFirebaseAuthError(err) };
+    } finally {
+      authFlowInProgressRef.current = false;
+      setAuthLoading(false);
     }
-
-    // Check if identifier matches a registered guard from the roster (e.g. G-101, G-102...)
-    const matchedGuard = guards.find((g) => g.guard_id.toLowerCase() === trimmed);
-    if (matchedGuard) {
-      const guardUser: UserProfile = {
-        id: 'usr_guard_' + matchedGuard.guard_id,
-        username: matchedGuard.guard_id,
-        role: 'Staff',
-        section: 'F',
-        status: 'Approved',
-        guard_id: matchedGuard.guard_id,
-        full_name: matchedGuard.guard_name,
-        rank_title: matchedGuard.rank_title,
-      };
-      setCurrentUser(guardUser);
-      localStorage.setItem('meedo_current_user', JSON.stringify(guardUser));
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      message: 'Invalid credentials. User or Guard ID does not exist in the MEEDOSys registry.',
-    };
   };
 
-  const logout = () => {
+  const loginWithGoogle = async (): Promise<{ success: boolean; code?: string; message?: string }> => {
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      return { success: false, message: 'Firebase Authentication is not configured.' };
+    }
+
+    authFlowInProgressRef.current = true;
+    try {
+      const cred = await signInWithPopup(firebaseAuth, googleProvider);
+      return await exchangeFirebaseSession(cred.user);
+    } catch (err: any) {
+      return { success: false, code: err?.code, message: mapFirebaseAuthError(err) };
+    } finally {
+      authFlowInProgressRef.current = false;
+      setAuthLoading(false);
+    }
+  };
+
+  const login = async (
+    identifier: string,
+    passwordInput?: string
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    return loginWithEmail(identifier, passwordInput || '');
+  };
+
+  const submitFirebaseProfileRegistration = async (
+    fbUser: FirebaseUser,
+    params: FirebaseRegistrationInput
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    if (!isPocketBaseConfigured) {
+      return { success: false, message: 'Registration server is not configured.' };
+    }
+
+    const trimmedUser = params.username.trim();
+    if (!trimmedUser || trimmedUser.length < 2) {
+      return { success: false, message: 'Username must be at least 2 characters long.' };
+    }
+    if (!['A', 'B', 'C', 'D', 'E', 'F'].includes(params.section)) {
+      return { success: false, message: 'Public registration is restricted to departmental staff sections (A–F).' };
+    }
+    const cleanGuardId = params.section === 'F' ? (params.guardId || '').trim().toUpperCase() : '';
+    if (params.section === 'F' && !cleanGuardId) {
+      return { success: false, message: 'Guard ID is required for Section F Market Guard registration.' };
+    }
+
+    try {
+      const idToken = await fbUser.getIdToken(true);
+      const res = await pb.send('/api/meedo/firebase-register', {
+        method: 'POST',
+        body: {
+          idToken,
+          username: trimmedUser,
+          full_name: (params.fullName || fbUser.displayName || trimmedUser).trim(),
+          section: params.section,
+          guard_id: cleanGuardId,
+          rank_title: params.section === 'F' ? (params.rankTitle || 'SO1').trim() : '',
+          radio_call_sign: params.section === 'F' ? (params.radioCallSign || '').trim().toUpperCase() : '',
+          default_area: params.section === 'F' ? (params.defaultArea || 'General Public Market').trim() : '',
+        },
+        requestKey: null,
+      });
+
+      pb.authStore.clear();
+      setCurrentUser(null);
+      localStorage.removeItem('meedo_current_user');
+      setFirebaseGateState({
+        mode: 'ACCOUNT_PENDING',
+        email: fbUser.email || undefined,
+        displayName: (params.fullName || fbUser.displayName || trimmedUser).trim(),
+        emailVerified: fbUser.emailVerified,
+        message: res?.message || 'Registration submitted! Awaiting Administrator approval.',
+      });
+      return {
+        success: true,
+        code: res?.code || 'ACCOUNT_PENDING',
+        message: res?.message || 'Registration submitted! Awaiting Administrator approval.',
+      };
+    } catch (err: any) {
+      const errBody = err?.response || err?.data || {};
+      return {
+        success: false,
+        code: errBody?.code,
+        message: errBody?.message || extractPbErrorMessage(err, 'Registration failed. Please try again.'),
+      };
+    }
+  };
+
+  const registerWithEmail = async (
+    params: FirebaseRegistrationInput & { email: string; password: string }
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    const cleanEmail = params.email.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+    if (!params.password || params.password.length < 6) {
+      return { success: false, message: 'Password must be at least 6 characters long.' };
+    }
+    const trimmedUser = params.username.trim();
+    if (!trimmedUser || trimmedUser.length < 2) {
+      return { success: false, message: 'Username is required (at least 2 characters).' };
+    }
+    if (!['A', 'B', 'C', 'D', 'E', 'F'].includes(params.section)) {
+      return { success: false, message: 'Public registration is restricted to departmental staff sections (A–F).' };
+    }
+    if (params.section === 'F' && !params.guardId?.trim()) {
+      return { success: false, message: 'Please provide a Guard ID (e.g. G-101) for Market Guard personnel.' };
+    }
+    if (!isFirebaseConfigured || !firebaseAuth) {
+      return { success: false, message: 'Firebase Authentication is not configured.' };
+    }
+
+    authFlowInProgressRef.current = true;
+    let newlyCreatedUser: FirebaseUser | null = null;
+    try {
+      const cred = await createUserWithEmailAndPassword(firebaseAuth, cleanEmail, params.password);
+      newlyCreatedUser = cred.user;
+      const cleanName = (params.fullName || trimmedUser).trim();
+      await updateFirebaseProfile(cred.user, { displayName: cleanName }).catch(() => {});
+      await sendEmailVerification(cred.user).catch(() => {});
+
+      const regResult = await submitFirebaseProfileRegistration(cred.user, params);
+      if (!regResult.success) {
+        // Prevent dangling Firebase accounts when PocketBase rejects duplicate username / Guard ID
+        await newlyCreatedUser.delete().catch(() => {});
+        await firebaseSignOut(firebaseAuth).catch(() => {});
+        setFirebaseGateState(null);
+        return regResult;
+      }
+      return regResult;
+    } catch (err: any) {
+      return { success: false, code: err?.code, message: mapFirebaseAuthError(err) };
+    } finally {
+      authFlowInProgressRef.current = false;
+      setAuthLoading(false);
+    }
+  };
+
+  const completeFirebaseRegistration = async (
+    params: FirebaseRegistrationInput
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    const fbUser = firebaseAuth?.currentUser;
+    if (!fbUser) {
+      return { success: false, message: 'Please sign in with Firebase or Google first.' };
+    }
+    authFlowInProgressRef.current = true;
+    try {
+      return await submitFirebaseProfileRegistration(fbUser, params);
+    } finally {
+      authFlowInProgressRef.current = false;
+      setAuthLoading(false);
+    }
+  };
+
+  const linkExistingAccount = async (
+    identifier: string,
+    password: string
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    const fbUser = firebaseAuth?.currentUser;
+    if (!fbUser) {
+      return { success: false, message: 'Please sign in with Google or Email first.' };
+    }
+    const cleanId = identifier.trim();
+    if (!cleanId || !password) {
+      return { success: false, message: 'Existing username (or Guard ID) and password are required.' };
+    }
+
+    authFlowInProgressRef.current = true;
+    try {
+      const idToken = await fbUser.getIdToken(true);
+      const res = await pb.send('/api/meedo/firebase-link', {
+        method: 'POST',
+        body: { idToken, identifier: cleanId, password },
+        requestKey: null,
+      });
+
+      if (res?.token && res?.record) {
+        pb.authStore.save(res.token, res.record);
+        const profile = sanitizeUserProfile(res.record);
+        setCurrentUser(profile);
+        setFirebaseGateState(null);
+        localStorage.setItem('meedo_current_user', JSON.stringify(profile));
+        localStorage.removeItem('meedo_users');
+        return { success: true };
+      }
+
+      return { success: false, message: res?.message || 'Unable to link account.' };
+    } catch (err: any) {
+      const errBody = err?.response || err?.data || {};
+      const code = String(errBody?.code || '');
+      const message = errBody?.message || extractPbErrorMessage(err, 'Unable to link existing account.');
+      if (code === 'ACCOUNT_PENDING' || code === 'ACCOUNT_BLOCKED') {
+        setFirebaseGateState({
+          mode: code,
+          email: fbUser.email || undefined,
+          displayName: fbUser.displayName || undefined,
+          emailVerified: fbUser.emailVerified,
+          message,
+        });
+      }
+      return { success: false, code, message };
+    } finally {
+      authFlowInProgressRef.current = false;
+      setAuthLoading(false);
+    }
+  };
+
+  const sendPasswordReset = async (email: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      await sendUserPasswordReset(email);
+      return {
+        success: true,
+        message: `Password reset email sent to ${email.trim()}. Please check your inbox and spam folder.`,
+      };
+    } catch (err: any) {
+      return { success: false, message: mapFirebaseAuthError(err) };
+    }
+  };
+
+  const resendVerificationEmail = async (): Promise<{ success: boolean; message?: string }> => {
+    const fbUser = firebaseAuth?.currentUser;
+    if (!fbUser) {
+      return { success: false, message: 'No active Firebase user session found.' };
+    }
+    try {
+      await sendEmailVerification(fbUser);
+      return {
+        success: true,
+        message: `Verification email sent to ${fbUser.email || 'your address'}.`,
+      };
+    } catch (err: any) {
+      return { success: false, message: mapFirebaseAuthError(err) };
+    }
+  };
+
+  const retryFirebaseSession = async (): Promise<{ success: boolean; code?: string; message?: string }> => {
+    const fbUser = firebaseAuth?.currentUser;
+    if (!fbUser) {
+      setFirebaseGateState(null);
+      return { success: false, message: 'Please sign in again.' };
+    }
+    authFlowInProgressRef.current = true;
+    try {
+      await fbUser.reload().catch(() => {});
+      return await exchangeFirebaseSession(fbUser);
+    } finally {
+      authFlowInProgressRef.current = false;
+      setAuthLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    authFlowInProgressRef.current = false;
+    if (firebaseAuth) {
+      await firebaseSignOut(firebaseAuth).catch(() => {});
+    }
+    pb.authStore.clear();
     setCurrentUser(null);
+    setUsers([]);
+    setFirebaseGateState(null);
     setActiveShiftSession(null);
-    localStorage.removeItem('meedo_current_user');
-    localStorage.removeItem('meedo_active_guard_session');
+    setActiveShiftSessions({});
     if (typeof window !== 'undefined') {
+      const keysToClear = [
+        'meedo_current_user',
+        'meedo_users',
+        'meedo_active_guard_session',
+        'meedo_guard_shift_sessions',
+        'meedo_stalls',
+        'meedo_bills',
+        'meedo_slaughter',
+        'meedo_butchers',
+        'meedo_cemetery',
+        'meedo_todas',
+        'meedo_members',
+        'meedo_opif',
+        'meedo_csu',
+        'meedo_guards',
+        'meedo_calendar_events',
+        'meedo_inventory_items',
+        'meedo_inventory_transactions',
+        'meedo_monitoring_records',
+      ];
+      keysToClear.forEach((k) => localStorage.removeItem(k));
       window.location.href = '/login';
     }
   };
 
-  const switchSectionUser = (sectionCode: UserSection): boolean => {
-    const target = users.find(
-      (u) =>
-        (sectionCode === 'ALL'
-          ? u.role === 'Admin' || u.section === 'ALL'
-          : u.section === sectionCode) && u.status === 'Approved'
-    );
-    if (target) {
-      setCurrentUser(target);
-      localStorage.setItem('meedo_current_user', JSON.stringify(target));
-      return true;
-    }
-    return false;
-  };
-
-  const registerUser = (
+  const registerUser = async (
     username: string,
     section: string,
     guardId?: string,
@@ -1011,189 +1569,58 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     rankTitle?: string,
     password?: string,
     radioCallSign?: string,
-    defaultArea?: string
-  ): { success: boolean; message?: string } => {
-    const trimmedUser = username.trim();
-    if (!trimmedUser) {
-      return { success: false, message: 'Username is required.' };
+    defaultArea?: string,
+    email?: string
+  ): Promise<{ success: boolean; code?: string; message?: string }> => {
+    if (!email || !email.trim()) {
+      return { success: false, message: 'Email address is required for Firebase registration.' };
     }
-
-    const exists = users.some(
-      (u) => u.username.toLowerCase() === trimmedUser.toLowerCase()
-    );
-    if (exists) {
-      return { success: false, message: 'This username is already registered. Please choose another.' };
-    }
-
-    const cleanGuardId = guardId ? guardId.trim().toUpperCase() : undefined;
-    const cleanFullName = fullName ? fullName.trim() : trimmedUser;
-    const cleanRankTitle = rankTitle ? rankTitle.trim() : undefined;
-    const cleanPassword = password?.trim() || undefined;
-    const cleanRadioCallSign = radioCallSign?.trim().toUpperCase() || undefined;
-    const cleanDefaultArea = defaultArea?.trim() || 'General Public Market';
-
-    const newUser: UserProfile = {
-      id: generateUUID(),
-      username: trimmedUser,
-      role: 'Staff',
-      section: section as UserSection,
-      status: 'Pending',
-      password: cleanPassword,
-      guard_id: cleanGuardId,
-      full_name: cleanFullName,
-      rank_title: cleanRankTitle,
-      radio_call_sign: cleanRadioCallSign,
-      default_area: cleanDefaultArea,
-      created_at: new Date().toISOString(),
-    };
-
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
-
-    // Direct synchronization to Supabase public.profiles and audit_logs
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('profiles')
-        .upsert(
-          {
-            id: newUser.id,
-            username: newUser.username,
-            role: newUser.role,
-            section: newUser.section,
-            status: newUser.status,
-            full_name: newUser.full_name,
-            password: newUser.password || null,
-            guard_id: newUser.guard_id || null,
-            rank_title: newUser.rank_title || null,
-            created_at: newUser.created_at,
-          },
-          { onConflict: 'username' }
-        )
-        .then(({ error }) => {
-          if (error) console.error('Supabase profile registration sync error:', error);
-        });
-
-      supabase
-        .from('audit_logs')
-        .insert({
-          username: newUser.username,
-          action: 'USER_REGISTERED',
-          details: JSON.stringify({
-            user: newUser,
-            timestamp: new Date().toISOString(),
-          }),
-        })
-        .then();
-    }
-
-    // If registering under Section F with Guard ID, ensure it exists in guards roster and market_guards
-    if (section === 'F' && cleanGuardId) {
-      setGuards((prev) => {
-        const existingIndex = prev.findIndex(
-          (g) => g.guard_id.toUpperCase() === cleanGuardId
-        );
-        let updatedRoster: MarketGuard[];
-        if (existingIndex >= 0) {
-          updatedRoster = prev.map((g, i) =>
-            i === existingIndex
-              ? {
-                  ...g,
-                  guard_name: cleanFullName,
-                  rank_title: cleanRankTitle || g.rank_title,
-                  radio_call_sign: cleanRadioCallSign || g.radio_call_sign,
-                  default_area: cleanDefaultArea || g.default_area,
-                }
-              : g
-          );
-        } else {
-          updatedRoster = [
-            ...prev,
-            {
-              guard_id: cleanGuardId,
-              guard_name: cleanFullName,
-              rank_title: cleanRankTitle || 'SO1',
-              default_area: cleanDefaultArea,
-              radio_call_sign: cleanRadioCallSign,
-              assigned_facility: 'Public Market Main',
-              current_shift: '1st Shift (06:00 - 14:00)',
-              status: 'Active',
-            },
-          ];
-        }
-        localStorage.setItem('meedo_guards', JSON.stringify(updatedRoster));
-        return updatedRoster;
-      });
-
-      if (isSupabaseConfigured && supabase) {
-        supabase
-          .from('market_guards')
-          .upsert(
-            {
-              guard_id: cleanGuardId,
-              guard_name: cleanFullName,
-              rank_title: cleanRankTitle || 'SO1',
-              default_area: cleanDefaultArea,
-              radio_call_sign: cleanRadioCallSign || null,
-              assigned_facility: 'Public Market Main',
-              current_shift: '1st Shift (06:00 - 14:00)',
-              status: 'Active',
-            },
-            { onConflict: 'guard_id' }
-          )
-          .then();
-      }
-    }
-
-    return { success: true };
+    return registerWithEmail({
+      email,
+      password: password || '',
+      username,
+      section,
+      guardId,
+      fullName,
+      rankTitle,
+      radioCallSign,
+      defaultArea,
+    });
   };
 
-  const updateUserStatus = (username: string, action: 'approve' | 'block' | 'delete') => {
-    let updated: UserProfile[];
-    if (action === 'delete') {
-      updated = users.filter((u) => u.username.toLowerCase() !== username.toLowerCase());
-    } else {
-      updated = users.map((u) =>
-        u.username.toLowerCase() === username.toLowerCase()
-          ? { ...u, status: action === 'approve' ? 'Approved' : 'Blocked' }
-          : u
-      );
+  const updateUserStatus = async (
+    username: string,
+    action: 'approve' | 'block' | 'delete'
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'users:manage')) {
+      return { success: false, message: 'Administrator privilege required.' };
     }
-    setUsers(updated);
-    localStorage.setItem('meedo_users', JSON.stringify(updated));
 
-    // Update active currentUser session if matching
-    if (currentUser?.username.toLowerCase() === username.toLowerCase()) {
-      if (action === 'delete' || action === 'block') {
-        setCurrentUser(null);
-        localStorage.removeItem('meedo_current_user');
-      } else {
-        const updatedSelf = { ...currentUser, status: 'Approved' as const };
-        setCurrentUser(updatedSelf);
-        localStorage.setItem('meedo_current_user', JSON.stringify(updatedSelf));
-      }
+    const targetUser = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+    if (!targetUser?.id) {
+      return { success: false, message: `User "${username}" was not found.` };
     }
+    if (targetUser.username.toLowerCase() === 'admin' && action !== 'approve') {
+      return { success: false, message: 'Root administrator account cannot be blocked or deleted.' };
+    }
+    const targetId = toPbId(targetUser.id);
 
     if (isSupabaseConfigured && supabase) {
-      if (action === 'delete') {
-        supabase
-          .from('profiles')
-          .delete()
-          .ilike('username', username)
-          .then(({ error }) => {
-            if (error) console.error('Supabase delete profile error:', error);
-          });
-      } else {
-        supabase
-          .from('profiles')
-          .update({
-            status: action === 'approve' ? 'Approved' : 'Blocked',
-            updated_at: new Date().toISOString(),
-          })
-          .ilike('username', username)
-          .then(({ error }) => {
-            if (error) console.error('Supabase update profile status error:', error);
-          });
+      const { error } =
+        action === 'delete'
+          ? await supabase.from('profiles').delete().eq('id', targetId)
+          : await supabase
+              .from('profiles')
+              .update({
+                status: action === 'approve' ? 'Approved' : 'Blocked',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', targetId);
+
+      if (error) {
+        const msg = extractPbErrorMessage(error, 'Failed to update user status in database.');
+        console.error('PocketBase profile status sync error:', error);
+        return { success: false, message: msg };
       }
 
       supabase
@@ -1202,85 +1629,108 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           username: currentUser?.username || 'admin',
           action: action === 'approve' ? 'USER_APPROVED' : action === 'block' ? 'USER_BLOCKED' : 'USER_DELETED',
           details: JSON.stringify({
-            target_username: username,
+            target_id: targetId,
+            target_username: targetUser.username,
             action,
             timestamp: new Date().toISOString(),
           }),
         })
         .then();
     }
-  };
 
-  const updateUserProfile = (username: string, updates: Partial<UserProfile>) => {
-    const updated = users.map((u) => {
-      if (u.username.toLowerCase() === username.toLowerCase()) {
-        return { ...u, ...updates, updated_at: new Date().toISOString() };
-      }
-      return u;
-    });
-    setUsers(updated);
-    localStorage.setItem('meedo_users', JSON.stringify(updated));
+    setUsers((prev) =>
+      action === 'delete'
+        ? prev.filter((u) => u.id !== targetUser.id)
+        : prev.map((u) =>
+            u.id === targetUser.id
+              ? { ...u, status: action === 'approve' ? 'Approved' : 'Blocked' }
+              : u
+          )
+    );
 
-    if (currentUser?.username.toLowerCase() === username.toLowerCase()) {
-      const updatedSelf = { ...currentUser, ...updates };
-      setCurrentUser(updatedSelf);
-      localStorage.setItem('meedo_current_user', JSON.stringify(updatedSelf));
+    if (action === 'approve' && targetUser.section === 'F' && targetUser.guard_id) {
+      syncSectionFGuardRoster(targetUser);
     }
 
-    if (isSupabaseConfigured && supabase) {
-      const client = supabase;
-      const basePayload: any = { updated_at: new Date().toISOString() };
-      if (updates.role !== undefined) basePayload.role = updates.role;
-      if (updates.section !== undefined) basePayload.section = updates.section;
-      if (updates.status !== undefined) basePayload.status = updates.status;
-      if (updates.full_name !== undefined) basePayload.full_name = updates.full_name;
-      if (updates.password !== undefined) basePayload.password = updates.password;
-      if (updates.guard_id !== undefined) basePayload.guard_id = updates.guard_id;
-      if (updates.rank_title !== undefined) basePayload.rank_title = updates.rank_title;
+    if (currentUser?.id === targetUser.id || currentUser?.username.toLowerCase() === username.toLowerCase()) {
+      if (action === 'delete' || action === 'block') {
+        await logout();
+      } else {
+        const updatedSelf = { ...currentUser, status: 'Approved' as const };
+        setCurrentUser(updatedSelf);
+        localStorage.setItem('meedo_current_user', JSON.stringify(updatedSelf));
+      }
+    }
 
-      const fullPayload = { ...basePayload };
-      if (updates.radio_call_sign !== undefined) fullPayload.radio_call_sign = updates.radio_call_sign;
-      if (updates.default_area !== undefined) fullPayload.default_area = updates.default_area;
+    return { success: true };
+  };
 
-      const hasExtraCols = updates.radio_call_sign !== undefined || updates.default_area !== undefined;
+  const updateUserProfile = async (
+    username: string,
+    updates: Partial<UserProfile>
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'users:manage')) {
+      return { success: false, message: 'Administrator privilege required.' };
+    }
 
-      const performUpdate = async () => {
-        if (hasExtraCols) {
-          const { error } = await client
-            .from('profiles')
-            .update(fullPayload)
-            .ilike('username', username);
-          if (error) {
-            if (error.code === 'PGRST204' || error.message?.includes('column')) {
-              await client
-                .from('profiles')
-                .update(basePayload)
-                .ilike('username', username);
-            } else {
-              console.error('Supabase profile update sync error:', error);
-            }
-          }
-        } else {
-          const { error } = await client
-            .from('profiles')
-            .update(basePayload)
-            .ilike('username', username);
-          if (error) console.error('Supabase profile update sync error:', error);
-        }
-      };
-      performUpdate().then();
+    const targetUser = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+    if (!targetUser?.id) {
+      return { success: false, message: `User "${username}" was not found.` };
+    }
+    if (
+      targetUser.username.toLowerCase() === 'admin' &&
+      ((updates.role && updates.role !== 'Admin') || (updates.status && updates.status !== 'Approved'))
+    ) {
+      return { success: false, message: 'Root administrator account cannot be demoted or suspended.' };
+    }
 
-      // Synchronize changes to market_guards roster if user has guard_id
-      const targetUser = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
-      const effectiveGuardId = updates.guard_id || targetUser?.guard_id;
+    const targetId = toPbId(targetUser.id);
+    const { password: _ignoredPassword, ...safeUpdates } = updates;
+    const cleanEmail =
+      safeUpdates.email !== undefined ? safeUpdates.email.trim() : undefined;
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+
+    const pbPayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (safeUpdates.username !== undefined) {
+      const trimmedName = safeUpdates.username.trim();
+      pbPayload.username = trimmedName;
+      pbPayload.username_lower = trimmedName.toLowerCase();
+    }
+    if (cleanEmail !== undefined) {
+      pbPayload.email = cleanEmail;
+      pbPayload.emailVisibility = true;
+    }
+    if (safeUpdates.role !== undefined) pbPayload.role = safeUpdates.role;
+    if (safeUpdates.section !== undefined) pbPayload.section = safeUpdates.section;
+    if (safeUpdates.status !== undefined) pbPayload.status = safeUpdates.status;
+    if (safeUpdates.full_name !== undefined) pbPayload.full_name = safeUpdates.full_name;
+    if (safeUpdates.guard_id !== undefined) pbPayload.guard_id = safeUpdates.guard_id;
+    if (safeUpdates.rank_title !== undefined) pbPayload.rank_title = safeUpdates.rank_title;
+    if (safeUpdates.radio_call_sign !== undefined) pbPayload.radio_call_sign = safeUpdates.radio_call_sign;
+    if (safeUpdates.default_area !== undefined) pbPayload.default_area = safeUpdates.default_area;
+
+    if (isPocketBaseConfigured) {
+      try {
+        await pb.collection('profiles').update(targetId, pbPayload, { requestKey: null });
+      } catch (err: any) {
+        const msg = extractPbErrorMessage(err, 'Failed to update profile in PocketBase.');
+        console.error('PocketBase profile update sync error:', err);
+        return { success: false, message: msg };
+      }
+
+      const effectiveGuardId = safeUpdates.guard_id ?? targetUser.guard_id;
       if (effectiveGuardId) {
         const guardUpdates: Partial<MarketGuard> = {};
-        if (updates.full_name) guardUpdates.guard_name = updates.full_name;
-        if (updates.rank_title) guardUpdates.rank_title = updates.rank_title;
-        if (updates.radio_call_sign) guardUpdates.radio_call_sign = updates.radio_call_sign;
-        if (updates.default_area) guardUpdates.default_area = updates.default_area;
+        if (safeUpdates.full_name) guardUpdates.guard_name = safeUpdates.full_name;
+        if (safeUpdates.rank_title) guardUpdates.rank_title = safeUpdates.rank_title;
+        if (safeUpdates.radio_call_sign) guardUpdates.radio_call_sign = safeUpdates.radio_call_sign;
+        if (safeUpdates.default_area) guardUpdates.default_area = safeUpdates.default_area;
 
-        if (Object.keys(guardUpdates).length > 0) {
+        if (Object.keys(guardUpdates).length > 0 && supabase) {
           setGuards((prev) =>
             prev.map((g) =>
               g.guard_id.toUpperCase() === effectiveGuardId.toUpperCase()
@@ -1296,185 +1746,170 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      supabase
-        .from('audit_logs')
-        .insert({
-          username: currentUser?.username || 'admin',
-          action: 'USER_PROFILE_UPDATED',
-          details: JSON.stringify({
-            target_username: username,
-            updates,
-            timestamp: new Date().toISOString(),
-          }),
-        })
-        .then();
+      if (supabase) {
+        supabase
+          .from('audit_logs')
+          .insert({
+            username: currentUser?.username || 'admin',
+            action: 'USER_PROFILE_UPDATED',
+            details: JSON.stringify({
+              target_id: targetId,
+              target_username: targetUser.username,
+              updates: { ...safeUpdates, email: cleanEmail },
+              timestamp: new Date().toISOString(),
+            }),
+          })
+          .then();
+      }
     }
+
+    const updatedFields: Partial<UserProfile> = {
+      ...safeUpdates,
+      ...(cleanEmail !== undefined ? { email: cleanEmail || undefined } : {}),
+      updated_at: pbPayload.updated_at,
+    };
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === targetUser.id ? { ...u, ...updatedFields } : u))
+    );
+
+    if (currentUser?.id === targetUser.id || currentUser?.username.toLowerCase() === username.toLowerCase()) {
+      const updatedSelf = { ...currentUser, ...updatedFields };
+      setCurrentUser(updatedSelf);
+      localStorage.setItem('meedo_current_user', JSON.stringify(updatedSelf));
+    }
+
+    return { success: true };
   };
 
   const createUser = async (
-    userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection }
+    userData: Partial<UserProfile> & { username: string; role: UserRole; section: UserSection; email?: string }
   ): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'users:manage')) {
+      return { success: false, message: 'Administrator privilege required.' };
+    }
+
     const trimmedUser = userData.username.trim();
     if (!trimmedUser) {
       return { success: false, message: 'Username is required.' };
     }
 
+    const cleanEmail = (userData.email || '').trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, message: 'A valid email address is required for Firebase Authentication.' };
+    }
+
+    const rawPassword = (userData.password || '').trim();
+    if (rawPassword && rawPassword.length < 6) {
+      return { success: false, message: 'Firebase password must be at least 6 characters long.' };
+    }
+
     if (users.some((u) => u.username.toLowerCase() === trimmedUser.toLowerCase())) {
       return { success: false, message: 'A user with this username already exists.' };
+    }
+    if (users.some((u) => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase())) {
+      return { success: false, message: 'A user with this email address already exists.' };
     }
 
     const cleanGuardId = userData.section === 'F' && userData.guard_id ? userData.guard_id.trim().toUpperCase() : undefined;
     const cleanFullName = userData.full_name ? userData.full_name.trim() : trimmedUser;
     const cleanRankTitle = userData.section === 'F' && userData.rank_title ? userData.rank_title.trim() : undefined;
-    const cleanPassword = userData.password?.trim() || undefined;
     const cleanCallSign = userData.section === 'F' ? (userData.radio_call_sign?.trim().toUpperCase() || 'EAGLE-1') : undefined;
     const cleanDefaultArea = userData.section === 'F' ? (userData.default_area?.trim() || 'General Public Market') : undefined;
+    const nowIso = new Date().toISOString();
+    const pbUserId = toPbId('usr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
 
-    const newUser: UserProfile = {
-      id: generateUUID(),
+    let firebaseUid = '';
+    let authProvider = 'firebase_google';
+    if (rawPassword) {
+      try {
+        const fbRes = await provisionFirebaseEmailUser(cleanEmail, rawPassword, cleanFullName);
+        firebaseUid = fbRes.uid;
+        authProvider = 'firebase_email';
+      } catch (fbErr: any) {
+        return { success: false, message: mapFirebaseAuthError(fbErr) };
+      }
+    }
+
+    let createdUser: UserProfile = sanitizeUserProfile({
+      id: pbUserId,
       username: trimmedUser,
+      email: cleanEmail,
+      firebase_uid: firebaseUid || undefined,
+      auth_provider: authProvider,
       role: userData.role || 'Staff',
       section: userData.section || 'A',
       status: userData.status || 'Approved',
-      password: cleanPassword,
       guard_id: cleanGuardId,
       full_name: cleanFullName,
       rank_title: cleanRankTitle,
       radio_call_sign: cleanCallSign,
       default_area: cleanDefaultArea,
-      created_at: new Date().toISOString(),
-    };
+      created_at: nowIso,
+    });
 
-    // Direct synchronization to Supabase public.profiles and audit_logs
-    if (isSupabaseConfigured && supabase) {
-      const basePayload: Record<string, any> = {
-        id: newUser.id,
-        username: newUser.username,
-        role: newUser.role,
-        section: newUser.section,
-        status: newUser.status,
-        full_name: newUser.full_name,
-        password: newUser.password || null,
-        guard_id: newUser.guard_id || null,
-        rank_title: newUser.rank_title || null,
-        created_at: newUser.created_at,
-      };
-
+    if (isPocketBaseConfigured) {
       try {
-        let syncError: any = null;
-        if (newUser.section === 'F' && (newUser.radio_call_sign || newUser.default_area)) {
-          const fullPayload = {
-            ...basePayload,
-            radio_call_sign: newUser.radio_call_sign || null,
-            default_area: newUser.default_area || null,
-          };
-          const { error } = await supabase
-            .from('profiles')
-            .upsert(fullPayload, { onConflict: 'username' });
+        const internalPassword = generateRandomInternalPassword();
+        const createdRec = await pb.collection('profiles').create(
+          {
+            id: pbUserId,
+            username: createdUser.username,
+            username_lower: createdUser.username.toLowerCase(),
+            email: cleanEmail,
+            emailVisibility: true,
+            verified: true,
+            firebase_uid: firebaseUid,
+            auth_provider: authProvider,
+            role: createdUser.role,
+            section: createdUser.section,
+            status: createdUser.status,
+            full_name: createdUser.full_name || '',
+            password: internalPassword,
+            passwordConfirm: internalPassword,
+            guard_id: createdUser.guard_id || '',
+            rank_title: createdUser.rank_title || '',
+            radio_call_sign: createdUser.radio_call_sign || '',
+            default_area: createdUser.default_area || '',
+            created_at: nowIso,
+          },
+          { requestKey: null }
+        );
+        createdUser = sanitizeUserProfile(createdRec);
+      } catch (err: any) {
+        const msg = extractPbErrorMessage(err, 'Failed to create user profile.');
+        console.error('Error creating PocketBase profile:', err);
+        return { success: false, message: msg };
+      }
 
-          if (error) {
-            if (error.code === 'PGRST204' || error.message?.includes('column')) {
-              console.warn('Profiles table missing extra columns, falling back to base columns:', error.message);
-              const retryRes = await supabase
-                .from('profiles')
-                .upsert(basePayload, { onConflict: 'username' });
-              syncError = retryRes.error;
-            } else {
-              syncError = error;
-            }
-          }
-        } else {
-          const { error } = await supabase
-            .from('profiles')
-            .upsert(basePayload, { onConflict: 'username' });
-          syncError = error;
-        }
-
-        if (syncError) {
-          console.error('Supabase profile creation sync error:', syncError);
-          return { success: false, message: `Database error: ${syncError.message}` };
-        }
-
-        await supabase
-          .from('audit_logs')
-          .insert({
+      if (supabase) {
+        try {
+          await supabase.from('audit_logs').insert({
             username: currentUser?.username || 'admin',
             action: 'USER_CREATED_BY_ADMIN',
             details: JSON.stringify({
               created_by: currentUser?.username || 'admin',
-              user: newUser,
+              user: createdUser,
               timestamp: new Date().toISOString(),
             }),
           });
-      } catch (err: any) {
-        console.error('Network error creating Supabase profile:', err);
-        return { success: false, message: `Failed to connect to database: ${err.message || err}` };
+        } catch (auditErr) {
+          console.warn('Audit log write warning after user create:', auditErr);
+        }
       }
     }
 
-    // Save locally
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    localStorage.setItem('meedo_users', JSON.stringify(updatedUsers));
+    setUsers((prev) => [...prev, createdUser]);
 
-    // If Section F with Guard ID, ensure it exists in guards roster and Supabase market_guards
-    if (newUser.section === 'F' && cleanGuardId) {
-      setGuards((prev) => {
-        const existingIndex = prev.findIndex(
-          (g) => g.guard_id.toUpperCase() === cleanGuardId
-        );
-        let updatedRoster: MarketGuard[];
-        if (existingIndex >= 0) {
-          updatedRoster = prev.map((g, i) =>
-            i === existingIndex
-              ? {
-                  ...g,
-                  guard_name: cleanFullName,
-                  rank_title: cleanRankTitle || g.rank_title,
-                  radio_call_sign: cleanCallSign,
-                  default_area: cleanDefaultArea,
-                }
-              : g
-          );
-        } else {
-          updatedRoster = [
-            ...prev,
-            {
-              guard_id: cleanGuardId,
-              guard_name: cleanFullName,
-              rank_title: cleanRankTitle || 'SO1',
-              default_area: cleanDefaultArea,
-              radio_call_sign: cleanCallSign,
-              status: 'Active',
-            },
-          ];
-        }
-        localStorage.setItem('meedo_guards', JSON.stringify(updatedRoster));
-        return updatedRoster;
-      });
-
-      if (isSupabaseConfigured && supabase) {
-        supabase
-          .from('market_guards')
-          .upsert(
-            {
-              guard_id: cleanGuardId,
-              guard_name: cleanFullName,
-              rank_title: cleanRankTitle || 'SO1',
-              default_area: cleanDefaultArea,
-              radio_call_sign: cleanCallSign,
-              status: 'Active',
-            },
-            { onConflict: 'guard_id' }
-          )
-          .then();
-      }
+    if (createdUser.section === 'F' && cleanGuardId) {
+      syncSectionFGuardRoster(createdUser);
     }
 
     return { success: true };
   };
 
   const updateStallTenant = (stallNo: string, updates: Partial<StallTenant>) => {
+    if (!requirePermission('market:write')) return;
     setStalls((prev) => {
       const updated = prev.map((s) => {
         if (s.stall_no === stallNo) {
@@ -1518,24 +1953,49 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (updates.photo_url !== undefined) payload.photo_url = updates.photo_url;
           if (updates.lease_doc_url !== undefined) payload.lease_doc_url = updates.lease_doc_url;
           if (updates.permit_doc_url !== undefined) payload.permit_doc_url = updates.permit_doc_url;
+          if (updates.lease_doc_name !== undefined) payload.lease_doc_name = updates.lease_doc_name;
+          if (updates.permit_doc_name !== undefined) payload.permit_doc_name = updates.permit_doc_name;
           if (updates.additional_info !== undefined) payload.additional_info = updates.additional_info;
           payload.is_current = true;
 
-          // Fix: scope update to only the active (is_current) tenant row
-          const res = await client
+          // Update active tenant row, or create one if modifying a vacant/unlinked stall
+          let res = await client
             .from('stall_tenants')
             .update(payload)
             .eq('stall_no', stallNo)
             .eq('is_current', true);
 
+          const hasUpdatedRows = Array.isArray(res.data) ? res.data.length > 0 : Boolean(res.data);
+          if (!res.error && !hasUpdatedRows) {
+            const insertPayload = {
+              id: toPbId(`tenant_cur_${stallNo}_${Date.now()}`),
+              stall_no: stallNo,
+              stall_owner: (payload.stall_owner || 'Vacant / Pending Owner').trim() || 'Vacant / Pending Owner',
+              operator: payload.operator || '',
+              line_of_business: payload.line_of_business || '',
+              period_index: payload.period_index || 1,
+              year: String(payload.year || new Date().getFullYear()),
+              compliance_status: payload.compliance_status || 'Non-Compliant',
+              ...payload,
+              is_current: true,
+            };
+            res = await client.from('stall_tenants').insert(insertPayload);
+          }
+
+          if (updates.stall_owner !== undefined) {
+            const nextStatus = String(updates.stall_owner || '').trim() ? 'Occupied' : 'Vacant';
+            const stallRes = await client.from('stalls').update({ status: nextStatus }).eq('stall_no', stallNo);
+            if (stallRes.error) {
+              console.warn('PocketBase stall status update error:', stallRes.error.message);
+            }
+          }
+
           if (res.error) {
-            console.warn('Supabase tenant update error:', res.error.message);
+            console.error('PocketBase tenant update error:', res.error.message);
           } else {
-            console.log('Saved to Supabase stall_tenants for stall:', stallNo);
-            // Audit log: record who updated this stall tenant
             const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
             const changedFields = Object.keys(payload).filter((k) => k !== 'is_current');
-            client
+            const auditRes = await client
               .from('audit_logs')
               .insert({
                 username: auditActor,
@@ -1545,27 +2005,32 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   updated_fields: changedFields,
                   timestamp: new Date().toISOString(),
                 }),
-              })
-              .then();
+              });
+            if (auditRes.error) {
+              console.warn('PocketBase tenant audit log warning:', auditRes.error.message);
+            }
           }
         } catch (e) {
-          console.warn('Supabase tenant update notice:', e);
+          console.warn('PocketBase tenant update notice:', e);
         }
       })();
     }
   };
 
   const addStallTenant = (stallNo: string, tenant: StallTenant) => {
+    if (!requirePermission('market:write')) return;
+    const pbTenantId = toPbId(tenant.id || `tenant_${stallNo}_${Date.now()}`);
+    const tenantWithId: StallTenant = { ...tenant, id: pbTenantId, is_current: true };
     setStalls((prev) => {
       const updated = prev.map((s) => {
         if (s.stall_no === stallNo) {
           const history = s.current_tenant
-            ? [s.current_tenant, ...(s.tenant_history || [])]
+            ? [{ ...s.current_tenant, is_current: false }, ...(s.tenant_history || [])]
             : s.tenant_history || [];
           return {
             ...s,
             status: 'Occupied' as const,
-            current_tenant: tenant,
+            current_tenant: tenantWithId,
             tenant_history: history,
           };
         }
@@ -1583,24 +2048,33 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const client = supabase;
       (async () => {
         try {
+          await client
+            .from('stall_tenants')
+            .update({ is_current: false })
+            .eq('stall_no', stallNo)
+            .eq('is_current', true);
+
           const res = await client.from('stall_tenants').insert({
+            id: pbTenantId,
             stall_no: stallNo,
             stall_owner: tenant.stall_owner,
             operator: tenant.operator || null,
             line_of_business: tenant.line_of_business || null,
             period_index: tenant.period_index || 1,
-            year: tenant.year || new Date().getFullYear(),
+            year: String(tenant.year || new Date().getFullYear()),
             compliance_status: tenant.compliance_status || 'Non-Compliant',
             photo_url: tenant.photo_url || null,
             lease_doc_url: tenant.lease_doc_url || null,
             permit_doc_url: tenant.permit_doc_url || null,
+            lease_doc_name: tenant.lease_doc_name || null,
+            permit_doc_name: tenant.permit_doc_name || null,
             additional_info: tenant.additional_info || null,
             is_current: true,
           });
+          await client.from('stalls').update({ status: 'Occupied' }).eq('stall_no', stallNo);
           if (res.error) {
-            console.warn('Supabase tenant insert error:', res.error.message);
+            console.warn('PocketBase tenant insert error:', res.error.message);
           } else {
-            // Audit log: record who added this new stall tenant
             const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
             client
               .from('audit_logs')
@@ -1618,16 +2092,17 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               .then();
           }
         } catch (e) {
-          console.warn('Supabase tenant add notice:', e);
+          console.warn('PocketBase tenant add notice:', e);
         }
       })();
     }
   };
 
   const addMonitoringRecord = async (record: MonitoringRecord): Promise<boolean> => {
+    if (!requirePermission('market:write')) return false;
     const newRecord: MonitoringRecord = {
       ...record,
-      id: record.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mon_${Date.now()}`),
+      id: toPbId(record.id || `mon_${record.stall_no}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
       created_at: record.created_at || new Date().toISOString(),
     };
 
@@ -1658,7 +2133,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (isSupabaseConfigured && supabase) {
       try {
+        const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
         const payload: Record<string, any> = {
+          id: newRecord.id,
           stall_no: record.stall_no,
           monitoring_date: record.monitoring_date,
           goodwill: record.goodwill || 0,
@@ -1676,16 +2153,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           electric_bill_amount: record.electric_bill_amount || 0,
           electric_bill_status: record.electric_bill_status || 'Unpaid',
           electric_bill_due_date: record.electric_bill_due_date || null,
-          // Fix 2: include remarks in Supabase payload (was missing before)
           remarks: record.remarks || null,
+          created_by: auditActor,
         };
         const res = await supabase.from('monitoring_records').insert(payload);
         if (res.error) {
-          console.warn('Supabase monitoring insert warning:', res.error.message);
+          console.warn('PocketBase monitoring insert warning:', res.error.message);
           return false;
         }
-        // Audit log: record who submitted this monitoring entry
-        const auditActor = currentUser?.username || currentUser?.full_name || 'Market Staff';
         supabase
           .from('audit_logs')
           .insert({
@@ -1705,7 +2180,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .then();
         return true;
       } catch (err) {
-        console.warn('Supabase monitoring insert error:', err);
+        console.warn('PocketBase monitoring insert error:', err);
         return false;
       }
     }
@@ -1713,19 +2188,102 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addElectricBill = (bill: ElectricBill) => {
+    if (!requirePermission('market:write')) return;
+    const newBill: ElectricBill = {
+      ...bill,
+      id: toPbId(bill.id || `bill_${bill.stall_no}_${bill.due_date || Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+      created_at: bill.created_at || new Date().toISOString(),
+    };
     setElectricBills((prev) => {
-      const updated = [bill, ...prev];
-      localStorage.setItem('meedo_bills', JSON.stringify(updated));
+      const updated = [newBill, ...prev];
+      try {
+        localStorage.setItem('meedo_bills', JSON.stringify(updated));
+      } catch (e) {}
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('electric_bills').insert({
+            id: newBill.id,
+            stall_no: newBill.stall_no,
+            owner_name: newBill.owner_name || '',
+            due_date: newBill.due_date || '',
+            disconnection_date: newBill.disconnection_date || '',
+            prev_reading: Number(newBill.prev_reading) || 0,
+            curr_reading: Number(newBill.curr_reading) || 0,
+            consumption: Number(newBill.consumption) || 0,
+            rate_per_kwh: Number(newBill.rate_per_kwh) || 0,
+            arrears: Number(newBill.arrears) || 0,
+            bill_amount: Number(newBill.bill_amount) || 0,
+            meter_reset: Boolean(newBill.meter_reset),
+            status: newBill.status || 'Unpaid',
+            created_at: newBill.created_at,
+          });
+          if (res.error) {
+            console.warn('PocketBase electric bill insert error:', res.error.message);
+          } else {
+            addAuditLog('ELECTRIC_BILL_CREATED', {
+              bill_id: newBill.id,
+              stall_no: newBill.stall_no,
+              owner_name: newBill.owner_name,
+              consumption: newBill.consumption,
+              bill_amount: newBill.bill_amount,
+              due_date: newBill.due_date,
+              status: newBill.status,
+              summary: `Recorded electric bill for ${newBill.stall_no}: ${newBill.consumption} kWh (₱${Number(newBill.bill_amount || 0).toLocaleString()})`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('PocketBase electric bill insert notice:', e);
+        }
+      })();
+    }
   };
 
-  const updateBillStatus = (stallNo: string, status: 'Unpaid' | 'Partial' | 'Fully Paid') => {
+  const updateBillStatus = (
+    stallNo: string,
+    status: 'Unpaid' | 'Partial' | 'Fully Paid',
+    billId?: string
+  ) => {
+    if (!requirePermission('market:write')) return;
     setElectricBills((prev) => {
-      const updated = prev.map((b) => (b.stall_no === stallNo ? { ...b, status } : b));
-      localStorage.setItem('meedo_bills', JSON.stringify(updated));
+      const updated = prev.map((b) =>
+        billId ? (b.id === billId ? { ...b, status } : b) : b.stall_no === stallNo ? { ...b, status } : b
+      );
+      try {
+        localStorage.setItem('meedo_bills', JSON.stringify(updated));
+      } catch (e) {}
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const query = billId
+            ? client.from('electric_bills').update({ status }).eq('id', billId)
+            : client.from('electric_bills').update({ status }).eq('stall_no', stallNo);
+          const res = await query;
+          if (res.error) {
+            console.warn('PocketBase electric bill status update error:', res.error.message);
+          } else {
+            addAuditLog('ELECTRIC_BILL_STATUS_UPDATED', {
+              bill_id: billId || null,
+              stall_no: stallNo,
+              status,
+              summary: `Updated electric bill status for ${stallNo}${billId ? ` (${billId})` : ''} to ${status}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('PocketBase electric bill status update notice:', e);
+        }
+      })();
+    }
   };
 
   const addAuditLog = (
@@ -1733,8 +2291,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     details: string | Record<string, any>,
     usernameOverride?: string
   ) => {
+    if (!isApprovedUser(currentUser) && !usernameOverride) return;
     const actor =
-      usernameOverride || currentUser?.username || currentUser?.full_name || 'Slaughterhouse Staff';
+      usernameOverride || currentUser?.username || currentUser?.full_name || 'System Staff';
     const detailsStr = typeof details === 'string' ? details : JSON.stringify(details);
     const tempLog: AuditLog = {
       id: 'audit_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -1769,6 +2328,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addSlaughterRecord = (record: Omit<SlaughterRecord, 'id' | 'created_at'>) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const tempId = 'sh_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
     const newRecord: SlaughterRecord = {
       ...record,
@@ -1858,6 +2418,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addSlaughterBatch = (records: Omit<SlaughterRecord, 'id' | 'created_at'>[]) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const now = Date.now();
     const newRecords: SlaughterRecord[] = records.map((record, index) => ({
       ...record,
@@ -1969,6 +2530,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateSlaughterRecord = (id: string, updates: Partial<SlaughterRecord>) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const existing = slaughterRecords.find((r) => r.id === id);
     setSlaughterRecords((prev) => {
       const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
@@ -2019,6 +2581,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteSlaughterRecord = (id: string) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const existing = slaughterRecords.find((r) => r.id === id);
     setSlaughterRecords((prev) => {
       const updated = prev.filter((r) => r.id !== id);
@@ -2051,6 +2614,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addButcher = (butcher: Omit<ButcherProfile, 'id' | 'created_at'>) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const validDate = butcher.date_registered
       ? (butcher.date_registered.includes('-') && !isNaN(Date.parse(butcher.date_registered))
           ? butcher.date_registered
@@ -2113,6 +2677,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateButcher = (id: string, updates: Partial<ButcherProfile>) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const existing = butchers.find((b) => b.id === id);
     setButchers((prev) => {
       const updated = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
@@ -2154,6 +2719,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteButcher = (id: string) => {
+    if (!requirePermission('slaughterhouse:write')) return;
     const existing = butchers.find((b) => b.id === id);
     setButchers((prev) => {
       const updated = prev.filter((b) => b.id !== id);
@@ -2184,6 +2750,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const resetButchers = () => {
+    if (!requirePermission('slaughterhouse:reset')) return;
     const previousCount = butchers.length;
     setButchers([]);
     localStorage.removeItem('meedo_butchers');
@@ -2210,9 +2777,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addCemeteryBooking = (booking: Omit<CemeteryBooking, 'id' | 'created_at'>) => {
+    if (!requirePermission('cemetery:write')) return;
     const newBooking: CemeteryBooking = {
       ...booking,
-      id: 'cem_' + Date.now(),
+      id: toPbId('cem_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       created_at: new Date().toISOString(),
     };
     setCemeteryBookings((prev) => {
@@ -2258,6 +2826,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateCemeteryBooking = (id: string, updates: Partial<CemeteryBooking>) => {
+    if (!requirePermission('cemetery:write')) return;
     const existing = cemeteryBookings.find((b) => b.id === id);
     setCemeteryBookings((prev) => {
       const updated = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
@@ -2293,6 +2862,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCemeteryBooking = (id: string) => {
+    if (!requirePermission('cemetery:write')) return;
     const existing = cemeteryBookings.find((b) => b.id === id);
     setCemeteryBookings((prev) => {
       const updated = prev.filter((b) => b.id !== id);
@@ -2326,9 +2896,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addToda = (toda: Omit<Toda, 'id' | 'created_at'>) => {
+    if (!requirePermission('transport:write')) return;
     const newToda: Toda = {
       ...toda,
-      id: 'toda_' + Date.now(),
+      id: toPbId('toda_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       created_at: new Date().toISOString(),
     };
     setTodas((prev) => {
@@ -2372,6 +2943,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateToda = (id: string, updates: Partial<Toda>) => {
+    if (!requirePermission('transport:write')) return;
     const existing = todas.find((t) => t.id === id);
     setTodas((prev) => {
       const updated = prev.map((t) => (t.id === id ? { ...t, ...updates } : t));
@@ -2408,6 +2980,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteToda = (id: string) => {
+    if (!requirePermission('transport:write')) return;
     const existing = todas.find((t) => t.id === id);
     setTodas((prev) => {
       const updated = prev.filter((t) => t.id !== id);
@@ -2440,9 +3013,10 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addTodaMember = (member: Omit<TodaMember, 'id' | 'created_at'>) => {
+    if (!requirePermission('transport:write')) return;
     const newMember: TodaMember = {
       ...member,
-      id: 'mem_' + Date.now(),
+      id: toPbId('mem_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       created_at: new Date().toISOString(),
     };
     setTodaMembers((prev) => {
@@ -2493,6 +3067,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateTodaMember = (id: string, updates: Partial<TodaMember>) => {
+    if (!requirePermission('transport:write')) return;
     const existing = todaMembers.find((m) => m.id === id);
     setTodaMembers((prev) => {
       const updated = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
@@ -2531,6 +3106,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteTodaMember = (id: string) => {
+    if (!requirePermission('transport:write')) return;
     const existing = todaMembers.find((m) => m.id === id);
     setTodaMembers((prev) => {
       const updated = prev.filter((m) => m.id !== id);
@@ -2563,38 +3139,149 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateOpifIndicator = (id: string, updates: Partial<OpifIndicator>) => {
+    const existing = opifIndicators.find((item) => item.id === id);
+    const targetSection = (existing?.section || updates.section || 'A') as UserSection;
+    if (!requirePermission('opif:update_own_section', targetSection)) return;
+    const safeUpdates = isAdminUser(currentUser)
+      ? updates
+      : { ...updates, section: existing?.section || (targetSection as OpifIndicator['section']) };
+    const merged: OpifIndicator = { ...(existing || ({ section: 'A' } as OpifIndicator)), ...safeUpdates, id };
     setOpifIndicators((prev) => {
-      const updated = prev.map((item) => (item.id === id ? { ...item, ...updates } : item));
+      const updated = prev.map((item) => (item.id === id ? { ...item, ...safeUpdates } : item));
       localStorage.setItem('meedo_opif', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const payload = toOpifPbPayload(merged);
+      (async () => {
+        try {
+          const res = await client.from('opif_indicators').update(payload).eq('id', id);
+          if (res.error) {
+            console.warn('PocketBase OPIF update error:', res.error.message);
+          } else {
+            addAuditLog('OPIF_INDICATOR_UPDATED', {
+              indicator_id: id,
+              section: merged.section,
+              indicator_name: merged.col6 || merged.col4,
+              updated_fields: Object.keys(safeUpdates),
+              summary: `Updated OPIF indicator (${merged.section}): ${merged.col6 || merged.col4 || id}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('PocketBase OPIF update notice:', e);
+        }
+      })();
+    }
   };
 
   const addOpifIndicator = (indicator: OpifIndicator) => {
+    if (!requirePermission('opif:manage_all')) return;
+    const newIndicator: OpifIndicator = {
+      ...indicator,
+      id: toPbId(indicator.id || `opif_${indicator.section}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+    };
+    const nextOrder = opifIndicators.length + 1;
     setOpifIndicators((prev) => {
-      const updated = [...prev, indicator];
+      const updated = [...prev, newIndicator];
       localStorage.setItem('meedo_opif', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const payload = toOpifPbPayload(newIndicator, true, nextOrder);
+      (async () => {
+        try {
+          const res = await client.from('opif_indicators').insert(payload);
+          if (res.error) {
+            console.warn('PocketBase OPIF insert error:', res.error.message);
+          } else {
+            addAuditLog('OPIF_INDICATOR_ADDED', {
+              indicator_id: newIndicator.id,
+              section: newIndicator.section,
+              indicator_name: newIndicator.col6 || newIndicator.col4,
+              summary: `Added OPIF indicator (${newIndicator.section}): ${newIndicator.col6 || newIndicator.col4 || newIndicator.id}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('PocketBase OPIF insert notice:', e);
+        }
+      })();
+    }
   };
 
   const deleteOpifIndicator = (id: string) => {
+    if (!requirePermission('opif:manage_all')) return;
+    const existing = opifIndicators.find((i) => i.id === id);
     setOpifIndicators((prev) => {
       const updated = prev.filter((i) => i.id !== id);
       localStorage.setItem('meedo_opif', JSON.stringify(updated));
       return updated;
     });
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const res = await client.from('opif_indicators').delete().eq('id', id);
+          if (res.error) {
+            console.warn('PocketBase OPIF delete error:', res.error.message);
+          } else {
+            addAuditLog('OPIF_INDICATOR_DELETED', {
+              indicator_id: id,
+              section: existing?.section,
+              indicator_name: existing?.col6 || existing?.col4,
+              summary: `Deleted OPIF indicator (${existing?.section || 'OPIF'}): ${existing?.col6 || id}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.warn('PocketBase OPIF delete notice:', e);
+        }
+      })();
+    }
   };
 
   const resetOpifIndicators = () => {
-    setOpifIndicators(initialOpifIndicators);
-    localStorage.setItem('meedo_opif', JSON.stringify(initialOpifIndicators));
+    if (!requirePermission('opif:manage_all')) return;
+    const normalizedDefaults = initialOpifIndicators.map((ind, idx) => ({
+      ...ind,
+      id: toPbId(ind.id || `opif_def_${idx}`),
+    }));
+    setOpifIndicators(normalizedDefaults);
+    localStorage.setItem('meedo_opif', JSON.stringify(normalizedDefaults));
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      (async () => {
+        try {
+          const existing = await client.from('opif_indicators').select('id');
+          for (const row of existing.data || []) {
+            if (row?.id) await client.from('opif_indicators').delete().eq('id', row.id);
+          }
+          const payloads = normalizedDefaults.map((ind, idx) => toOpifPbPayload(ind, true, idx + 1));
+          await client.from('opif_indicators').upsert(payloads, { onConflict: 'id' });
+          addAuditLog('OPIF_INDICATORS_RESET', {
+            count: payloads.length,
+            summary: `Reset ${payloads.length} OPIF scorecard indicators to baseline template`,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('PocketBase OPIF reset notice:', e);
+        }
+      })();
+    }
   };
 
   const addCsuReport = (report: Omit<CsuDailyReport, 'id' | 'created_at'>) => {
+    if (!requirePermission('csu:guard_shift')) return;
     const newReport: CsuDailyReport = {
       ...report,
-      id: 'csu_' + Date.now(),
+      id: toPbId('csu_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       created_at: new Date().toISOString(),
     };
     setCsuReports((prev) => {
@@ -2616,6 +3303,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateCsuReport = (id: string, updates: Partial<CsuDailyReport>) => {
+    if (!requirePermission('csu:guard_shift')) return;
     const existing = csuReports.find((r) => r.id === id);
     setCsuReports((prev) => {
       const updated = prev.map((r) => (r.id === id ? { ...r, ...updates } : r));
@@ -2635,6 +3323,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const requestBlotterCorrection = (reportId: string, reason: string) => {
+    if (!requirePermission('csu:guard_shift')) return;
     let updatedReport: CsuDailyReport | null = null;
     setCsuReports((prev) => {
       const updated = prev.map((r) => {
@@ -2670,6 +3359,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const approveBlotterReport = (reportId: string, reviewerNotes?: string) => {
+    if (!requirePermission('csu:approve_blotter')) return;
     let updatedReport: CsuDailyReport | null = null;
     setCsuReports((prev) => {
       const updated = prev.map((r) => {
@@ -2765,6 +3455,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     event: Omit<MarketCalendarEvent, 'id' | 'created_at'>,
     bypassConflict: boolean = false
   ): { success: boolean; message?: string; conflict?: MarketCalendarEvent } => {
+    if (!hasPermission(currentUser, 'csu:manage_calendar')) {
+      return { success: false, message: 'Administrator privilege required to create calendar events.' };
+    }
     if (event.category === 'Guard Duty' && event.assigned_guard_id && !bypassConflict) {
       const conflict = checkScheduleConflict(
         event.assigned_guard_id,
@@ -2783,7 +3476,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const newEvt: MarketCalendarEvent = {
       ...event,
-      id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      id: toPbId('evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
       created_at: new Date().toISOString(),
     };
 
@@ -2815,6 +3508,16 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     updates: Partial<MarketCalendarEvent>,
     bypassConflict: boolean = false
   ): { success: boolean; message?: string; conflict?: MarketCalendarEvent } => {
+    const updateKeys = Object.keys(updates).filter((k) => k !== 'updated_at');
+    const isShiftExecutionOnly =
+      updateKeys.length > 0 &&
+      updateKeys.every((k) => k === 'status' || k === 'blotter_report_id');
+    const canUpdate = isShiftExecutionOnly
+      ? hasPermission(currentUser, 'csu:guard_shift') || hasPermission(currentUser, 'csu:manage_calendar')
+      : hasPermission(currentUser, 'csu:manage_calendar');
+    if (!canUpdate) {
+      return { success: false, message: 'Administrator privilege required to modify calendar schedules.' };
+    }
     const existing = marketCalendarEvents.find((e) => e.id === id);
     if (!existing) return { success: false, message: 'Calendar event not found.' };
 
@@ -2860,6 +3563,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCalendarEvent = (id: string) => {
+    if (!requirePermission('csu:manage_calendar')) return;
     const existing = marketCalendarEvents.find((e) => e.id === id);
     setMarketCalendarEvents((prev) => {
       const updated = prev.filter((e) => e.id !== id);
@@ -2911,6 +3615,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const startGuardShift = (eventDetails?: Partial<GuardShiftSession>): GuardShiftSession => {
+    if (!requirePermission('csu:guard_shift')) {
+      throw new Error('Market Guard or Administrator clearance required to start a shift.');
+    }
     const now = new Date();
     const timeIn = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
     const dateStr = now.toISOString().split('T')[0];
@@ -2972,8 +3679,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setActiveShiftSession(session);
     localStorage.setItem('meedo_active_guard_session', JSON.stringify(session));
 
-    // Create an in-progress draft CsuDailyReport
-    const reportId = `csu_${matchedGuard.guard_id.replace(/[^a-zA-Z0-9]/g, '')}_${Date.now()}`;
+    // Create an in-progress draft CsuDailyReport with PocketBase-compatible ID upfront
+    const reportId = toPbId(`csu_${matchedGuard.guard_id.replace(/[^a-zA-Z0-9]/g, '')}_${Date.now()}`);
     const initialActivities = `Shift started at ${timeIn}. Area covered: ${session.area}.\nPatrol checks logged (1):\n• ${timeIn} [${initialLog.area}]: ${initialLog.notes}`;
 
     const draftReport: CsuDailyReport = {
@@ -3050,6 +3757,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logPatrolCheck = (area: string, notes: string, guardIdOverride?: string) => {
+    if (!requirePermission('csu:guard_shift')) return;
     const targetGuardId =
       guardIdOverride ||
       (currentUser?.role === 'Staff' ? currentUser.guard_id : undefined) ||
@@ -3086,42 +3794,44 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       `Shift started at ${sess.time_in}. Area covered: ${sess.area}.\nPatrol checks logged (${updatedLogs.length}):\n` +
       updatedLogs.map((l) => `• ${l.time} [${l.area}]: ${l.notes}`).join('\n');
 
-    let activeReportId: string | undefined;
-    let targetPersonnelData: any[] = [];
+    // Resolve target draft report before queuing React state update (safe under React 18 StrictMode)
+    const activeReport = csuReports.find(
+      (r) =>
+        !r.is_locked &&
+        (r.prep_name.toLowerCase() === sess.guard_name.toLowerCase() ||
+          r.personnel_data?.some((p) => p.guard_id === sess.guard_id))
+    );
+    const activeReportId = activeReport?.id;
+    const targetPersonnelData = activeReport
+      ? (activeReport.personnel_data || []).map((p) =>
+          p.guard_id === sess.guard_id
+            ? {
+                ...p,
+                remarks: `Active roving (${updatedLogs.length} checks logged)`,
+                patrol_logs: updatedLogs,
+              }
+            : p
+        )
+      : [];
 
-    setCsuReports((prev) => {
-      const updated = prev.map((r) => {
-        // match un-locked report belonging to this guard
-        if (
-          !r.is_locked &&
-          (r.prep_name.toLowerCase() === sess.guard_name.toLowerCase() ||
-            r.personnel_data?.some((p) => p.guard_id === sess.guard_id))
-        ) {
-          activeReportId = r.id;
-          const updatedPersonnel = (r.personnel_data || []).map((p) =>
-            p.guard_id === sess.guard_id
-              ? {
-                  ...p,
-                  remarks: `Active roving (${updatedLogs.length} checks logged)`,
-                  patrol_logs: updatedLogs,
-                }
-              : p
-          );
-          targetPersonnelData = updatedPersonnel;
-          return {
-            ...r,
-            summary_activities: formattedActivities,
-            personnel_data: updatedPersonnel,
-            updated_at: now.toISOString(),
-          };
-        }
-        return r;
+    if (activeReportId) {
+      setCsuReports((prev) => {
+        const updated = prev.map((r) =>
+          r.id === activeReportId
+            ? {
+                ...r,
+                summary_activities: formattedActivities,
+                personnel_data: targetPersonnelData,
+                updated_at: now.toISOString(),
+              }
+            : r
+        );
+        localStorage.setItem('meedo_csu', JSON.stringify(updated));
+        return updated;
       });
-      localStorage.setItem('meedo_csu', JSON.stringify(updated));
-      return updated;
-    });
+    }
 
-    // DIRECT SYNC TO SUPABASE!
+    // DIRECT SYNC TO POCKETBASE
     if (isSupabaseConfigured && supabase) {
       if (activeReportId) {
         supabase
@@ -3133,8 +3843,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           })
           .eq('id', activeReportId)
           .then(({ error }) => {
-            if (error) console.error('Supabase error updating patrol check:', error.message);
-            else console.log('✓ Supabase patrol check saved for report:', activeReportId);
+            if (error) console.error('PocketBase error updating patrol check:', error.message);
           });
       }
 
@@ -3154,6 +3863,9 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     summaryActivities?: string,
     guardIdOverride?: string
   ): CsuDailyReport => {
+    if (!requirePermission('csu:guard_shift')) {
+      throw new Error('Market Guard or Administrator clearance required to end a shift.');
+    }
     const targetGuardId =
       guardIdOverride ||
       (currentUser?.role === 'Staff' ? currentUser.guard_id : undefined) ||
@@ -3177,40 +3889,31 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       turnoverNotes ||
       'Properly turned over security post, keys, handheld radio, and peace & order logbook to incoming duty shift.';
 
-    let targetReport: CsuDailyReport | null = null;
+    // Resolve draft report outside React state updater so targetReport is always initialized synchronously
+    const matchedDraft = csuReports.find(
+      (r) =>
+        !r.is_locked &&
+        sess &&
+        (r.prep_name.toLowerCase() === sess.guard_name.toLowerCase() ||
+          r.personnel_data?.some((p) => p.guard_id === sess.guard_id))
+    );
 
-    setCsuReports((prev) => {
-      let matched = false;
-      const updated = prev.map((r) => {
-        if (
-          !r.is_locked &&
-          sess &&
-          (r.prep_name.toLowerCase() === sess.guard_name.toLowerCase() ||
-            r.personnel_data?.some((p) => p.guard_id === sess.guard_id))
-        ) {
-          matched = true;
-          const updatedPersonnel = (r.personnel_data || []).map((p) =>
-            p.guard_id === sess.guard_id
+    const targetReport: CsuDailyReport = matchedDraft
+      ? {
+          ...matchedDraft,
+          summary_activities: finalSummary,
+          turnover_notes: finalTurnover,
+          personnel_data: (matchedDraft.personnel_data || []).map((p) =>
+            p.guard_id === sess?.guard_id
               ? { ...p, time_out: timeOut, remarks: 'Completed duty rotation' }
               : p
-          );
-          targetReport = {
-            ...r,
-            summary_activities: finalSummary,
-            turnover_notes: finalTurnover,
-            personnel_data: updatedPersonnel,
-            is_locked: true,
-            locked_at: now.toISOString(),
-            updated_at: now.toISOString(),
-          };
-          return targetReport as CsuDailyReport;
+          ),
+          is_locked: true,
+          locked_at: now.toISOString(),
+          updated_at: now.toISOString(),
         }
-        return r;
-      });
-
-      if (!matched) {
-        targetReport = {
-          id: `csu_${sess?.guard_id || 'G-101'}_${Date.now()}`,
+      : {
+          id: toPbId(`csu_${(sess?.guard_id || 'G101').replace(/[^a-zA-Z0-9]/g, '')}_${Date.now()}`),
           report_date: dateStr,
           day_of_week: dayOfWeek,
           shift: sess?.shift_name || '1st Shift (06:00 - 14:00)',
@@ -3244,9 +3947,11 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           created_at: now.toISOString(),
           updated_at: now.toISOString(),
         };
-        updated.unshift(targetReport);
-      }
 
+    setCsuReports((prev) => {
+      const updated = matchedDraft
+        ? prev.map((r) => (r.id === matchedDraft.id ? targetReport : r))
+        : [targetReport, ...prev.filter((r) => r.id !== targetReport.id)];
       localStorage.setItem('meedo_csu', JSON.stringify(updated));
       return updated;
     });
@@ -3263,14 +3968,13 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setActiveShiftSession(null);
     localStorage.removeItem('meedo_active_guard_session');
 
-    // DIRECT SYNC TO SUPABASE!
-    if (isSupabaseConfigured && supabase && targetReport) {
+    // DIRECT SYNC TO POCKETBASE
+    if (isSupabaseConfigured && supabase) {
       supabase
         .from('csu_daily_reports')
         .upsert(targetReport, { onConflict: 'id' })
         .then(({ error }) => {
-          if (error) console.error('Supabase error ending shift and saving blotter:', error.message);
-          else console.log('✓ Supabase blotter report locked and saved:', (targetReport as any).id);
+          if (error) console.error('PocketBase error ending shift and saving blotter:', error.message);
         });
 
       supabase
@@ -3278,7 +3982,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .insert({
           username: currentUser?.username || sess?.guard_name || 'Market Guard',
           action: 'Shift Ended & Blotter Submitted',
-          details: `Guard ${sess?.guard_name} (${sess?.guard_id}) completed shift at ${timeOut}. Blotter ref: ${(targetReport as any).id}`,
+          details: `Guard ${sess?.guard_name} (${sess?.guard_id}) completed shift at ${timeOut}. Blotter ref: ${targetReport.id}`,
         })
         .then();
     }
@@ -3286,23 +3990,82 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (sess?.calendar_event_id) {
       updateCalendarEvent(
         sess.calendar_event_id,
-        { status: 'Completed', blotter_report_id: (targetReport as any)?.id },
+        { status: 'Completed', blotter_report_id: targetReport.id },
         true
       );
     }
 
-    return targetReport!;
+    return targetReport;
   };
 
-  const releaseInventoryItem = (params: {
+  const commitInventoryChange = async (opts: {
+    action: string;
+    auditDetails: Record<string, any>;
+    newTx: InventoryTransaction;
+    nextItems: InventoryItem[];
+    isNewItem?: boolean;
+    newItemObj?: InventoryItem | null;
+    itemUpdate?: { id: string; prevQty: number; prevDateReceived?: string; payload: Record<string, any> };
+  }): Promise<{ success: boolean; message?: string }> => {
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      try {
+        if (opts.isNewItem && opts.newItemObj) {
+          const itemRes = await client.from('inventory_items').insert(opts.newItemObj);
+          if (itemRes.error) {
+            return { success: false, message: extractPbErrorMessage(itemRes.error, 'Failed to create inventory item.') };
+          }
+        } else if (opts.itemUpdate) {
+          const itemRes = await client
+            .from('inventory_items')
+            .update(opts.itemUpdate.payload)
+            .eq('id', opts.itemUpdate.id);
+          if (itemRes.error) {
+            return { success: false, message: extractPbErrorMessage(itemRes.error, 'Failed to update inventory stock.') };
+          }
+        }
+
+        const txRes = await client.from('inventory_transactions').insert(opts.newTx);
+        if (txRes.error) {
+          // Best-effort compensation if item write succeeded but transaction log failed
+          if (opts.isNewItem && opts.newItemObj) {
+            await client.from('inventory_items').delete().eq('id', opts.newItemObj.id);
+          } else if (opts.itemUpdate) {
+            const rollbackPayload: Record<string, any> = {
+              quantity: opts.itemUpdate.prevQty,
+              updated_at: new Date().toISOString(),
+            };
+            if (opts.itemUpdate.prevDateReceived !== undefined) {
+              rollbackPayload.date_received = opts.itemUpdate.prevDateReceived;
+            }
+            await client.from('inventory_items').update(rollbackPayload).eq('id', opts.itemUpdate.id);
+          }
+          return { success: false, message: extractPbErrorMessage(txRes.error, 'Failed to save inventory transaction.') };
+        }
+      } catch (err: any) {
+        return { success: false, message: extractPbErrorMessage(err, 'Database connection error while saving inventory change.') };
+      }
+    }
+
+    setInventoryItems(opts.nextItems);
+    localStorage.setItem('meedo_inventory_items', JSON.stringify(opts.nextItems));
+    const updatedTx = [opts.newTx, ...inventoryTransactions];
+    setInventoryTransactions(updatedTx);
+    localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
+
+    addAuditLog(opts.action, opts.auditDetails);
+    return { success: true };
+  };
+
+  const releaseInventoryItem = async (params: {
     itemId: string;
     department: string;
     quantity: number;
     receivedBy: string;
     dateReceived: string;
     remarks?: string;
-  }): { success: boolean; message?: string } => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
+  }): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'inventory:write')) {
       return { success: false, message: 'Administrator privilege required for inventory release.' };
     }
     const item = inventoryItems.find((i) => i.id === params.itemId);
@@ -3321,24 +4084,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const updatedQty = item.quantity - params.quantity;
     const nowIso = new Date().toISOString();
-
     const updatedItems = inventoryItems.map((i) =>
-      i.id === item.id
-        ? {
-            ...i,
-            quantity: updatedQty,
-            updated_at: nowIso,
-          }
-        : i
+      i.id === item.id ? { ...i, quantity: updatedQty, updated_at: nowIso } : i
     );
-    setInventoryItems(updatedItems);
-    localStorage.setItem('meedo_inventory_items', JSON.stringify(updatedItems));
-
     const releasingOfficer =
       currentUser?.full_name || currentUser?.username || 'Authorized Property Officer';
 
     const newTx: InventoryTransaction = {
-      id: 'tx_' + Date.now(),
+      id: toPbId('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       inventory_item_id: item.id,
       item_name: item.item,
       description: item.description,
@@ -3353,38 +4106,27 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: nowIso,
     };
 
-    const updatedTx = [newTx, ...inventoryTransactions];
-    setInventoryTransactions(updatedTx);
-    localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
-
-    if (isSupabaseConfigured && supabase) {
-      const client = supabase;
-      (async () => {
-        try {
-          await client.from('inventory_items').update({ quantity: updatedQty, updated_at: nowIso }).eq('id', item.id);
-          await client.from('inventory_transactions').insert(newTx);
-          addAuditLog('INVENTORY_RELEASED', {
-            transaction_id: newTx.id,
-            item_id: item.id,
-            item_name: item.item,
-            quantity: params.quantity,
-            unit: item.unit,
-            department: params.department,
-            received_by: params.receivedBy,
-            released_by: releasingOfficer,
-            summary: `Released ${params.quantity} ${item.unit} of "${item.item}" to ${params.department} (Received by: ${params.receivedBy})`,
-            timestamp: nowIso,
-          });
-        } catch (e) {
-          console.warn('Supabase inventory release notice:', e);
-        }
-      })();
-    }
-
-    return { success: true };
+    return commitInventoryChange({
+      action: 'INVENTORY_RELEASED',
+      auditDetails: {
+        transaction_id: newTx.id,
+        item_id: item.id,
+        item_name: item.item,
+        quantity: params.quantity,
+        unit: item.unit,
+        department: params.department,
+        received_by: params.receivedBy,
+        released_by: releasingOfficer,
+        summary: `Released ${params.quantity} ${item.unit} of "${item.item}" to ${params.department} (Received by: ${params.receivedBy})`,
+        timestamp: nowIso,
+      },
+      newTx,
+      nextItems: updatedItems,
+      itemUpdate: { id: item.id, prevQty: item.quantity, payload: { quantity: updatedQty, updated_at: nowIso } },
+    });
   };
 
-  const stockInInventoryItem = (params: {
+  const stockInInventoryItem = async (params: {
     itemId?: string;
     item?: string;
     description?: string;
@@ -3395,8 +4137,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     department?: string;
     receivedBy?: string;
     remarks?: string;
-  }): { success: boolean; message?: string } => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
+  }): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'inventory:write')) {
       return { success: false, message: 'Administrator privilege required for stock replenishment.' };
     }
     if (params.quantity <= 0) {
@@ -3416,6 +4158,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let isNewItem = false;
     let newItemObj: InventoryItem | null = null;
     let existingItemQty = 0;
+    let prevDateReceived: string | undefined;
 
     if (params.itemId) {
       const existing = inventoryItems.find((i) => i.id === params.itemId);
@@ -3426,6 +4169,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetDesc = existing.description;
       targetUnit = existing.unit;
       existingItemQty = existing.quantity;
+      prevDateReceived = existing.date_received;
       updatedItems = inventoryItems.map((i) =>
         i.id === params.itemId
           ? {
@@ -3441,7 +4185,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return { success: false, message: 'Item name and unit are required for new inventory items.' };
       }
       isNewItem = true;
-      targetItemId = 'inv_' + Date.now();
+      targetItemId = toPbId('inv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
       targetItemName = params.item.trim();
       targetDesc = params.description || '';
       targetUnit = params.unit.trim();
@@ -3460,11 +4204,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updatedItems = [newItemObj, ...inventoryItems];
     }
 
-    setInventoryItems(updatedItems);
-    localStorage.setItem('meedo_inventory_items', JSON.stringify(updatedItems));
-
     const newTx: InventoryTransaction = {
-      id: 'tx_' + Date.now(),
+      id: toPbId('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       inventory_item_id: targetItemId,
       item_name: targetItemName,
       description: targetDesc,
@@ -3479,66 +4220,62 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: nowIso,
     };
 
-    const updatedTx = [newTx, ...inventoryTransactions];
-    setInventoryTransactions(updatedTx);
-    localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
-
-    if (isSupabaseConfigured && supabase) {
-      const client = supabase;
-      (async () => {
-        try {
-          if (isNewItem && newItemObj) {
-            await client.from('inventory_items').insert(newItemObj);
-          } else {
-            await client.from('inventory_items').update({
+    return commitInventoryChange({
+      action: 'INVENTORY_STOCK_IN',
+      auditDetails: {
+        transaction_id: newTx.id,
+        item_id: targetItemId,
+        item_name: targetItemName,
+        quantity: params.quantity,
+        unit: targetUnit,
+        department: params.department || 'MEEDO',
+        received_by: params.receivedBy || 'Supply Custodian',
+        is_new_item: isNewItem,
+        summary: `Replenished stock (+${params.quantity} ${targetUnit}) for "${targetItemName}"`,
+        timestamp: nowIso,
+      },
+      newTx,
+      nextItems: updatedItems,
+      isNewItem,
+      newItemObj,
+      itemUpdate: !isNewItem
+        ? {
+            id: targetItemId,
+            prevQty: existingItemQty,
+            prevDateReceived,
+            payload: {
               quantity: existingItemQty + params.quantity,
               date_received: params.dateReceived,
               updated_at: nowIso,
-            }).eq('id', targetItemId);
+            },
           }
-          await client.from('inventory_transactions').insert(newTx);
-          addAuditLog('INVENTORY_STOCK_IN', {
-            transaction_id: newTx.id,
-            item_id: targetItemId,
-            item_name: targetItemName,
-            quantity: params.quantity,
-            unit: targetUnit,
-            department: params.department || 'MEEDO',
-            received_by: params.receivedBy || 'Supply Custodian',
-            is_new_item: isNewItem,
-            summary: `Replenished stock (+${params.quantity} ${targetUnit}) for "${targetItemName}"`,
-            timestamp: nowIso,
-          });
-        } catch (e) {
-          console.warn('Supabase inventory stock-in notice:', e);
-        }
-      })();
-    }
-
-    return { success: true };
+        : undefined,
+    });
   };
 
-  const adjustInventoryItem = (id: string, newQuantity: number, reason: string) => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
-      console.warn('Unauthorized: Administrator privilege required for inventory adjustment.');
-      return;
+  const adjustInventoryItem = async (
+    id: string,
+    newQuantity: number,
+    reason: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'inventory:write')) {
+      return { success: false, message: 'Administrator privilege required for inventory adjustment.' };
     }
     const item = inventoryItems.find((i) => i.id === id);
-    if (!item) return;
+    if (!item) return { success: false, message: 'Item not found.' };
 
-    const diff = newQuantity - item.quantity;
+    const clampedQty = Math.max(0, newQuantity);
+    const diff = clampedQty - item.quantity;
     const nowIso = new Date().toISOString();
     const releasingOfficer =
       currentUser?.full_name || currentUser?.username || 'Authorized Property Officer';
 
     const updatedItems = inventoryItems.map((i) =>
-      i.id === id ? { ...i, quantity: Math.max(0, newQuantity), updated_at: nowIso } : i
+      i.id === id ? { ...i, quantity: clampedQty, updated_at: nowIso } : i
     );
-    setInventoryItems(updatedItems);
-    localStorage.setItem('meedo_inventory_items', JSON.stringify(updatedItems));
 
     const newTx: InventoryTransaction = {
-      id: 'tx_' + Date.now(),
+      id: toPbId('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       inventory_item_id: item.id,
       item_name: item.item,
       description: item.description,
@@ -3557,43 +4294,34 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: nowIso,
     };
 
-    const updatedTx = [newTx, ...inventoryTransactions];
-    setInventoryTransactions(updatedTx);
-    localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
-
-    if (isSupabaseConfigured && supabase) {
-      const client = supabase;
-      (async () => {
-        try {
-          await client.from('inventory_items').update({ quantity: Math.max(0, newQuantity), updated_at: nowIso }).eq('id', id);
-          await client.from('inventory_transactions').insert(newTx);
-          addAuditLog('INVENTORY_ADJUSTED', {
-            transaction_id: newTx.id,
-            item_id: id,
-            item_name: item.item,
-            previous_qty: item.quantity,
-            new_qty: Math.max(0, newQuantity),
-            diff,
-            reason,
-            summary: `Inventory audit adjustment for "${item.item}": ${item.quantity} -> ${Math.max(0, newQuantity)} ${item.unit} (Reason: ${reason})`,
-            timestamp: nowIso,
-          });
-        } catch (e) {
-          console.warn('Supabase inventory adjustment notice:', e);
-        }
-      })();
-    }
+    return commitInventoryChange({
+      action: 'INVENTORY_ADJUSTED',
+      auditDetails: {
+        transaction_id: newTx.id,
+        item_id: id,
+        item_name: item.item,
+        previous_qty: item.quantity,
+        new_qty: clampedQty,
+        diff,
+        reason,
+        summary: `Inventory audit adjustment for "${item.item}": ${item.quantity} -> ${clampedQty} ${item.unit} (Reason: ${reason})`,
+        timestamp: nowIso,
+      },
+      newTx,
+      nextItems: updatedItems,
+      itemUpdate: { id, prevQty: item.quantity, payload: { quantity: clampedQty, updated_at: nowIso } },
+    });
   };
 
-  const returnInventoryItem = (params: {
+  const returnInventoryItem = async (params: {
     itemId: string;
     department: string;
     quantity: number;
     returnedBy: string;
     dateReturned: string;
     remarks?: string;
-  }): { success: boolean; message?: string } => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
+  }): Promise<{ success: boolean; message?: string }> => {
+    if (!hasPermission(currentUser, 'inventory:write')) {
       return { success: false, message: 'Administrator privilege required for inventory return.' };
     }
     const item = inventoryItems.find((i) => i.id === params.itemId);
@@ -3603,17 +4331,14 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nowIso = new Date().toISOString();
     const releasingOfficer =
       currentUser?.full_name || currentUser?.username || 'Authorized Property Officer';
+    const nextQty = item.quantity + params.quantity;
 
     const updatedItems = inventoryItems.map((i) =>
-      i.id === item.id
-        ? { ...i, quantity: i.quantity + params.quantity, updated_at: nowIso }
-        : i
+      i.id === item.id ? { ...i, quantity: nextQty, updated_at: nowIso } : i
     );
-    setInventoryItems(updatedItems);
-    localStorage.setItem('meedo_inventory_items', JSON.stringify(updatedItems));
 
     const newTx: InventoryTransaction = {
-      id: 'tx_' + Date.now(),
+      id: toPbId('tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
       inventory_item_id: item.id,
       item_name: item.item,
       description: item.description,
@@ -3628,41 +4353,27 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: nowIso,
     };
 
-    const updatedTx = [newTx, ...inventoryTransactions];
-    setInventoryTransactions(updatedTx);
-    localStorage.setItem('meedo_inventory_transactions', JSON.stringify(updatedTx));
-
-    if (isSupabaseConfigured && supabase) {
-      const client = supabase;
-      (async () => {
-        try {
-          await client.from('inventory_items').update({ quantity: item.quantity + params.quantity, updated_at: nowIso }).eq('id', item.id);
-          await client.from('inventory_transactions').insert(newTx);
-          addAuditLog('INVENTORY_RETURNED', {
-            transaction_id: newTx.id,
-            item_id: item.id,
-            item_name: item.item,
-            quantity: params.quantity,
-            unit: item.unit,
-            department: params.department,
-            returned_by: params.returnedBy,
-            summary: `Returned supply (+${params.quantity} ${item.unit}) of "${item.item}" from ${params.department} (Returned by: ${params.returnedBy})`,
-            timestamp: nowIso,
-          });
-        } catch (e) {
-          console.warn('Supabase inventory return notice:', e);
-        }
-      })();
-    }
-
-    return { success: true };
+    return commitInventoryChange({
+      action: 'INVENTORY_RETURNED',
+      auditDetails: {
+        transaction_id: newTx.id,
+        item_id: item.id,
+        item_name: item.item,
+        quantity: params.quantity,
+        unit: item.unit,
+        department: params.department,
+        returned_by: params.returnedBy,
+        summary: `Returned supply (+${params.quantity} ${item.unit}) of "${item.item}" from ${params.department} (Returned by: ${params.returnedBy})`,
+        timestamp: nowIso,
+      },
+      newTx,
+      nextItems: updatedItems,
+      itemUpdate: { id: item.id, prevQty: item.quantity, payload: { quantity: nextQty, updated_at: nowIso } },
+    });
   };
 
   const updateInventoryItem = (id: string, updates: Partial<InventoryItem>) => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
-      console.warn('Unauthorized: Administrator privilege required for inventory updates.');
-      return;
-    }
+    if (!requirePermission('inventory:write')) return;
     const existing = inventoryItems.find((i) => i.id === id);
     setInventoryItems((prev) => {
       const updated = prev.map((item) =>
@@ -3695,10 +4406,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteInventoryItem = (id: string) => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
-      console.warn('Unauthorized: Administrator privilege required for inventory deletion.');
-      return;
-    }
+    if (!requirePermission('inventory:write')) return;
     const existing = inventoryItems.find((i) => i.id === id);
     setInventoryItems((prev) => {
       const updated = prev.filter((item) => item.id !== id);
@@ -3725,10 +4433,7 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const resetInventoryData = () => {
-    if (currentUser?.role !== 'Admin' && currentUser?.section !== 'ALL') {
-      console.warn('Unauthorized: Administrator privilege required to reset inventory.');
-      return;
-    }
+    if (!requirePermission('inventory:write')) return;
     setInventoryItems(initialInventoryItems);
     setInventoryTransactions(initialInventoryTransactions);
     localStorage.setItem('meedo_inventory_items', JSON.stringify(initialInventoryItems));
@@ -3757,9 +4462,17 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentUser,
         setCurrentUser,
         authLoading,
+        firebaseGateState,
         login,
+        loginWithEmail,
+        loginWithGoogle,
+        registerWithEmail,
+        completeFirebaseRegistration,
+        linkExistingAccount,
+        sendPasswordReset,
+        resendVerificationEmail,
+        retryFirebaseSession,
         logout,
-        switchSectionUser,
         users,
         updateUserStatus,
         updateUserProfile,
@@ -3832,7 +4545,8 @@ export const MeedoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         resetInventoryData,
         auditLogs,
         addAuditLog,
-        isLiveSupabase: isSupabaseConfigured,
+        isLivePocketBase: isPocketBaseConfigured,
+        isLiveSupabase: isPocketBaseConfigured,
       }}
     >
       {children}

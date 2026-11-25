@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { escapeHtml, lguLetterheadHtml, openPrintDocument } from '@/lib/print';
 import { useMeedo } from '@/lib/store';
 import { StallZone, StallStatus, ComplianceStatus } from '@/lib/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -22,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export default function MarketReportsPage() {
-  const { stalls, currentUser } = useMeedo();
+  const { stalls, monitoringRecords, currentUser } = useMeedo();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'general' | 'compliance'>('general');
@@ -88,19 +89,45 @@ export default function MarketReportsPage() {
   const genEndIndex = genStartIndex + pageSize;
   const paginatedGeneralStalls = filteredGeneralStalls.slice(genStartIndex, genEndIndex);
 
-  // TAB 2: Derived Compliance Stalls
+  // TAB 2: Derived Compliance Stalls from PocketBase Monitoring Records + Tenant Metadata
   const complianceData = useMemo(() => {
+    const normalizeMonthKey = (dateStr?: string) => {
+      if (!dateStr) return '';
+      if (/^\d{4}-\d{2}/.test(dateStr)) return dateStr.slice(0, 7);
+      const parsed = new Date(dateStr);
+      if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 7);
+      return '';
+    };
+
+    const recordsByStall = new Map<string, typeof monitoringRecords>();
+    for (const rec of monitoringRecords) {
+      if (!rec?.stall_no) continue;
+      const key = rec.stall_no.toUpperCase();
+      const arr = recordsByStall.get(key) || [];
+      arr.push(rec);
+      recordsByStall.set(key, arr);
+    }
+
     return stalls.map((s) => {
       const isOccupied = s.status === 'Occupied';
       const isCompliant = s.current_tenant?.compliance_status === 'Compliant';
+      const stallLogs = recordsByStall.get(s.stall_no.toUpperCase()) || [];
 
-      // For occupied compliant stalls, simulate baseline approvals
-      const operational = isOccupied;
-      const permitSubmitted = isOccupied && isCompliant;
-      const leaseSubmitted = isOccupied && isCompliant;
-      const rentalPaid = isOccupied && isCompliant;
-      const rentalOr = rentalPaid ? `OR-${s.stall_no}-2024` : '';
-      const seminarsAttended = isOccupied && isCompliant ? ['Food Safety 2024', 'Sanitation'] : [];
+      // Prefer a monitoring record in the selected month, falling back to latest monitoring record for this stall
+      const monthMatch = stallLogs.find((r) => normalizeMonthKey(r.monitoring_date) === compMonth);
+      const latestLog = monthMatch || stallLogs[0];
+
+      const operational = latestLog ? latestLog.operational_status === 'Operational' : isOccupied;
+      const permitSubmitted = latestLog
+        ? Boolean(latestLog.permit_submitted)
+        : Boolean(s.current_tenant?.permit_doc_url) || (isOccupied && isCompliant);
+      const leaseSubmitted = latestLog
+        ? Boolean(latestLog.lease_submitted)
+        : Boolean(s.current_tenant?.lease_doc_url) || (isOccupied && isCompliant);
+      const rentalPaid = latestLog ? Boolean(latestLog.rental_paid) : isOccupied && isCompliant;
+      const rentalOr = latestLog?.rental_or || '';
+      const seminarsAttended =
+        latestLog && Array.isArray(latestLog.seminars_attended) ? latestLog.seminars_attended : [];
 
       return {
         stall_no: s.stall_no,
@@ -115,7 +142,7 @@ export default function MarketReportsPage() {
         seminarsAttended,
       };
     });
-  }, [stalls]);
+  }, [stalls, monitoringRecords, compMonth]);
 
   // Compliance KPIs
   const compTotals = useMemo(() => {
@@ -223,91 +250,60 @@ export default function MarketReportsPage() {
     const rowsHtml = filteredGeneralStalls
       .map(
         (s) => `<tr>
-        <td style="font-weight:bold;">${s.stall_no}</td>
-        <td style="text-transform:uppercase;">${s.zone}</td>
-        <td>${s.status}</td>
-        <td><strong>${s.current_tenant?.stall_owner || '—'}</strong></td>
-        <td>${s.current_tenant?.operator || '—'}</td>
-        <td>${s.current_tenant?.line_of_business || '—'}</td>
-        <td>${s.current_tenant?.compliance_status || 'N/A'}</td>
+        <td style="font-weight:bold;">${escapeHtml(s.stall_no)}</td>
+        <td style="text-transform:uppercase;">${escapeHtml(s.zone)}</td>
+        <td>${escapeHtml(s.status)}</td>
+        <td><strong>${escapeHtml(s.current_tenant?.stall_owner || '—')}</strong></td>
+        <td>${escapeHtml(s.current_tenant?.operator || '—')}</td>
+        <td>${escapeHtml(s.current_tenant?.line_of_business || '—')}</td>
+        <td>${escapeHtml(s.current_tenant?.compliance_status || 'N/A')}</td>
       </tr>`
       )
       .join('');
 
-    const printWin = window.open('', '', 'width=1000,height=750');
-    if (!printWin) return;
-
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Market General Status Report</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 25px; color: #111; font-size: 10.5pt; }
-          .report-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
-          .report-header h2 { margin: 0; font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.5px; }
-          .report-header h3 { margin: 4px 0 0; font-size: 1.1rem; color: #1e3a8a; }
-          .report-header p { margin: 4px 0 0; color: #475569; font-size: 0.9rem; }
-          
-          table.data-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
-          table.data-table th, table.data-table td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-          table.data-table th { background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; font-size: 0.75rem; }
-          table.data-table tr:nth-child(even) { background-color: #f8fafc; }
-
-          .signature-section { display: flex; justify-content: space-between; margin-top: 45px; page-break-inside: avoid; }
-          .sig-box { width: 240px; text-align: center; }
-          .sig-label { text-align: left; margin-bottom: 40px; font-weight: 600; font-size: 0.9rem; }
-          .sig-line { border-bottom: 1.5px solid #000; padding-bottom: 4px; font-weight: bold; font-size: 0.95rem; }
-          .sig-title { margin-top: 4px; font-size: 0.8rem; color: #555; }
-
-          @media print { 
-            body { margin: 0.3in; }
-            @page { size: landscape; margin: 0.3in; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="report-header">
-          <h2>Municipal Economic Enterprise Development Office (MEEDO)</h2>
-          <h3>Public Market General Status & Tenancy Register</h3>
-          <p>${subTitle}</p>
+    const bodyHtml = `
+      ${lguLetterheadHtml({
+        title: 'Public Market General Status & Tenancy Register',
+        subtitle: subTitle,
+        dept: 'MEEDO — Public Market Operations Section (Section A)',
+      })}
+      <table class="lgu-table">
+        <thead>
+          <tr>
+            <th>Stall No.</th>
+            <th>Zone</th>
+            <th>Status</th>
+            <th>Stall Owner</th>
+            <th>Operator</th>
+            <th>Line of Business</th>
+            <th>Compliance</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="7" style="text-align:center;">No stall records found.</td></tr>'}
+        </tbody>
+      </table>
+      <div class="lgu-signatures">
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Prepared by:</div>
+          <div class="lgu-sig-line">${escapeHtml(preparerName)}</div>
+          <div class="lgu-sig-role">Market In-Charge / Inspector</div>
         </div>
-
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Stall No.</th>
-              <th>Zone</th>
-              <th>Status</th>
-              <th>Stall Owner</th>
-              <th>Operator</th>
-              <th>Line of Business</th>
-              <th>Compliance</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml || '<tr><td colspan="7" style="text-align:center;">No stall records found.</td></tr>'}
-          </tbody>
-        </table>
-
-        <div class="signature-section">
-          <div class="sig-box">
-            <div class="sig-label">Prepared by:</div>
-            <div class="sig-line">${preparerName}</div>
-            <div class="sig-title">Market In-Charge / Inspector</div>
-          </div>
-          <div class="sig-box">
-            <div class="sig-label">Noted by:</div>
-            <div class="sig-line">Municipal Administrator</div>
-            <div class="sig-title">MEEDO Administrator</div>
-          </div>
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Noted by:</div>
+          <div class="lgu-sig-line">Municipal Administrator</div>
+          <div class="lgu-sig-role">MEEDO Administrator</div>
         </div>
-      </body>
-      </html>
-    `);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => printWin.print(), 300);
+      </div>
+    `;
+
+    openPrintDocument({
+      title: 'Market General Status Report',
+      bodyHtml,
+      orientation: 'landscape',
+      pageSize: 'A4',
+      margin: '0.35in',
+    });
   };
 
   const handlePrintComplianceReport = () => {
@@ -317,119 +313,84 @@ export default function MarketReportsPage() {
     const rowsHtml = filteredComplianceStalls
       .map(
         (d) => `<tr>
-        <td style="font-weight:bold;">${d.stall_no}</td>
-        <td><strong>${d.owner}</strong></td>
+        <td style="font-weight:bold;">${escapeHtml(d.stall_no)}</td>
+        <td><strong>${escapeHtml(d.owner)}</strong></td>
         <td>${d.operational ? 'Operational' : 'Non-Operational'}</td>
         <td>${d.permitSubmitted ? 'Submitted' : 'No Submission'}</td>
         <td>${d.leaseSubmitted ? 'Submitted' : 'No Submission'}</td>
-        <td>${d.rentalPaid ? d.rentalOr : 'No Payment'}</td>
-        <td>${d.seminarsAttended.join(', ') || 'None'}</td>
+        <td>${d.rentalPaid ? escapeHtml(d.rentalOr) : 'No Payment'}</td>
+        <td>${escapeHtml(d.seminarsAttended.join(', ') || 'None')}</td>
       </tr>`
       )
       .join('');
 
-    const printWin = window.open('', '', 'width=1000,height=750');
-    if (!printWin) return;
-
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Market Monthly Compliance Report - ${compMonth}</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 25px; color: #111; font-size: 10.5pt; }
-          .report-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
-          .report-header h2 { margin: 0; font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.5px; }
-          .report-header h3 { margin: 4px 0 0; font-size: 1.1rem; color: #1e3a8a; }
-          .report-header p { margin: 4px 0 0; color: #475569; font-size: 0.9rem; }
-          
-          .summary-grid { display: flex; gap: 12px; margin-bottom: 18px; }
-          .summary-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; background: #f8fafc; text-align: center; }
-          .summary-val { font-size: 1.3rem; font-weight: bold; color: #1e3a8a; }
-          .summary-lbl { font-size: 0.75rem; text-transform: uppercase; color: #64748b; margin-top: 3px; }
-
-          table.data-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
-          table.data-table th, table.data-table td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-          table.data-table th { background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; font-size: 0.75rem; }
-          table.data-table tr:nth-child(even) { background-color: #f8fafc; }
-
-          .signature-section { display: flex; justify-content: space-between; margin-top: 45px; page-break-inside: avoid; }
-          .sig-box { width: 240px; text-align: center; }
-          .sig-label { text-align: left; margin-bottom: 40px; font-weight: 600; font-size: 0.9rem; }
-          .sig-line { border-bottom: 1.5px solid #000; padding-bottom: 4px; font-weight: bold; font-size: 0.95rem; }
-          .sig-title { margin-top: 4px; font-size: 0.8rem; color: #555; }
-
-          @media print { 
-            body { margin: 0.3in; }
-            @page { size: landscape; margin: 0.3in; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="report-header">
-          <h2>Municipal Economic Enterprise Development Office (MEEDO)</h2>
-          <h3>Monthly Stall Compliance & Verification Report</h3>
-          <p>${subTitle}</p>
+    const bodyHtml = `
+      ${lguLetterheadHtml({
+        title: 'Monthly Stall Compliance & Verification Report',
+        subtitle: subTitle,
+        dept: 'MEEDO — Public Market Operations Section (Section A)',
+      })}
+      <div class="lgu-kpi-grid">
+        <div class="lgu-kpi-card">
+          <div class="lgu-kpi-label">Total Stalls</div>
+          <div class="lgu-kpi-value">${compTotals.total}</div>
         </div>
-
-        <div class="summary-grid">
-          <div class="summary-card">
-            <div class="summary-val">${compTotals.total}</div>
-            <div class="summary-lbl">Total Stalls</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-val" style="color: #166534;">${compTotals.op}</div>
-            <div class="summary-lbl">Operational</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-val">${compTotals.permit}</div>
-            <div class="summary-lbl">Permits Submitted</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-val">${compTotals.lease}</div>
-            <div class="summary-lbl">Leases Submitted</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-val">${compTotals.rental}</div>
-            <div class="summary-lbl">Rentals Paid</div>
-          </div>
+        <div class="lgu-kpi-card">
+          <div class="lgu-kpi-label">Operational</div>
+          <div class="lgu-kpi-value" style="color:#166534;">${compTotals.op}</div>
         </div>
-
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Stall No.</th>
-              <th>Owner Name</th>
-              <th>Operational Status</th>
-              <th>Business Permit</th>
-              <th>Lease Contract</th>
-              <th>Rental O.R.</th>
-              <th>Seminars Attended</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml || '<tr><td colspan="7" style="text-align:center;">No compliance records found.</td></tr>'}
-          </tbody>
-        </table>
-
-        <div class="signature-section">
-          <div class="sig-box">
-            <div class="sig-label">Prepared by:</div>
-            <div class="sig-line">${preparerName}</div>
-            <div class="sig-title">Market In-Charge / Inspector</div>
-          </div>
-          <div class="sig-box">
-            <div class="sig-label">Noted by:</div>
-            <div class="sig-line">Municipal Administrator</div>
-            <div class="sig-title">MEEDO Administrator</div>
-          </div>
+        <div class="lgu-kpi-card">
+          <div class="lgu-kpi-label">Permits Submitted</div>
+          <div class="lgu-kpi-value">${compTotals.permit}</div>
         </div>
-      </body>
-      </html>
-    `);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => printWin.print(), 300);
+        <div class="lgu-kpi-card">
+          <div class="lgu-kpi-label">Leases Submitted</div>
+          <div class="lgu-kpi-value">${compTotals.lease}</div>
+        </div>
+        <div class="lgu-kpi-card">
+          <div class="lgu-kpi-label">Rentals Paid</div>
+          <div class="lgu-kpi-value">${compTotals.rental}</div>
+        </div>
+      </div>
+
+      <table class="lgu-table">
+        <thead>
+          <tr>
+            <th>Stall No.</th>
+            <th>Owner Name</th>
+            <th>Operational Status</th>
+            <th>Business Permit</th>
+            <th>Lease Contract</th>
+            <th>Rental O.R.</th>
+            <th>Seminars Attended</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="7" style="text-align:center;">No compliance records found.</td></tr>'}
+        </tbody>
+      </table>
+
+      <div class="lgu-signatures">
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Prepared by:</div>
+          <div class="lgu-sig-line">${escapeHtml(preparerName)}</div>
+          <div class="lgu-sig-role">Market In-Charge / Inspector</div>
+        </div>
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Noted by:</div>
+          <div class="lgu-sig-line">Municipal Administrator</div>
+          <div class="lgu-sig-role">MEEDO Administrator</div>
+        </div>
+      </div>
+    `;
+
+    openPrintDocument({
+      title: `Market Monthly Compliance Report - ${compMonth}`,
+      bodyHtml,
+      orientation: 'landscape',
+      pageSize: 'A4',
+      margin: '0.35in',
+    });
   };
 
   return (
@@ -713,7 +674,7 @@ export default function MarketReportsPage() {
             </Card>
 
             <Card className="p-3.5 bg-white border-slate-200 text-center">
-              <div className="text-2xl font-black text-purple-600">{compTotals.lease}</div>
+              <div className="text-2xl font-black text-slate-900 tabular-nums">{compTotals.lease}</div>
               <div className="text-xs font-semibold text-slate-500 mt-1 uppercase">Leases</div>
             </Card>
 

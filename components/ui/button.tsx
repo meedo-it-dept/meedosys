@@ -15,15 +15,15 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-[0.985] disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm',
-    secondary: 'bg-slate-200 text-slate-800 hover:bg-slate-300 focus:ring-slate-400',
-    success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 shadow-sm',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500 shadow-sm',
+    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-[0_1px_2px_rgba(37,99,235,0.25)]',
+    secondary: 'bg-slate-100 text-slate-800 border border-slate-200/80 hover:bg-slate-200/80 focus:ring-slate-400',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 shadow-[0_1px_2px_rgba(5,150,105,0.25)]',
+    danger: 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500 shadow-[0_1px_2px_rgba(225,29,72,0.25)]',
     ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:ring-slate-300',
-    outline: 'border border-slate-300 text-slate-700 hover:bg-slate-50 focus:ring-blue-500',
+    outline: 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 focus:ring-blue-500 shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
   };
 
   const sizes = {

@@ -117,40 +117,40 @@ export const GuardFacilityStats: React.FC = () => {
       </div>
 
       {/* Standard Guard Operating Checklist */}
-      <div className="rounded-3xl border border-slate-200 bg-slate-900 text-white p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+      <div className="rounded-2xl border border-slate-200/85 bg-white text-slate-900 p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             Active Duty Shift Standard Protocols
           </h2>
-          <span className="text-[11px] text-slate-400">MEEDO Market Guard Directive</span>
+          <span className="text-xs text-slate-500 font-medium">MEEDO Market Guard Directive</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-300">
-          <div className="rounded-2xl bg-slate-800 p-3.5 space-y-1">
-            <span className="font-bold text-white block">1. Roving & Walkway Clearance</span>
-            <p className="text-slate-400 text-[11px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-1">
+            <span className="font-bold text-slate-900 block">1. Roving &amp; Walkway Clearance</span>
+            <p className="text-slate-600 text-xs leading-relaxed">
               Conduct visual inspections every hour. Ensure no vendor merchandise or crates spill past designated yellow stall boundary lines.
             </p>
           </div>
 
-          <div className="rounded-2xl bg-slate-800 p-3.5 space-y-1">
-            <span className="font-bold text-white block">2. Fire & Electrical Safety</span>
-            <p className="text-slate-400 text-[11px]">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-1">
+            <span className="font-bold text-slate-900 block">2. Fire &amp; Electrical Safety</span>
+            <p className="text-slate-600 text-xs leading-relaxed">
               Verify fire exit corridors and hydrants remain unobstructed. Check sub-meter areas for unauthorized jumper wires or smoke odors.
             </p>
           </div>
 
-          <div className="rounded-2xl bg-slate-800 p-3.5 space-y-1">
-            <span className="font-bold text-white block">3. Immediate Incident Escalation</span>
-            <p className="text-slate-400 text-[11px]">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-1">
+            <span className="font-bold text-slate-900 block">3. Immediate Incident Escalation</span>
+            <p className="text-slate-600 text-xs leading-relaxed">
               For violent altercations or theft, contact PNP Substation immediately. Log details in mobile incident reporter within 15 minutes.
             </p>
           </div>
 
-          <div className="rounded-2xl bg-slate-800 p-3.5 space-y-1">
-            <span className="font-bold text-white block">4. Orderly Turnover at Shift End</span>
-            <p className="text-slate-400 text-[11px]">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-1">
+            <span className="font-bold text-slate-900 block">4. Orderly Turnover at Shift End</span>
+            <p className="text-slate-600 text-xs leading-relaxed">
               Physically account for all entrance gate keys, master padlocks, and hand over the active blotter logbook to the incoming shift guard.
             </p>
           </div>

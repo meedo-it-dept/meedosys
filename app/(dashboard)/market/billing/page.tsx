@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { escapeHtml, getLguLogoUrl, openPrintDocument } from '@/lib/print';
 import { useMeedo } from '@/lib/store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { ElectricBill } from '@/lib/types';
@@ -36,6 +37,7 @@ function generatePrintHtml(
   orientation: 'portrait' | 'landscape',
   showCutGuides: boolean
 ) {
+  const lguLogoUrl = escapeHtml(getLguLogoUrl());
   const isLetter = paperSize === 'letter';
   const isLandscape = orientation === 'landscape';
 
@@ -62,12 +64,17 @@ function generatePrintHtml(
             // WIDE / LANDSCAPE SLIP (2 columns side-by-side inside card)
             return `
               <div class="bill-card landscape-slip">
-                ${copyLabel ? `<div class="copy-badge">${copyLabel}</div>` : ''}
+                ${copyLabel ? `<div class="copy-badge">${escapeHtml(copyLabel)}</div>` : ''}
 
                 <!-- Header -->
                 <div class="slip-header-ls">
-                  <div class="muni-title-ls">MUNICIPALITY OF MALUNGON • PROVINCE OF SARANGANI</div>
-                  <div class="dept-title-ls">Municipal Economic Enterprise Development Office (MEEDO)</div>
+                  <div style="display:flex;align-items:center;justify-content:center;gap:8px;">
+                    <img src="${lguLogoUrl}" alt="LGU Malungon Seal" style="width:30px;height:30px;object-fit:contain;flex-shrink:0;" />
+                    <div style="text-align:left;">
+                      <div class="muni-title-ls">MUNICIPALITY OF MALUNGON • PROVINCE OF SARANGANI</div>
+                      <div class="dept-title-ls">Municipal Economic Enterprise Development Office (MEEDO)</div>
+                    </div>
+                  </div>
                   <div class="statement-title-ls">ELECTRIC UTILITY BILLING STATEMENT</div>
                   <div class="header-divider-ls"></div>
                 </div>
@@ -79,20 +86,20 @@ function generatePrintHtml(
                     <div class="account-card-ls">
                       <div class="field-row-ls">
                         <span class="label-ls">Stall No:</span>
-                        <span class="val-stall-ls">${b.stall_no}</span>
+                        <span class="val-stall-ls">${escapeHtml(b.stall_no)}</span>
                       </div>
                       <div class="field-row-ls">
                         <span class="label-ls">Concessionaire:</span>
-                        <span class="val-owner-ls">${b.owner_name || 'Vacant'}</span>
+                        <span class="val-owner-ls">${escapeHtml(b.owner_name || 'Vacant')}</span>
                       </div>
                       <div class="field-divider-ls"></div>
                       <div class="field-row-ls">
                         <span class="label-ls">Due Date:</span>
-                        <span class="val-due-ls">${formatDate(b.due_date)}</span>
+                        <span class="val-due-ls">${escapeHtml(formatDate(b.due_date))}</span>
                       </div>
                       <div class="field-row-ls">
                         <span class="label-ls">Disconnection:</span>
-                        <span class="val-disc-ls">${b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</span>
+                        <span class="val-disc-ls">${b.disconnection_date ? escapeHtml(formatDate(b.disconnection_date)) : '—'}</span>
                       </div>
                     </div>
 
@@ -148,7 +155,7 @@ function generatePrintHtml(
                     </div>
                   </div>
                   <div class="system-tag-ls">
-                    MEEDO Market System • Official Bill • Stall ${b.stall_no}
+                    MEEDO Market System • Official Bill • Stall ${escapeHtml(b.stall_no)}
                   </div>
                 </div>
               </div>
@@ -158,12 +165,17 @@ function generatePrintHtml(
           // PORTRAIT SLIP (Stacked vertical with zero dead space)
           return `
             <div class="bill-card portrait-slip">
-              ${copyLabel ? `<div class="copy-badge">${copyLabel}</div>` : ''}
+              ${copyLabel ? `<div class="copy-badge">${escapeHtml(copyLabel)}</div>` : ''}
               
               <!-- Header -->
               <div class="slip-header-pt">
-                <div class="muni-title-pt">MUNICIPALITY OF MALUNGON</div>
-                <div class="province-title-pt">Province of Sarangani</div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:2px;">
+                  <img src="${lguLogoUrl}" alt="LGU Malungon Seal" style="width:32px;height:32px;object-fit:contain;flex-shrink:0;" />
+                  <div style="text-align:left;">
+                    <div class="muni-title-pt">MUNICIPALITY OF MALUNGON</div>
+                    <div class="province-title-pt">Province of Sarangani</div>
+                  </div>
+                </div>
                 <div class="dept-title-pt">Municipal Economic Enterprise Development Office (MEEDO)</div>
                 <div class="statement-title-pt">ELECTRIC UTILITY BILLING STATEMENT</div>
                 <div class="header-divider-pt"></div>
@@ -174,19 +186,19 @@ function generatePrintHtml(
                 <div class="account-grid-pt">
                   <div>
                     <span class="meta-label-pt">Stall Number:</span>
-                    <div class="meta-stall-pt">${b.stall_no}</div>
+                    <div class="meta-stall-pt">${escapeHtml(b.stall_no)}</div>
                   </div>
                   <div>
                     <span class="meta-label-pt">Tenant / Owner:</span>
-                    <div class="meta-owner-pt">${b.owner_name || 'Vacant / N/A'}</div>
+                    <div class="meta-owner-pt">${escapeHtml(b.owner_name || 'Vacant / N/A')}</div>
                   </div>
                   <div>
                     <span class="meta-label-pt">Due Date:</span>
-                    <div class="meta-due-pt">${formatDate(b.due_date)}</div>
+                    <div class="meta-due-pt">${escapeHtml(formatDate(b.due_date))}</div>
                   </div>
                   <div>
                     <span class="meta-label-pt">Disconnection Date:</span>
-                    <div class="meta-disc-pt">${b.disconnection_date ? formatDate(b.disconnection_date) : '—'}</div>
+                    <div class="meta-disc-pt">${b.disconnection_date ? escapeHtml(formatDate(b.disconnection_date)) : '—'}</div>
                   </div>
                 </div>
               </div>
@@ -241,7 +253,7 @@ function generatePrintHtml(
 
               <!-- System Stamp -->
               <div class="system-stamp-pt">
-                MEEDO Market System • Official Utility Billing Statement • Stall ${b.stall_no}
+                MEEDO Market System • Official Utility Billing Statement • Stall ${escapeHtml(b.stall_no)}
               </div>
             </div>
           `;
@@ -992,23 +1004,13 @@ export default function ElectricBillingPage() {
   const totalSheets = printSheets.length;
   const currentSheet = printSheets[Math.min(previewSheetIndex, totalSheets - 1)] || [null, null, null, null];
 
-  // Execute printing in dedicated popup window
+  // Execute printing via safe image-aware print window / iframe fallback
   const handleTriggerPrint = () => {
-    const printWin = window.open('', '_blank', 'width=1050,height=800');
-    if (!printWin) {
-      window.print();
-      return;
-    }
-
     const html = generatePrintHtml(printSheets, paperSize, orientation, showCutGuides);
-    printWin.document.open();
-    printWin.document.write(html);
-    printWin.document.close();
-    printWin.focus();
-
-    setTimeout(() => {
-      printWin.print();
-    }, 350);
+    openPrintDocument({
+      title: 'MEEDO Electric Utility Billing Statements',
+      rawHtml: html,
+    });
   };
 
   return (
@@ -1345,7 +1347,7 @@ export default function ElectricBillingPage() {
                             <div className="flex items-center gap-2">
                               {bill.status === 'Unpaid' ? (
                                 <button
-                                  onClick={() => updateBillStatus(bill.stall_no, 'Fully Paid')}
+                                  onClick={() => updateBillStatus(bill.stall_no, 'Fully Paid', bill.id)}
                                   className="text-[11px] font-semibold text-emerald-600 hover:underline shrink-0"
                                 >
                                   Mark Paid
@@ -1511,7 +1513,7 @@ export default function ElectricBillingPage() {
 
       {/* 4x4 BILLING STATEMENT PRINT PREVIEW MODAL */}
       {showPrintModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/40 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">

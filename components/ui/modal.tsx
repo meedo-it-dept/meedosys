@@ -42,18 +42,19 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-in fade-in duration-150">
       <div
         className={cn(
-          'bg-white rounded-2xl shadow-xl w-full border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden',
+          'bg-white rounded-2xl shadow-[0_18px_42px_-10px_rgba(15,23,42,0.18),0_4px_12px_rgba(15,23,42,0.06)] w-full border border-slate-200/90 flex flex-col max-h-[90vh] overflow-hidden',
           maxWidths[maxWidth]
         )}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+        <div className="flex items-center justify-between px-6 py-4 bg-slate-50/70 border-b border-slate-200/80">
+          <h3 className="text-base font-bold text-slate-900">{title}</h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Close modal"
+            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

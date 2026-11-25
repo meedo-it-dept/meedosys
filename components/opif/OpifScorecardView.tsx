@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { openPrintDocument } from '@/lib/print';
 import { useSearchParams } from 'next/navigation';
 import { useMeedo } from '@/lib/store';
+import { hasPermission, isAdminUser } from '@/lib/rbac';
 import { OpifIndicator } from '@/lib/types';
 import {
   Printer,
@@ -87,6 +89,7 @@ const defaultFormData: OpifFormData = {
 
 export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScorecardViewProps) {
   const searchParams = useSearchParams();
+  const opifPrintRef = useRef<HTMLDivElement>(null);
   const querySection = searchParams.get('section') as 'A' | 'B' | 'C' | 'D' | 'E' | null;
 
   const {
@@ -98,7 +101,8 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
     resetOpifIndicators,
   } = useMeedo();
 
-  const isAdmin = currentUser?.role === 'Admin' || currentUser?.section === 'ALL';
+  const isAdmin = isAdminUser(currentUser);
+  const canManageAllOpif = hasPermission(currentUser, 'opif:manage_all');
   const isDepartmentStaff = !isAdmin && currentUser?.section && ['A', 'B', 'C', 'D', 'E'].includes(currentUser.section);
 
   // Editable Year state with persistence
@@ -343,8 +347,8 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
 
   const isSectionLocked = isDepartmentStaff || (Boolean(forcedSection) && !isAdmin);
 
-  // Allow editing for all authorized officers, department staff, and admin
-  const canEdit = true;
+  // Allow editing for authorized department staff (scoped to their section) and Admins
+  const canEdit = isAdmin || (Boolean(currentUser?.section) && ['A', 'B', 'C', 'D', 'E'].includes(currentUser!.section));
 
   return (
     <div className="space-y-4">
@@ -435,15 +439,17 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Add Row Button in Controls Bar */}
-          <button
-            onClick={() => openAddModal(activeSection !== 'ALL' ? activeSection : 'A')}
-            className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs inline-flex items-center gap-1.5 transition"
-            title="Open form to add an indicator row"
-          >
-            <Plus className="w-4 h-4" /> Add Indicator Row
-          </button>
+          {canManageAllOpif && (
+            <button
+              onClick={() => openAddModal(activeSection !== 'ALL' ? activeSection : 'A')}
+              className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs inline-flex items-center gap-1.5 transition"
+              title="Open form to add an indicator row"
+            >
+              <Plus className="w-4 h-4" /> Add Indicator Row
+            </button>
+          )}
 
-          {isAdmin && (
+          {canManageAllOpif && (
             <button
               onClick={handleResetTemplate}
               className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg shadow-xs inline-flex items-center gap-1.5 transition"
@@ -454,7 +460,56 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
           )}
 
           <button
-            onClick={() => window.print()}
+            onClick={() => {
+              const wrapper = opifPrintRef.current;
+              if (!wrapper) {
+                window.print();
+                return;
+              }
+              openPrintDocument({
+                title: `MEEDO OPIF Accomplishment Report (${opifYear || '2025'})`,
+                copyDocumentStyles: true,
+                pageSize: '13in 8.5in',
+                margin: '0.25in',
+                styles: `
+                  .opif-wrapper {
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    border-radius: 0 !important;
+                    overflow: visible !important;
+                    width: 100% !important;
+                  }
+                  .opif-wrapper table.opif-table {
+                    page-break-inside: auto !important;
+                    font-size: 8.5pt !important;
+                    min-width: 100% !important;
+                    width: 100% !important;
+                  }
+                  .opif-wrapper table.opif-table tr,
+                  .opif-wrapper table.opif-table td,
+                  .opif-wrapper table.opif-table th {
+                    padding: 2px 3px !important;
+                  }
+                  .opif-wrapper .print-single-header {
+                    display: table-header-group !important;
+                  }
+                  .print-hide {
+                    display: none !important;
+                  }
+                  .print-only-inline {
+                    display: inline !important;
+                  }
+                  table th.print-hide,
+                  table td.print-hide,
+                  table tr.print-hide {
+                    display: none !important;
+                  }
+                `,
+                bodyHtml: wrapper.outerHTML,
+              });
+            }}
             className="px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-xs inline-flex items-center gap-1.5 transition"
           >
             <Printer className="w-3.5 h-3.5" /> Print OPIF
@@ -463,9 +518,28 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
       </div>
 
       {/* Main OPIF Document Container (White Paper / Official Government Format) */}
-      <div className="opif-wrapper rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6 bg-white overflow-x-auto">
+      <div
+        ref={opifPrintRef}
+        className="opif-wrapper rounded-xl border border-slate-200 shadow-sm p-4 sm:p-6 bg-white overflow-x-auto"
+      >
         {/* Document Header */}
         <div className="document-header">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '6px' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/favicon_LGUMalungon/LGU_LOGO1.png"
+              alt="Municipality of Malungon Seal"
+              style={{ width: '48px', height: '48px', objectFit: 'contain' }}
+            />
+            <div style={{ textAlign: 'left', lineHeight: 1.25 }}>
+              <div style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#475569' }}>
+                Republic of the Philippines • Province of Sarangani
+              </div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                MUNICIPALITY OF MALUNGON — MUNICIPAL ECONOMIC ENTERPRISE DEVELOPMENT OFFICE
+              </div>
+            </div>
+          </div>
           {/* Editable OPIF Title */}
           <div className="opif-title flex items-center justify-center gap-1.5 flex-wrap">
             <span>Organizational Performance Indicator Framework (OPIF) -</span>
@@ -473,10 +547,11 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
               type="text"
               value={opifYear}
               onChange={(e) => handleYearChange(e.target.value)}
-              className="w-16 sm:w-20 text-center font-bold text-inherit bg-transparent border-none underline focus:outline-none focus:bg-blue-50/60 rounded transition-colors cursor-text p-0 m-0"
+              className="print-hide w-16 sm:w-20 text-center font-bold text-inherit bg-transparent border-none underline focus:outline-none focus:bg-blue-50/60 rounded transition-colors cursor-text p-0 m-0"
               title="Click to edit year"
               placeholder="2025"
             />
+            <span className="hidden print-only-inline font-bold underline">{opifYear || '2025'}</span>
           </div>
 
           <table className="info-table">
@@ -547,12 +622,14 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
                   <tr key={`empty_${secKey}`} className="print-hide">
                     <td colSpan={22} className="p-4 text-center text-slate-500 bg-slate-50 border border-dashed border-slate-300">
                       <span>No indicators recorded for {sectionNames[secKey]}.</span>
-                      <button
-                        onClick={() => openAddModal(secKey)}
-                        className="ml-3 inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Add First Row
-                      </button>
+                      {canManageAllOpif && (
+                        <button
+                          onClick={() => openAddModal(secKey)}
+                          className="ml-3 inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add First Row
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -831,13 +908,15 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
                             >
                               <FileEdit className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleDeleteRow(row.id!)}
-                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition"
-                              title="Delete Row"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canManageAllOpif && (
+                              <button
+                                onClick={() => handleDeleteRow(row.id!)}
+                                className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition"
+                                title="Delete Row"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -845,29 +924,31 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
                   })}
 
                   {/* Add Row Buttons at the bottom of each Section */}
-                  <tr className="print-hide">
-                    <td
-                      colSpan={22}
-                      className="text-center p-2.5 bg-slate-50 border-2 border-dashed border-slate-300"
-                    >
-                      <div className="flex items-center justify-center gap-2.5 flex-wrap">
-                        <button
-                          onClick={() => openAddModal(secKey)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
-                          title="Open structured form to input new indicator data"
-                        >
-                          <Plus className="w-4 h-4" /> Add Row to {sectionNames[secKey]} (Data Input Form)
-                        </button>
-                        <button
-                          onClick={() => handleAddBlankRow(secKey)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold shadow-xs transition"
-                          title="Instantly add an editable row directly in table"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-slate-500" /> Quick Blank Row
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  {canManageAllOpif && (
+                    <tr className="print-hide">
+                      <td
+                        colSpan={22}
+                        className="text-center p-2.5 bg-slate-50 border-2 border-dashed border-slate-300"
+                      >
+                        <div className="flex items-center justify-center gap-2.5 flex-wrap">
+                          <button
+                            onClick={() => openAddModal(secKey)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
+                            title="Open structured form to input new indicator data"
+                          >
+                            <Plus className="w-4 h-4" /> Add Row to {sectionNames[secKey]} (Data Input Form)
+                          </button>
+                          <button
+                            onClick={() => handleAddBlankRow(secKey)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold shadow-xs transition"
+                            title="Instantly add an editable row directly in table"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-slate-500" /> Quick Blank Row
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </React.Fragment>
               );
             })}
@@ -918,7 +999,7 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
 
       {/* OPIF INDICATOR DATA INPUT MODAL */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
@@ -952,7 +1033,8 @@ export default function OpifScorecardView({ forcedSection, pageTitle }: OpifScor
                 <select
                   value={formData.section}
                   onChange={(e) => updateFormField('section', e.target.value as any)}
-                  className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500"
+                  disabled={!isAdmin}
+                  className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                 >
                   <option value="A">Section A: Market Management</option>
                   <option value="B">Section B: Slaughter House Management</option>

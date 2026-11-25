@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useMeedo } from '@/lib/store';
+import { isAdminUser } from '@/lib/rbac';
 import {
   MarketGuard,
   CsuDailyReport,
@@ -64,22 +65,22 @@ export default function CsuPage() {
   } = useMeedo();
 
   // Mode state: 'admin' vs 'guard'
-  // Auto-detect: if user is Staff in Section F, default to guard view
-  const isDefaultGuard =
-    currentUser?.role === 'Staff' && currentUser?.section === 'F';
+  // Auto-detect: if non-admin user is in Section F, lock to guard view
+  const isAdmin = isAdminUser(currentUser);
+  const isDefaultGuard = !isAdmin && currentUser?.section === 'F';
   const [viewPersona, setViewPersona] = useState<'admin' | 'guard'>(
     isDefaultGuard ? 'guard' : 'admin'
   );
 
   useEffect(() => {
-    if (currentUser?.role === 'Staff' && currentUser?.section === 'F') {
+    if (!isAdmin && currentUser?.section === 'F') {
       setViewPersona('guard');
     }
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
-  // Find guard that directly matches currentUser (only for Staff guards)
+  // Find guard that directly matches currentUser (only for non-Admin guards)
   const userMatchedGuard =
-    currentUser?.role === 'Staff'
+    !isAdmin
       ? guards.find(
           (g) =>
             (currentUser?.guard_id && g.guard_id.toUpperCase() === currentUser.guard_id.toUpperCase()) ||
@@ -104,26 +105,26 @@ export default function CsuPage() {
 
   // When admin previews guard mode, select which guard persona to preview
   const [previewGuardId, setPreviewGuardId] = useState<string>(
-    currentUser?.role === 'Staff'
+    !isAdmin
       ? currentUser?.guard_id || userMatchedGuard?.guard_id || guards[0]?.guard_id || 'G-101'
       : guards[0]?.guard_id || 'G-101'
   );
 
   useEffect(() => {
-    if (currentUser?.role === 'Staff') {
+    if (!isAdmin) {
       if (currentUser?.guard_id) {
         setPreviewGuardId(currentUser.guard_id);
       } else if (userMatchedGuard) {
         setPreviewGuardId(userMatchedGuard.guard_id);
       }
     }
-  }, [currentUser, guards]);
+  }, [currentUser, guards, isAdmin]);
 
   // Selected guard object for guard view:
-  // If user is Staff (like Elijah), ALWAYS use their own guard persona!
-  // If user is Admin, they can preview other guards using previewGuardId.
+  // Non-admin Staff ALWAYS use their own guard persona!
+  // Admins can preview other guards using previewGuardId.
   const activeGuardObj =
-    currentUser?.role === 'Admin'
+    isAdmin
       ? (guards.find((g) => g.guard_id === previewGuardId) || userMatchedGuard || defaultEmptyGuard)
       : (userMatchedGuard || defaultEmptyGuard);
 
@@ -253,7 +254,7 @@ export default function CsuPage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
           {viewPersona === 'guard' ? (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
-              {currentUser?.role === 'Admin' && (
+              {isAdmin && (
                 <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 min-w-0 flex-1 sm:flex-initial">
                   <Eye className="h-3.5 w-3.5 text-amber-700 shrink-0" />
                   <span className="text-[11px] font-bold text-amber-900 shrink-0">Previewing:</span>
@@ -277,7 +278,7 @@ export default function CsuPage() {
                 </div>
               )}
 
-              {currentUser?.role === 'Admin' && (
+              {isAdmin && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -806,7 +807,7 @@ export default function CsuPage() {
 
       {/* Add / Edit Guard Modal */}
       {isGuardModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 overflow-y-auto">
           <div className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl p-6 space-y-4 my-auto animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -921,7 +922,7 @@ export default function CsuPage() {
       <CreateEventModal
         isOpen={isCreateEventModalOpen}
         onClose={() => setIsCreateEventModalOpen(false)}
-        initialDate="2026-09-26"
+        initialDate={new Date().toISOString().split('T')[0]}
       />
     </div>
   );

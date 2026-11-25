@@ -32,7 +32,7 @@ interface StockInModalProps {
     department?: string;
     receivedBy?: string;
     remarks?: string;
-  }) => { success: boolean; message?: string };
+  }) => Promise<{ success: boolean; message?: string }> | { success: boolean; message?: string };
 }
 
 const COMMON_UNITS = ['Ream', 'Box', 'Roll', 'Piece', 'Pack', 'Bottle', 'Gallon', 'Set', 'Pair', 'Booklet'];
@@ -64,6 +64,7 @@ export const StockInModal: React.FC<StockInModalProps> = ({
   const [department, setDepartment] = useState<string>('MEEDO');
   const [remarks, setRemarks] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -84,8 +85,9 @@ export const StockInModal: React.FC<StockInModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg('');
 
     const qtyNum = typeof quantity === 'number' ? quantity : parseInt(quantity as string, 10);
@@ -111,19 +113,24 @@ export const StockInModal: React.FC<StockInModalProps> = ({
         return;
       }
 
-      const res = onStockInSuccess({
-        itemId: selectedItemId,
-        quantity: qtyNum,
-        dateReceived: formattedDate,
-        department,
-        receivedBy: receivedBy.trim(),
-        remarks: remarks.trim() || 'Inventory Stock Replenishment',
-      });
+      setIsSubmitting(true);
+      try {
+        const res = await onStockInSuccess({
+          itemId: selectedItemId,
+          quantity: qtyNum,
+          dateReceived: formattedDate,
+          department,
+          receivedBy: receivedBy.trim(),
+          remarks: remarks.trim() || 'Inventory Stock Replenishment',
+        });
 
-      if (res.success) {
-        onClose();
-      } else {
-        setErrorMsg(res.message || 'Failed to replenish stock.');
+        if (res.success) {
+          onClose();
+        } else {
+          setErrorMsg(res.message || 'Failed to replenish stock.');
+        }
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
       if (!newItemName.trim()) {
@@ -137,22 +144,27 @@ export const StockInModal: React.FC<StockInModalProps> = ({
         return;
       }
 
-      const res = onStockInSuccess({
-        item: newItemName.trim(),
-        description: newDescription.trim(),
-        unit: finalUnit,
-        quantity: qtyNum,
-        lowStockThreshold: Number(lowStockThreshold) || 5,
-        dateReceived: formattedDate,
-        department,
-        receivedBy: receivedBy.trim(),
-        remarks: remarks.trim() || 'Initial inventory intake',
-      });
+      setIsSubmitting(true);
+      try {
+        const res = await onStockInSuccess({
+          item: newItemName.trim(),
+          description: newDescription.trim(),
+          unit: finalUnit,
+          quantity: qtyNum,
+          lowStockThreshold: Number(lowStockThreshold) || 5,
+          dateReceived: formattedDate,
+          department,
+          receivedBy: receivedBy.trim(),
+          remarks: remarks.trim() || 'Initial inventory intake',
+        });
 
-      if (res.success) {
-        onClose();
-      } else {
-        setErrorMsg(res.message || 'Failed to create new item.');
+        if (res.success) {
+          onClose();
+        } else {
+          setErrorMsg(res.message || 'Failed to create new item.');
+        }
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -160,28 +172,29 @@ export const StockInModal: React.FC<StockInModalProps> = ({
   const selectedExistingItem = items.find((i) => i.id === selectedItemId);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-in fade-in duration-150">
       <div
-        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-xl bg-white rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.18)] border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50/90 border-b border-slate-200 text-slate-900 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
               <ArrowDownLeft className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold tracking-tight">Stock-In Supplies / New Item</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-base font-bold tracking-tight text-slate-900">Stock-In Supplies / New Item</h2>
+              <p className="text-xs text-slate-600">
                 Replenish existing stocks or register a new supply item into the inventory catalog
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close modal"
+            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

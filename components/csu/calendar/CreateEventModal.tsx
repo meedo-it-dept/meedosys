@@ -166,24 +166,25 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-2xl max-h-[94vh] sm:max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 overflow-y-auto">
+      <div className="relative w-full max-w-2xl max-h-[94vh] sm:max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-[0_20px_50px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-900 px-4 sm:px-6 py-3.5 sm:py-4 text-white shrink-0">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-4 sm:px-6 py-3.5 sm:py-4 text-slate-900 shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/30 text-blue-400 ring-1 ring-blue-500/50">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-200">
               <Calendar className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold truncate">Create Market Operation Event</h2>
-              <p className="text-[11px] sm:text-xs text-slate-400 line-clamp-1">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate">Create Market Operation Event</h2>
+              <p className="text-[11px] sm:text-xs text-slate-600 line-clamp-1">
                 Schedule guard duties, inspections, cleanings, and market activities
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition shrink-0"
+            aria-label="Close modal"
+            className="rounded-xl p-1.5 text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 transition shrink-0"
           >
             <X className="h-5 w-5" />
           </button>

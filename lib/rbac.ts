@@ -91,6 +91,92 @@ export interface AccessCheckResult {
   reason?: string;
 }
 
+export type Permission =
+  | 'market:read'
+  | 'market:write'
+  | 'slaughterhouse:read'
+  | 'slaughterhouse:write'
+  | 'slaughterhouse:reset'
+  | 'cemetery:read'
+  | 'cemetery:write'
+  | 'transport:read'
+  | 'transport:write'
+  | 'csu:read'
+  | 'csu:guard_shift'
+  | 'csu:admin'
+  | 'csu:approve_blotter'
+  | 'csu:manage_guards'
+  | 'csu:manage_calendar'
+  | 'opif:read'
+  | 'opif:update_own_section'
+  | 'opif:manage_all'
+  | 'inventory:read'
+  | 'inventory:write'
+  | 'users:manage'
+  | 'audit:read';
+
+export function isApprovedUser(user: UserProfile | null | undefined): boolean {
+  return Boolean(user && user.status === 'Approved');
+}
+
+export function isAdminUser(user: UserProfile | null | undefined): boolean {
+  return isApprovedUser(user) && (user!.role === 'Admin' || user!.section === 'ALL');
+}
+
+export function canAccessSection(user: UserProfile | null | undefined, section: UserSection): boolean {
+  if (!isApprovedUser(user)) return false;
+  if (isAdminUser(user)) return true;
+  return user!.section === section;
+}
+
+export function hasPermission(
+  user: UserProfile | null | undefined,
+  permission: Permission,
+  targetSection?: UserSection
+): boolean {
+  if (!isApprovedUser(user)) return false;
+  if (isAdminUser(user)) return true;
+
+  const sec = user!.section;
+  switch (permission) {
+    case 'market:read':
+    case 'market:write':
+      return sec === 'A';
+    case 'slaughterhouse:read':
+    case 'slaughterhouse:write':
+      return sec === 'B';
+    case 'slaughterhouse:reset':
+      return false;
+    case 'cemetery:read':
+    case 'cemetery:write':
+      return sec === 'C';
+    case 'transport:read':
+    case 'transport:write':
+      return sec === 'D';
+    case 'csu:read':
+    case 'csu:guard_shift':
+      return sec === 'F';
+    case 'csu:admin':
+    case 'csu:approve_blotter':
+    case 'csu:manage_guards':
+    case 'csu:manage_calendar':
+      return false;
+    case 'opif:read':
+      return ['A', 'B', 'C', 'D', 'E'].includes(sec) && (!targetSection || targetSection === sec);
+    case 'opif:update_own_section':
+      return ['A', 'B', 'C', 'D', 'E'].includes(sec) && Boolean(targetSection && targetSection === sec);
+    case 'opif:manage_all':
+      return false;
+    case 'inventory:read':
+    case 'inventory:write':
+    case 'users:manage':
+    case 'audit:read':
+      return false;
+    default:
+      return false;
+  }
+}
+
 /**
  * Validates whether the logged in user can access a specific route in MEEDOSys.
  */
@@ -102,22 +188,36 @@ export function checkRouteAccess(user: UserProfile | null, pathname: string): Ac
     };
   }
 
+  if (user.status !== 'Approved') {
+    return {
+      allowed: false,
+      reason:
+        user.status === 'Blocked'
+          ? 'Account suspended. Your access has been revoked by the Administrator.'
+          : 'Account approval pending. Please wait for Administrator activation.',
+    };
+  }
+
   // Administrators have unrestricted access
-  if (user.role === 'Admin' || user.section === 'ALL') {
+  if (isAdminUser(user)) {
     return { allowed: true };
   }
 
-  // Dashboard root '/' is accessible to all authenticated staff
+  // Dashboard root '/' is accessible to all authenticated approved staff
   if (pathname === '/' || pathname === '') {
     return { allowed: true };
   }
 
-  // Central OPIF Master (including Section E: Admin Services) is exclusively under the Admin side
+  // Central OPIF Master is accessible to Section E staff (scoped to Section E) and Admins
   if (pathname === '/opif' || pathname.startsWith('/opif')) {
+    if (user.section === 'E') {
+      return { allowed: true };
+    }
     return {
       allowed: false,
       requiredRole: 'Admin',
-      reason: 'Central OPIF (including Section E: Admin Services) is managed under the Administration module. Please access your department-specific OPIF Scorecard under your assigned section.',
+      reason:
+        'Central OPIF Master is restricted to Administrators and Section E Administrative Services. Please access your department-specific OPIF Scorecard under your assigned section.',
     };
   }
 

@@ -6,6 +6,7 @@ import { useMeedo } from '@/lib/store';
 import { CemeteryBooking, BurialType } from '@/lib/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { calculateCemeteryInventory } from '@/lib/cemeteryUtils';
+import { printTableReport } from '@/lib/print';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -222,7 +223,48 @@ export default function CemeteryBookingsPage() {
           <Button variant="primary" size="sm" onClick={() => openNewModal()}>
             <Plus className="w-4 h-4 mr-1.5" /> Book New Burial
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const totalFees = filteredBookings.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+              const aptCount = filteredBookings.filter((b) => b.burial_type === 'Apartment').length;
+              const groundCount = filteredBookings.filter((b) => b.burial_type === 'Ground').length;
+              printTableReport({
+                title: 'Municipal Cemetery Burial Schedule',
+                subtitle: `Type Filter: ${filterType}${searchTerm ? ` • Search: "${searchTerm}"` : ''}`,
+                dept: 'MEEDO — Public Cemetery Operations Section (Section C)',
+                orientation: 'landscape',
+                summaryCards: [
+                  { label: 'Total Bookings', value: filteredBookings.length },
+                  { label: 'Apartment Type', value: aptCount },
+                  { label: 'Ground / Other', value: filteredBookings.length - aptCount },
+                  { label: 'Ground Only', value: groundCount },
+                  { label: 'Total Assessed Fees', value: `₱${totalFees.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+                ],
+                columns: [
+                  { label: '#', align: 'center', width: '36px' },
+                  { label: 'Deceased Name' },
+                  { label: 'Barangay / Address' },
+                  { label: 'Contact No.' },
+                  { label: 'Burial Date' },
+                  { label: 'Time' },
+                  { label: 'Burial Type' },
+                  { label: 'Amount', align: 'right' },
+                ],
+                rows: filteredBookings.map((b, idx) => [
+                  idx + 1,
+                  b.deceased_name,
+                  b.address_barangay || '—',
+                  b.phone_number || '—',
+                  b.burial_date,
+                  b.burial_time || '—',
+                  b.burial_type || '—',
+                  `₱${(Number(b.amount) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                ]),
+              });
+            }}
+          >
             <Printer className="w-4 h-4 mr-1.5" /> Print Schedule
           </Button>
         </div>

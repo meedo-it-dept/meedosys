@@ -28,6 +28,8 @@ import {
   Clock,
   X,
   Database,
+  Mail,
+  Link2,
 } from 'lucide-react';
 
 export default function UserManagementPage() {
@@ -37,6 +39,7 @@ export default function UserManagementPage() {
     updateUserStatus,
     updateUserProfile,
     createUser,
+    sendPasswordReset,
     refreshUsers,
     isLiveSupabase,
   } = useMeedo();
@@ -56,6 +59,7 @@ export default function UserManagementPage() {
 
   // Add User Form State
   const [newUsername, setNewUsername] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [newFullName, setNewFullName] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('Staff');
   const [newSection, setNewSection] = useState<UserSection>('A');
@@ -70,6 +74,7 @@ export default function UserManagementPage() {
   const [formError, setFormError] = useState('');
 
   // Edit User Form State
+  const [editEmail, setEditEmail] = useState('');
   const [editFullName, setEditFullName] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('Staff');
   const [editSection, setEditSection] = useState<UserSection>('A');
@@ -78,20 +83,22 @@ export default function UserManagementPage() {
   const [editRankTitle, setEditRankTitle] = useState('');
   const [editCallSign, setEditCallSign] = useState('EAGLE-1');
   const [editDefaultArea, setEditDefaultArea] = useState('General Public Market');
-  const [editPassword, setEditPassword] = useState('');
-  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
-  // Handle Manual Directory Refresh from Supabase
+  // Handle Manual Directory Refresh from PocketBase
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
       await refreshUsers();
-      setFeedbackMsg({ type: 'success', text: 'Directory successfully synchronized with Supabase live database.' });
-    } catch {
-      setFeedbackMsg({ type: 'error', text: 'Failed to synchronize with Supabase.' });
+      setFeedbackMsg({ type: 'success', text: 'Directory successfully synchronized with PocketBase live database.' });
+    } catch (err: any) {
+      setFeedbackMsg({
+        type: 'error',
+        text: err?.message ? `Failed to synchronize with PocketBase: ${err.message}` : 'Failed to synchronize with PocketBase.',
+      });
     } finally {
       setIsRefreshing(false);
-      setTimeout(() => setFeedbackMsg(null), 4000);
+      setTimeout(() => setFeedbackMsg(null), 5000);
     }
   };
 
@@ -107,6 +114,7 @@ export default function UserManagementPage() {
       const matchesSearch =
         searchTerm.trim() === '' ||
         u.username.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+        (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase().trim())) ||
         (u.full_name && u.full_name.toLowerCase().includes(searchTerm.toLowerCase().trim())) ||
         (u.guard_id && u.guard_id.toLowerCase().includes(searchTerm.toLowerCase().trim()));
 
@@ -126,6 +134,7 @@ export default function UserManagementPage() {
   // Open Edit Modal
   const openEditModal = (user: UserProfile) => {
     setEditingUser(user);
+    setEditEmail(user.email || '');
     setEditFullName(user.full_name || '');
     setEditRole(user.role);
     setEditSection(user.section);
@@ -134,37 +143,67 @@ export default function UserManagementPage() {
     setEditRankTitle(user.rank_title || 'SO1');
     setEditCallSign(user.radio_call_sign || 'EAGLE-1');
     setEditDefaultArea(user.default_area || 'General Public Market');
-    setEditPassword('');
-    setShowEditPassword(false);
   };
 
   // Submit Edit Modal
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
+    const cleanEmail = editEmail.trim();
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setFeedbackMsg({ type: 'error', text: 'Please enter a valid email address.' });
+      return;
+    }
+
     const updates: Partial<UserProfile> = {
+      email: cleanEmail,
       full_name: editFullName.trim() || undefined,
       role: editRole,
       section: editRole === 'Admin' && editSection === 'ALL' ? 'ALL' : editSection,
       status: editStatus,
-      guard_id: editSection === 'F' && editGuardId.trim() ? editGuardId.trim().toUpperCase() : undefined,
-      rank_title: editSection === 'F' && editRankTitle.trim() ? editRankTitle.trim() : undefined,
-      radio_call_sign: editSection === 'F' && editCallSign.trim() ? editCallSign.trim().toUpperCase() : undefined,
-      default_area: editSection === 'F' && editDefaultArea.trim() ? editDefaultArea.trim() : undefined,
+      guard_id: editSection === 'F' && editGuardId.trim() ? editGuardId.trim().toUpperCase() : '',
+      rank_title: editSection === 'F' && editRankTitle.trim() ? editRankTitle.trim() : '',
+      radio_call_sign: editSection === 'F' && editCallSign.trim() ? editCallSign.trim().toUpperCase() : '',
+      default_area: editSection === 'F' && editDefaultArea.trim() ? editDefaultArea.trim() : '',
     };
 
-    if (editPassword.trim()) {
-      updates.password = editPassword.trim();
+    const res = await updateUserProfile(editingUser.username, updates);
+    if (!res.success) {
+      setFeedbackMsg({
+        type: 'error',
+        text: res.message || `Failed to update "${editingUser.username}".`,
+      });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+      return;
     }
 
-    updateUserProfile(editingUser.username, updates);
     setFeedbackMsg({
       type: 'success',
       text: `User account "${editingUser.username}" updated and synced successfully.`,
     });
     setEditingUser(null);
     setTimeout(() => setFeedbackMsg(null), 4000);
+  };
+
+  const handleSendResetEmail = async () => {
+    const targetEmail = editEmail.trim();
+    if (!targetEmail) {
+      setFeedbackMsg({ type: 'error', text: 'Enter and save an email address before sending a Firebase reset email.' });
+      setTimeout(() => setFeedbackMsg(null), 4500);
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      const res = await sendPasswordReset(targetEmail);
+      setFeedbackMsg({
+        type: res.success ? 'success' : 'error',
+        text: res.message || (res.success ? `Password reset email sent to ${targetEmail}.` : 'Failed to send reset email.'),
+      });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    } finally {
+      setIsSendingReset(false);
+    }
   };
 
   // Submit Add User Modal
@@ -177,13 +216,24 @@ export default function UserManagementPage() {
       return;
     }
 
+    const cleanEmail = newEmail.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setFormError('A valid email address is required for Firebase Authentication.');
+      return;
+    }
+
     if (users.some((u) => u.username.toLowerCase() === newUsername.trim().toLowerCase())) {
       setFormError('Username is already registered in the directory.');
       return;
     }
 
-    if (newPassword && newPassword.length < 4) {
-      setFormError('Password must be at least 4 characters long.');
+    if (users.some((u) => u.email && u.email.toLowerCase() === cleanEmail.toLowerCase())) {
+      setFormError('Email address is already registered in the directory.');
+      return;
+    }
+
+    if (newPassword && newPassword.length < 6) {
+      setFormError('Firebase password must be at least 6 characters long (or leave empty to pre-authorize for Google Sign-In).');
       return;
     }
 
@@ -196,6 +246,7 @@ export default function UserManagementPage() {
     try {
       const res = await createUser({
         username: newUsername.trim(),
+        email: cleanEmail,
         full_name: newFullName.trim() || newUsername.trim(),
         role: newRole,
         section: newRole === 'Admin' && newSection === 'ALL' ? 'ALL' : newSection,
@@ -210,11 +261,14 @@ export default function UserManagementPage() {
       if (res.success) {
         setFeedbackMsg({
           type: 'success',
-          text: `New user account "${newUsername.trim()}" created and synced to Supabase directory.`,
+          text: newPassword.trim()
+            ? `User "${newUsername.trim()}" created in Firebase Auth and PocketBase directory.`
+            : `Email "${cleanEmail}" pre-authorized for "${newUsername.trim()}" (ready for Google / verified sign-in).`,
         });
         setIsAddModalOpen(false);
         // Reset form
         setNewUsername('');
+        setNewEmail('');
         setNewFullName('');
         setNewRole('Staff');
         setNewSection('A');
@@ -224,7 +278,7 @@ export default function UserManagementPage() {
         setNewRankTitle('SO1');
         setNewCallSign('EAGLE-1');
         setNewDefaultArea('General Public Market');
-        setTimeout(() => setFeedbackMsg(null), 4000);
+        setTimeout(() => setFeedbackMsg(null), 5000);
       } else {
         setFormError(res.message || 'Failed to create user account.');
       }
@@ -236,8 +290,13 @@ export default function UserManagementPage() {
   };
 
   // Quick Status Actions
-  const handleQuickApprove = (username: string) => {
-    updateUserStatus(username, 'approve');
+  const handleQuickApprove = async (username: string) => {
+    const res = await updateUserStatus(username, 'approve');
+    if (!res.success) {
+      setFeedbackMsg({ type: 'error', text: res.message || `Failed to approve "${username}".` });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+      return;
+    }
     setFeedbackMsg({
       type: 'success',
       text: `User "${username}" has been approved for enterprise system access.`,
@@ -245,8 +304,13 @@ export default function UserManagementPage() {
     setTimeout(() => setFeedbackMsg(null), 3500);
   };
 
-  const handleQuickBlock = (username: string) => {
-    updateUserStatus(username, 'block');
+  const handleQuickBlock = async (username: string) => {
+    const res = await updateUserStatus(username, 'block');
+    if (!res.success) {
+      setFeedbackMsg({ type: 'error', text: res.message || `Failed to block "${username}".` });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+      return;
+    }
     setFeedbackMsg({
       type: 'error',
       text: `User "${username}" has been suspended and blocked from the system.`,
@@ -254,14 +318,20 @@ export default function UserManagementPage() {
     setTimeout(() => setFeedbackMsg(null), 3500);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!confirmDeleteUser) return;
-    updateUserStatus(confirmDeleteUser.username, 'delete');
+    const targetName = confirmDeleteUser.username;
+    const res = await updateUserStatus(targetName, 'delete');
+    setConfirmDeleteUser(null);
+    if (!res.success) {
+      setFeedbackMsg({ type: 'error', text: res.message || `Failed to delete "${targetName}".` });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+      return;
+    }
     setFeedbackMsg({
       type: 'success',
-      text: `User account "${confirmDeleteUser.username}" was permanently deleted.`,
+      text: `User account "${targetName}" was permanently deleted.`,
     });
-    setConfirmDeleteUser(null);
     setTimeout(() => setFeedbackMsg(null), 3500);
   };
 
@@ -277,7 +347,7 @@ export default function UserManagementPage() {
             </h2>
             <Badge variant={isLiveSupabase ? 'success' : 'neutral'} className="text-[10px] gap-1">
               <Database className="w-3 h-3" />
-              {isLiveSupabase ? 'Supabase Live Connected' : 'Local Storage Mode'}
+              {isLiveSupabase ? 'PocketBase Live Connected' : 'Local Storage Mode'}
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -397,7 +467,7 @@ export default function UserManagementPage() {
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-purple-900">{adminUsers}</span>
+            <span className="text-2xl font-black text-slate-900 tabular-nums">{adminUsers}</span>
             <span className="text-xs text-slate-500">superadmin privilege</span>
           </div>
         </Card>
@@ -512,16 +582,35 @@ export default function UserManagementPage() {
                             {u.username[0]}
                           </span>
                           <div>
-                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
                               <span>{u.username}</span>
                               {isCurrent && (
                                 <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-blue-100 text-blue-700 font-semibold">
                                   You
                                 </span>
                               )}
+                              {u.firebase_uid ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                                  <Link2 className="w-2.5 h-2.5" />
+                                  {u.auth_provider === 'firebase_google' ? 'Google' : 'Firebase Email'}
+                                </span>
+                              ) : u.email ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                                  <Mail className="w-2.5 h-2.5" /> Pre-Authorized
+                                </span>
+                              ) : (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 font-medium">
+                                  Unlinked Legacy
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-slate-500 font-medium">
                               {u.full_name || 'No full name recorded'}
+                              {u.email && (
+                                <span className="ml-1.5 text-slate-600 font-mono text-[10px]">
+                                  • {u.email}
+                                </span>
+                              )}
                               {u.guard_id && (
                                 <span className="ml-1.5 px-1.5 py-0.5 rounded-sm bg-blue-50 text-blue-700 font-mono text-[10px] border border-blue-200">
                                   🛡️ {u.guard_id} {u.rank_title ? `• ${u.rank_title}` : ''}
@@ -655,7 +744,7 @@ export default function UserManagementPage() {
 
       {/* Modal: Add New User */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex justify-between items-start border-b border-slate-200 pb-3 mb-4">
               <div>
@@ -691,6 +780,20 @@ export default function UserManagementPage() {
                   onChange={(e) => setNewUsername(e.target.value)}
                   required
                   placeholder="e.g. maria_market"
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Firebase Email Address <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  required
+                  placeholder="e.g. maria@malungon.gov.ph"
                   className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 />
               </div>
@@ -810,14 +913,18 @@ export default function UserManagementPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Password
+                  Initial Password{' '}
+                  <span className="text-slate-400 font-normal">
+                    (optional, min. 6 chars; leave blank for Google Sign-In)
+                  </span>
                 </label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter account password"
+                    minLength={6}
+                    placeholder="Leave blank to pre-authorize for Google Sign-In"
                     className="w-full pl-3 pr-10 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
                   <button
@@ -860,7 +967,7 @@ export default function UserManagementPage() {
                   {isCreatingUser ? (
                     <span className="flex items-center gap-1.5">
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Saving to Supabase...
+                      Saving to PocketBase...
                     </span>
                   ) : (
                     'Create User Account'
@@ -874,7 +981,7 @@ export default function UserManagementPage() {
 
       {/* Modal: Edit User Role & Section */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex justify-between items-start border-b border-slate-200 pb-3 mb-4">
               <div>
@@ -894,6 +1001,19 @@ export default function UserManagementPage() {
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Firebase Email Address
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="name@malungon.gov.ph"
+                  className="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Full Name
@@ -1022,30 +1142,16 @@ export default function UserManagementPage() {
                 </select>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Reset Password <span className="text-slate-400 font-normal">(optional)</span>
-                  </label>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showEditPassword ? 'text' : 'password'}
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Leave empty to keep current password"
-                    className="w-full pl-3 pr-10 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditPassword(!showEditPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                    tabIndex={-1}
-                    aria-label={showEditPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showEditPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleSendResetEmail}
+                  disabled={isSendingReset || !editEmail.trim()}
+                  className="w-full py-2 px-3 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  {isSendingReset ? 'Sending Reset Email...' : 'Send Firebase Password Reset Email'}
+                </button>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
@@ -1068,7 +1174,7 @@ export default function UserManagementPage() {
 
       {/* Confirmation Modal: Delete User */}
       {confirmDeleteUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />

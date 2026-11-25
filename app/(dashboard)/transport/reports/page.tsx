@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { printTableReport } from '@/lib/print';
 import { useMeedo } from '@/lib/store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,55 @@ export default function TransportReportsPage() {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => window.print()} className="no-print">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            printTableReport({
+              title: 'TODA GAD & Fleet Accomplishment Report',
+              subtitle: 'Gender and Development & Franchise Summary — Municipality of Malungon',
+              dept: 'MEEDO — Transport & TODA Regulatory Section (Section D)',
+              orientation: 'landscape',
+              summaryCards: [
+                { label: 'Total Associations', value: todas.length },
+                { label: 'Registered Capacity', value: totalRegisteredDrivers },
+                { label: 'Encoded Profiles', value: totalEncodedProfiles },
+                {
+                  label: 'Male / Female Drivers',
+                  value: `${maleCount} (${totalEncodedProfiles ? Math.round((maleCount / totalEncodedProfiles) * 100) : 0}%) / ${femaleCount} (${totalEncodedProfiles ? Math.round((femaleCount / totalEncodedProfiles) * 100) : 0}%)`,
+                },
+              ],
+              columns: [
+                { label: '#', align: 'center', width: '36px' },
+                { label: 'TODA Association' },
+                { label: 'Reg. No.' },
+                { label: 'President / Head' },
+                { label: 'Terminal / Address' },
+                { label: 'Male', align: 'right' },
+                { label: 'Female', align: 'right' },
+                { label: 'Encoded', align: 'right' },
+                { label: 'Registered Capacity', align: 'right' },
+              ],
+              rows: todas.map((t, idx) => {
+                const members = todaMembers.filter((m) => m.toda_id === t.id || m.toda_name === t.name);
+                const mCount = members.filter((m) => m.sex === 'Male').length;
+                const fCount = members.filter((m) => m.sex === 'Female').length;
+                return [
+                  idx + 1,
+                  t.name,
+                  t.reg_no || '—',
+                  t.president || '—',
+                  t.address || '—',
+                  mCount,
+                  fCount,
+                  members.length,
+                  t.total_members ?? 0,
+                ];
+              }),
+            });
+          }}
+          className="no-print"
+        >
           <Printer className="w-4 h-4 mr-1.5" /> Print Report
         </Button>
       </div>

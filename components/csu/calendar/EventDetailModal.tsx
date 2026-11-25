@@ -105,11 +105,12 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 overflow-y-auto">
+      <div className="relative w-full max-w-xl rounded-2xl bg-white shadow-[0_20px_50px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-100 bg-slate-900 px-6 py-5 text-white">
-          <div className="space-y-1">
+        <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50/90 px-6 py-5 text-slate-900">
+          <div className="space-y-1.5">
+            <h2 className="text-xl font-bold text-slate-900">{event.title}</h2>
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-bold ${getCategoryColor(
@@ -126,16 +127,16 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                 ● {event.status}
               </span>
               {event.priority === 'Urgent' && (
-                <span className="rounded-md bg-red-600 px-2 py-0.5 text-xs font-bold text-white uppercase tracking-wider">
+                <span className="rounded-md bg-rose-600 px-2 py-0.5 text-xs font-bold text-white uppercase tracking-wider">
                   Urgent
                 </span>
               )}
             </div>
-            <h2 className="text-xl font-bold text-white pt-1">{event.title}</h2>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            aria-label="Close event details"
+            className="rounded-xl p-1.5 text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 transition"
           >
             <X className="h-5 w-5" />
           </button>
@@ -278,8 +279,8 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     onClick={() => handleUpdateStatus(st)}
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition ${
                       event.status === st
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                     }`}
                   >
                     {st}

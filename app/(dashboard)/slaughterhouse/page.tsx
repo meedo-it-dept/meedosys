@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { escapeHtml, lguLetterheadHtml, openPrintDocument } from '@/lib/print';
 import { useMeedo } from '@/lib/store';
 import { SlaughterRecord, LivestockType, SlaughterStatus } from '@/lib/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -369,16 +370,16 @@ export default function SlaughterhousePage() {
         } catch (_) {}
 
         return `<tr>
-          <td>${dateStr}</td>
-          <td>${d.client_id || '-'}</td>
-          <td><strong>${d.client_name || '-'}</strong></td>
-          <td>${d.address || '-'}</td>
-          <td>${d.contact_no || '-'}</td>
-          <td>${d.or_number || 'Unpaid'}</td>
-          <td>${d.status || 'Private'}</td>
-          <td>${d.butcher_name || '-'}</td>
-          <td>${d.livestock_type}</td>
-          <td style="text-align:center;">${d.head_count}</td>
+          <td>${escapeHtml(dateStr)}</td>
+          <td>${escapeHtml(d.client_id || '-')}</td>
+          <td><strong>${escapeHtml(d.client_name || '-')}</strong></td>
+          <td>${escapeHtml(d.address || '-')}</td>
+          <td>${escapeHtml(d.contact_no || '-')}</td>
+          <td>${escapeHtml(d.or_number || 'Unpaid')}</td>
+          <td>${escapeHtml(d.status || 'Private')}</td>
+          <td>${escapeHtml(d.butcher_name || '-')}</td>
+          <td>${escapeHtml(d.livestock_type)}</td>
+          <td style="text-align:center;">${Number(d.head_count || 0)}</td>
           <td style="text-align:right;">${d.kilos && d.kilos > 0 ? d.kilos.toFixed(1) + ' kg' : '-'}</td>
           <td style="text-align:right;">₱ ${d.amount.toLocaleString('en-US', {
             minimumFractionDigits: 2,
@@ -388,136 +389,108 @@ export default function SlaughterhousePage() {
       })
       .join('');
 
-    const printWin = window.open('', '', 'width=950,height=700');
-    if (!printWin) return;
+    const extraStyles = `
+      .summary-box { display: flex; gap: 14px; margin-bottom: 16px; }
+      .summary-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; background: #f8fafc; }
+      .summary-card h4 { margin: 0 0 6px; font-size: 8.5pt; text-transform: uppercase; color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+      .summary-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+      .summary-table td { padding: 2px 0; border: none; }
+      .summary-table td.val { text-align: right; font-weight: bold; font-variant-numeric: tabular-nums; }
+      table.lgu-table tfoot td { font-weight: bold; background-color: #f8fafc; border-top: 2px solid #94a3b8; }
+    `;
 
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Slaughterhouse Report - ${selectedMonth || 'Full Ledger'}</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 25px; color: #111; font-size: 11pt; }
-          .report-header { text-align: center; margin-bottom: 20px; }
-          .report-header h2 { margin: 0; font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.5px; }
-          .report-header p { margin: 4px 0 0; color: #555; font-size: 0.95rem; }
-          
-          .summary-box { display: flex; gap: 16px; margin-bottom: 24px; }
-          .summary-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background: #f8fafc; }
-          .summary-card h4 { margin: 0 0 8px; font-size: 0.85rem; text-transform: uppercase; color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-          .summary-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-          .summary-table td { padding: 3px 0; border: none; }
-          .summary-table td.val { text-align: right; font-weight: bold; }
-          
-          table.data-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
-          table.data-table th, table.data-table td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-          table.data-table th { background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.3px; }
-          table.data-table tfoot td { font-weight: bold; background-color: #f8fafc; border-top: 2px solid #94a3b8; }
+    const bodyHtml = `
+      ${lguLetterheadHtml({
+        title: 'Municipal Slaughterhouse Operations Report',
+        subtitle: subTitle,
+        dept: 'MEEDO — Municipal Slaughterhouse & Meat Inspection Section (Section B)',
+      })}
 
-          .signature-section { display: flex; justify-content: space-between; margin-top: 45px; page-break-inside: avoid; }
-          .sig-box { width: 240px; text-align: center; }
-          .sig-label { text-align: left; margin-bottom: 40px; font-weight: 600; font-size: 0.9rem; }
-          .sig-line { border-bottom: 1.5px solid #000; padding-bottom: 4px; font-weight: bold; font-size: 0.95rem; }
-          .sig-title { margin-top: 4px; font-size: 0.8rem; color: #555; }
-
-          @media print { 
-            body { margin: 0.4in; }
-            @page { size: landscape; margin: 0.4in; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="report-header">
-          <h2>Municipal Slaughterhouse Monthly Report</h2>
-          <p>${subTitle}</p>
-        </div>
-
-        <!-- TOTAL SUMMARY SECTION -->
-        <div class="summary-box">
-          <div class="summary-card">
-            <h4>Livestock Count Summary</h4>
-            <table class="summary-table">
-              <tr><td>Total Hogs:</td><td class="val">${totals.hogs} heads</td></tr>
-              <tr><td>Total Cattle / Cow:</td><td class="val">${totals.cow} heads</td></tr>
-              <tr><td>Total Goats:</td><td class="val">${totals.goat} heads</td></tr>
-              <tr><td>Total Chicken:</td><td class="val">${totals.chicken} heads</td></tr>
-              <tr style="border-top: 1px solid #cbd5e1;">
-                <td style="padding-top:4px;"><strong>Overall Livestock:</strong></td>
-                <td class="val" style="padding-top:4px;">${totals.heads} heads ${
+      <div class="summary-box">
+        <div class="summary-card">
+          <h4>Livestock Count Summary</h4>
+          <table class="summary-table">
+            <tr><td>Total Hogs:</td><td class="val">${totals.hogs} heads</td></tr>
+            <tr><td>Total Cattle / Cow:</td><td class="val">${totals.cow} heads</td></tr>
+            <tr><td>Total Goats:</td><td class="val">${totals.goat} heads</td></tr>
+            <tr><td>Total Chicken:</td><td class="val">${totals.chicken} heads</td></tr>
+            <tr style="border-top: 1px solid #cbd5e1;">
+              <td style="padding-top:4px;"><strong>Overall Livestock:</strong></td>
+              <td class="val" style="padding-top:4px;">${totals.heads} heads ${
       totals.kilos > 0 ? '(' + totals.kilos.toFixed(1) + ' kg)' : ''
     }</td>
-              </tr>
-            </table>
-          </div>
-
-          <div class="summary-card">
-            <h4>Sector Summary</h4>
-            <table class="summary-table">
-              <tr><td>Private Sector:</td><td class="val">${totals.privateCount} heads</td></tr>
-              <tr><td>Public Sector:</td><td class="val">${totals.publicCount} heads</td></tr>
-              <tr style="border-top: 1px solid #cbd5e1;">
-                <td style="padding-top:4px;"><strong>Recorded Weight:</strong></td>
-                <td class="val" style="padding-top:4px;">${totals.kilos > 0 ? totals.kilos.toFixed(1) + ' kg' : '0.0 kg'}</td>
-              </tr>
-            </table>
-          </div>
+            </tr>
+          </table>
         </div>
 
-        <!-- DETAILED RECORDS TABLE -->
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Date & Time</th>
-              <th>Client ID</th>
-              <th>Client Name</th>
-              <th>Address</th>
-              <th>Contact No.</th>
-              <th>OR #</th>
-              <th>Status</th>
-              <th>Butcher</th>
-              <th>Livestock</th>
-              <th style="text-align:center;">Heads</th>
-              <th style="text-align:right;">Weight (kg)</th>
-              <th style="text-align:right;">Amount (₱)</th>
+        <div class="summary-card">
+          <h4>Sector Summary</h4>
+          <table class="summary-table">
+            <tr><td>Private Sector:</td><td class="val">${totals.privateCount} heads</td></tr>
+            <tr><td>Public Sector:</td><td class="val">${totals.publicCount} heads</td></tr>
+            <tr style="border-top: 1px solid #cbd5e1;">
+              <td style="padding-top:4px;"><strong>Recorded Weight:</strong></td>
+              <td class="val" style="padding-top:4px;">${totals.kilos > 0 ? totals.kilos.toFixed(1) + ' kg' : '0.0 kg'}</td>
             </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml || '<tr><td colspan="12" style="text-align:center; padding:20px;">No slaughterhouse records found.</td></tr>'}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="9" style="text-align: right; text-transform: uppercase;">Grand Total:</td>
-              <td style="text-align: center;">${totals.heads}</td>
-              <td style="text-align: right;">${totals.kilos > 0 ? totals.kilos.toFixed(1) + ' kg' : '-'}</td>
-              <td style="text-align: right; color: #166534;">₱ ${totals.amount.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}</td>
-            </tr>
-          </tfoot>
-        </table>
-
-        <!-- SIGNATURES -->
-        <div class="signature-section">
-          <div class="sig-box">
-            <div class="sig-label">Prepared by:</div>
-            <div class="sig-line">${preparerName}</div>
-            <div class="sig-title">Meat Inspection Officer / In-Charge</div>
-          </div>
-          <div class="sig-box">
-            <div class="sig-label">Noted by:</div>
-            <div class="sig-line">Municipal Administrator</div>
-            <div class="sig-title">Municipal Economic Enterprise Office</div>
-          </div>
+          </table>
         </div>
-      </body>
-      </html>
-    `);
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => {
-      printWin.print();
-    }, 300);
+      </div>
+
+      <table class="lgu-table">
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Client ID</th>
+            <th>Client Name</th>
+            <th>Address</th>
+            <th>Contact No.</th>
+            <th>OR #</th>
+            <th>Status</th>
+            <th>Butcher</th>
+            <th>Livestock</th>
+            <th style="text-align:center;">Heads</th>
+            <th style="text-align:right;">Weight (kg)</th>
+            <th style="text-align:right;">Amount (₱)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || '<tr><td colspan="12" style="text-align:center; padding:20px;">No slaughterhouse records found.</td></tr>'}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="9" style="text-align: right; text-transform: uppercase;">Grand Total:</td>
+            <td style="text-align: center;">${totals.heads}</td>
+            <td style="text-align: right;">${totals.kilos > 0 ? totals.kilos.toFixed(1) + ' kg' : '-'}</td>
+            <td style="text-align: right; color: #166534;">₱ ${totals.amount.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="lgu-signatures">
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Prepared by:</div>
+          <div class="lgu-sig-line">${escapeHtml(preparerName)}</div>
+          <div class="lgu-sig-role">Meat Inspection Officer / In-Charge</div>
+        </div>
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Noted by:</div>
+          <div class="lgu-sig-line">Municipal Administrator</div>
+          <div class="lgu-sig-role">Municipal Economic Enterprise Office</div>
+        </div>
+      </div>
+    `;
+
+    openPrintDocument({
+      title: `Slaughterhouse Report - ${selectedMonth || 'Full Ledger'}`,
+      bodyHtml,
+      styles: extraStyles,
+      orientation: 'landscape',
+      pageSize: 'A4',
+      margin: '0.35in',
+    });
   };
 
   return (
@@ -1020,7 +993,7 @@ export default function SlaughterhousePage() {
 
       {/* Edit Modal (Inline Modal with All 10 Fields) */}
       {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <Card className="w-full max-w-lg bg-white shadow-xl border-slate-200 p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -1194,7 +1167,7 @@ export default function SlaughterhousePage() {
 
       {/* Delete Confirmation Alert Modal */}
       {recordToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <Card className="w-full max-w-md bg-white shadow-xl border-slate-200 p-5 space-y-4">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="p-2 bg-rose-100 rounded-full">
@@ -1232,7 +1205,7 @@ export default function SlaughterhousePage() {
 
       {/* Slaughterhouse Audit Trail Modal */}
       {showAuditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <Card className="w-full max-w-4xl bg-white shadow-2xl border-slate-200 p-6 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <div className="flex items-center gap-2.5">
@@ -1243,7 +1216,7 @@ export default function SlaughterhousePage() {
                   <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                     Slaughterhouse Operations Audit Trail
                     <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300">
-                      Live Supabase Logged
+                      Live PocketBase Logged
                     </Badge>
                   </h3>
                   <p className="text-xs text-slate-500">

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useMeedo } from '@/lib/store';
 import { Toda } from '@/lib/types';
+import { printTableReport } from '@/lib/print';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bus, Plus, Save, Printer, Edit2, Trash2, X, AlertTriangle } from 'lucide-react';
@@ -94,7 +95,42 @@ export default function TodaListPage() {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => window.print()} className="no-print">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            const totalCapacity = todas.reduce((acc, t) => acc + (Number(t.total_members) || 0), 0);
+            printTableReport({
+              title: 'TODA Association Official Directory',
+              subtitle: 'Registered Tricycle Operators and Drivers Associations — Municipality of Malungon',
+              dept: 'MEEDO — Transport & TODA Regulatory Section (Section D)',
+              orientation: 'landscape',
+              summaryCards: [
+                { label: 'Total TODAs', value: todas.length },
+                { label: 'Registered Units / Capacity', value: totalCapacity },
+              ],
+              columns: [
+                { label: '#', align: 'center', width: '40px' },
+                { label: 'Reg. No.' },
+                { label: 'Association Name' },
+                { label: 'President / Head' },
+                { label: 'Terminal / Address' },
+                { label: 'Contact No.' },
+                { label: 'Members', align: 'right' },
+              ],
+              rows: todas.map((t, idx) => [
+                idx + 1,
+                t.reg_no || '—',
+                t.name,
+                t.president || '—',
+                t.address || '—',
+                t.contact_no || '—',
+                t.total_members ?? 0,
+              ]),
+            });
+          }}
+          className="no-print"
+        >
           <Printer className="w-4 h-4 mr-1.5" /> Print Directory
         </Button>
       </div>
@@ -262,7 +298,7 @@ export default function TodaListPage() {
 
       {/* Delete Confirmation Alert */}
       {todaToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <Card className="w-full max-w-md bg-white shadow-xl border-slate-200 p-5 space-y-4">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="p-2 bg-rose-100 rounded-full">

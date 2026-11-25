@@ -145,9 +145,9 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       {/* Floating Offline Warning Banner */}
       {!isOnline && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 z-50 bg-amber-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between text-xs font-semibold animate-bounce">
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 z-50 bg-amber-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between text-xs font-semibold animate-in fade-in slide-in-from-bottom-4 duration-200">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span>Offline Mode Active • Using cached records</span>
           </div>
         </div>
@@ -155,7 +155,7 @@ export const PwaProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       {/* In-App Installation Instructions Modal */}
       {showGuideModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-slate-900/35 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl w-full max-w-md p-5 sm:p-6 shadow-2xl border border-slate-200 animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300">
             {/* Header */}
             <div className="flex items-start justify-between pb-3 border-b border-slate-100">

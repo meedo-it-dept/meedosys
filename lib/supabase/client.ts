@@ -1,14 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
+// =============================================================================
+// MEEDOSys v2.0 - Database Compatibility Bridge
+// Re-exports PocketBase client to maintain seamless zero-downtime compatibility
+// =============================================================================
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl &&
-  supabaseAnonKey &&
-  !supabaseUrl.includes('your-project-id')
-);
-
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+export {
+  pbClient as supabase,
+  isPocketBaseConfigured as isSupabaseConfigured,
+  pbClient,
+  pb,
+  isPocketBaseConfigured,
+  pocketbaseUrl,
+  toPbId,
+  checkPocketBase,
+} from '../pocketbase/client';

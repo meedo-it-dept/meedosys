@@ -14,10 +14,25 @@
   }
 
   body {
-    background-color: #f3f4f6;
-    color: #111827;
+    background-color: #f8fafc;
+    color: #0f172a;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
+    caret-color: #2563eb;
+    text-underline-offset: 3px;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -27,7 +42,7 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
@@ -55,7 +70,7 @@
     box-shadow: none !important;
     border: none !important;
   }
-  aside, header, nav, .sidebar {
+  aside, header.no-print, nav, .sidebar {
     display: none !important;
   }
 }
@@ -191,11 +206,17 @@
 
 @media print {
   @page {
+    size: A4 portrait;
+    margin: 0.4in;
+  }
+
+  @page opifLandscape {
     size: 13in 8.5in; /* 8.5 x 13 Long Bond Paper (Landscape) */
     margin: 0.25in;
   }
 
   .opif-wrapper {
+    page: opifLandscape;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;

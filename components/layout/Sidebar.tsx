@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMeedo } from '@/lib/store';
-import { SECTIONS_META } from '@/lib/rbac';
+import { canAccessSection, isAdminUser, SECTIONS_META } from '@/lib/rbac';
+import { isFirebaseConfigured } from '@/lib/firebase/client';
 import { UserSection } from '@/lib/types';
 import {
   Store,
@@ -40,7 +41,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, logout, isLiveSupabase } = useMeedo();
+  const { currentUser, logout, isLivePocketBase, isLiveSupabase } = useMeedo();
+  const isLive = isLivePocketBase || isLiveSupabase;
   const { isInstalled, openInstallGuide } = usePwa();
 
   const [marketOpen, setMarketOpen] = useState(true);
@@ -50,13 +52,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const role = currentUser?.role;
   const section = currentUser?.section;
+  const isAdmin = isAdminUser(currentUser);
 
-  // Role-Based Section Visibility
-  const canAccessSection = (sec: string) => {
-    if (!currentUser) return false;
-    if (role === 'Admin' || section === 'ALL') return true;
-    return section === sec;
-  };
+  // Role-Based Section Visibility (delegated to centralized RBAC)
+  const canViewSection = (sec: UserSection) => canAccessSection(currentUser, sec);
 
   const isActive = (path: string) => pathname === path;
 
@@ -66,27 +65,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/30 lg:hidden"
         />
       )}
 
       <aside
         className={cn(
-          'fixed inset-y-0 top-0 left-0 z-50 h-[100dvh] max-h-[100dvh] w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0',
+          'no-print fixed inset-y-0 top-0 left-0 z-50 h-[100dvh] max-h-[100dvh] w-72 bg-white border-r border-slate-200/85 shadow-[1px_0_8px_rgba(15,23,42,0.03)] flex flex-col transition-transform duration-300 lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Brand Header */}
-        <div className="p-4 border-b border-slate-100 flex items-center gap-3 shrink-0">
-          <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center p-1 border border-slate-100 shadow-sm flex-shrink-0">
+        <div className="px-4 py-4 border-b border-slate-200/75 bg-slate-50/50 flex items-center gap-3 shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center p-1 border border-slate-200/80 shadow-[0_1px_2px_rgba(15,23,42,0.05)] flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="https://drive.google.com/thumbnail?id=1uiTfp9Sak_EdeurZ20zMm_FttQiKQmTc&sz=w1000"
-              alt="Malungon Municipal Logo"
+              src="/favicon_LGUMalungon/LGU_LOGO1.png"
+              alt="Municipality of Malungon Seal"
               width={40}
               height={40}
               style={{ maxWidth: '40px', maxHeight: '40px', objectFit: 'contain' }}
-              className="w-full h-full object-contain logo-blend"
+              className="w-full h-full object-contain"
             />
           </div>
           <div>
@@ -102,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Navigation Links */}
         <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-1.5 text-sm overscroll-contain">
           {/* Section A: Market Management */}
-          {canAccessSection('A') && (
+          {canViewSection('A') && (
             <div>
               <button
                 onClick={() => setMarketOpen(!marketOpen)}
@@ -176,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           )}
 
           {/* Section B: Slaughterhouse */}
-          {canAccessSection('B') && (
+          {canViewSection('B') && (
             <div>
               <button
                 onClick={() => setSlaughterOpen(!slaughterOpen)}
@@ -230,7 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           )}
 
           {/* Section C: Cemetery Management */}
-          {canAccessSection('C') && (
+          {canViewSection('C') && (
             <div>
               <button
                 onClick={() => setCemeteryOpen(!cemeteryOpen)}
@@ -284,7 +283,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           )}
 
           {/* Section D: Transport Terminal */}
-          {canAccessSection('D') && (
+          {canViewSection('D') && (
             <div>
               <button
                 onClick={() => setTransportOpen(!transportOpen)}
@@ -347,8 +346,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </div>
           )}
 
+          {/* Section E: Administrative Services OPIF (Non-Admin Section E Staff) */}
+          {canViewSection('E') && !isAdmin && (
+            <Link
+              href="/opif?section=E"
+              onClick={onClose}
+              className={cn(
+                'flex items-center gap-2.5 px-3 py-2 rounded-lg font-medium text-slate-700 hover:bg-slate-50 transition-colors',
+                { 'bg-blue-50 text-blue-600 font-semibold': pathname === '/opif' }
+              )}
+            >
+              <BarChart3 className="w-4 h-4 text-indigo-600" /> Section E: Admin OPIF
+            </Link>
+          )}
+
           {/* Section F: Peace & Order (Market Guard Desk) */}
-          {canAccessSection('F') && (
+          {canViewSection('F') && (
             <Link
               href="/csu"
               onClick={onClose}
@@ -362,7 +375,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           )}
 
           {/* Admin Management, Central OPIF & Municipal Inventory */}
-          {role === 'Admin' && (
+          {isAdmin && (
             <div className="pt-2 mt-2 border-t border-slate-200/70 space-y-1">
               <div className="px-3 mb-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                 Administration
@@ -424,8 +437,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   : `${role || 'Staff'} • Section ${section || 'N/A'}`}
               </span>
             </div>
-            <Badge variant={isLiveSupabase ? 'success' : 'neutral'}>
-              {isLiveSupabase ? 'Live' : 'Demo'}
+            <Badge
+              variant={isLive ? 'success' : 'neutral'}
+              title={isLive ? (isFirebaseConfigured ? 'Firebase Auth + PocketBase Connected' : 'PocketBase Connected') : 'Local Storage Mode'}
+            >
+              {isLive ? (isFirebaseConfigured ? 'FB + PB' : 'PB Live') : 'Demo'}
             </Badge>
           </div>
 

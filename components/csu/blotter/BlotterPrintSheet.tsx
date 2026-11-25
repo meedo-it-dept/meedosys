@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CsuDailyReport } from '@/lib/types';
+import { openPrintDocument } from '@/lib/print';
 import { Printer, Download, CheckCircle2, Shield, Calendar, Clock, MapPin, Radio, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -17,9 +18,35 @@ export const BlotterPrintSheet: React.FC<BlotterPrintSheetProps> = ({
   isModal = false,
 }) => {
   const [paperSize, setPaperSize] = useState<'A4' | 'Letter'>('A4');
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
-    window.print();
+    const node = sheetRef.current;
+    if (!node) {
+      window.print();
+      return;
+    }
+    openPrintDocument({
+      title: `CSU Shift Blotter - ${report.report_date || ''} (${report.prep_name || 'Report'})`,
+      copyDocumentStyles: true,
+      orientation: 'portrait',
+      pageSize: paperSize === 'Letter' ? 'letter' : 'A4',
+      margin: '0.35in',
+      styles: `
+        .csu-print-sheet {
+          border: none !important;
+          box-shadow: none !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          max-width: 100% !important;
+          min-height: auto !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+      `,
+      bodyHtml: node.outerHTML,
+    });
   };
 
   return (
@@ -120,25 +147,34 @@ export const BlotterPrintSheet: React.FC<BlotterPrintSheetProps> = ({
 
       {/* The Printable Sheet (Simulates true A4/Letter width & layout) */}
       <div
+        ref={sheetRef}
         className={`csu-print-sheet mx-auto bg-white text-slate-900 shadow-md border border-slate-300 rounded-lg p-8 transition-all ${
           paperSize === 'A4' ? 'max-w-[210mm]' : 'max-w-[216mm]'
         }`}
         style={{ minHeight: paperSize === 'A4' ? '297mm' : '279mm' }}
       >
         {/* 1. Official Government Header */}
-        <div className="border-b-2 border-slate-900 pb-3 text-center space-y-0.5">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-slate-600">
-            Republic of the Philippines
-          </p>
-          <p className="text-xs font-bold tracking-wide uppercase text-slate-800">
-            Province of Sarangani • Municipality of Malungon
-          </p>
-          <p className="text-sm font-black tracking-wider uppercase text-slate-900">
-            MUNICIPAL ECONOMIC ENTERPRISE DEVELOPMENT OFFICE (MEEDO)
-          </p>
-          <p className="text-[11px] font-semibold text-slate-700 italic">
-            Market Guard — Market Peace & Order Desk
-          </p>
+        <div className="border-b-2 border-slate-900 pb-3 flex items-center justify-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/favicon_LGUMalungon/LGU_LOGO1.png"
+            alt="Municipality of Malungon Seal"
+            className="w-16 h-16 object-contain shrink-0"
+          />
+          <div className="text-center space-y-0.5">
+            <p className="text-[10px] font-bold tracking-widest uppercase text-slate-600">
+              Republic of the Philippines
+            </p>
+            <p className="text-xs font-bold tracking-wide uppercase text-slate-800">
+              Province of Sarangani • Municipality of Malungon
+            </p>
+            <p className="text-sm font-black tracking-wider uppercase text-slate-900">
+              MUNICIPAL ECONOMIC ENTERPRISE DEVELOPMENT OFFICE (MEEDO)
+            </p>
+            <p className="text-[11px] font-semibold text-slate-700 italic">
+              Market Guard — Market Peace & Order Desk
+            </p>
+          </div>
         </div>
 
         {/* 2. Document Title & Identification */}

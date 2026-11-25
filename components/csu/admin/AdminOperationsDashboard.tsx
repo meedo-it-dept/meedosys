@@ -52,38 +52,43 @@ export const AdminOperationsDashboard: React.FC<AdminOperationsDashboardProps> =
   return (
     <div className="space-y-6">
       {/* Top Banner & Quick Controls */}
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 p-6 sm:p-8 text-white shadow-md">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="rounded-2xl border border-slate-200/85 bg-white p-6 sm:p-7 text-slate-900 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-blue-600 text-white font-bold text-xs uppercase tracking-wider">
-                Municipal Peace & Order Operations Desk
-              </Badge>
-              <span className="text-xs text-slate-300 font-mono">
-                Saturday, September 26, 2026
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Market Operations & Security Center
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+              Market Operations &amp; Security Center
             </h1>
-            <p className="text-xs text-slate-300 max-w-xl">
+            <p className="text-sm text-slate-600 max-w-xl leading-relaxed">
               Centralized oversight of Market Guard rosters, daily shift blotters, multi-sector sanitation inspections, and facility operations calendar.
             </p>
+            <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+              <Badge className="bg-blue-50 text-blue-700 border border-blue-200 font-semibold text-xs">
+                Peace &amp; Order Operations Desk
+              </Badge>
+              <span className="text-xs text-slate-500 font-medium tabular-nums">
+                {new Date().toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Button
               onClick={onOpenCreateEvent}
-              className="rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5 shadow-lg shadow-blue-600/30 px-4 py-2.5"
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs gap-1.5 shadow-sm px-4 py-2.5"
             >
               <Plus className="h-4 w-4" /> Schedule Activity / Shift
             </Button>
             <Button
               variant="outline"
               onClick={() => onNavigateTab('calendar')}
-              className="rounded-2xl border-slate-600 bg-slate-800/80 text-white hover:bg-slate-700 font-bold text-xs gap-1.5 px-4 py-2.5"
+              className="rounded-xl border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-semibold text-xs gap-1.5 px-4 py-2.5"
             >
-              <Calendar className="h-4 w-4" /> Open Full Calendar
+              <Calendar className="h-4 w-4 text-blue-600" /> Open Full Calendar
             </Button>
           </div>
         </div>

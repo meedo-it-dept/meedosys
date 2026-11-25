@@ -1,0 +1,296 @@
+/// <reference path="../pb_data/types.d.ts" />
+migrate((app) => {
+  const collection = new Collection({
+    "createRule": "",
+    "deleteRule": "",
+    "fields": [
+      {
+        "autogeneratePattern": "[a-z0-9]{15}",
+        "hidden": false,
+        "id": "text3208210256",
+        "max": 15,
+        "min": 15,
+        "name": "id",
+        "pattern": "^[a-z0-9]+$",
+        "presentable": false,
+        "primaryKey": true,
+        "required": true,
+        "system": true,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text4040417351",
+        "max": 0,
+        "min": 0,
+        "name": "stall_no",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": true,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text1917000137",
+        "max": 0,
+        "min": 0,
+        "name": "monitoring_date",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": true,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "number1799374743",
+        "max": null,
+        "min": null,
+        "name": "goodwill",
+        "onlyInt": false,
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "number"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text4273755057",
+        "max": 0,
+        "min": 0,
+        "name": "operational_status",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text2295628943",
+        "max": 0,
+        "min": 0,
+        "name": "permit_date",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "bool1202363829",
+        "name": "permit_submitted",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "bool"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text2529430629",
+        "max": 0,
+        "min": 0,
+        "name": "lease_date",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "bool3309584560",
+        "name": "lease_submitted",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "bool"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text88158718",
+        "max": 0,
+        "min": 0,
+        "name": "rental_or",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "bool1925379320",
+        "name": "rental_paid",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "bool"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text1916462052",
+        "max": 0,
+        "min": 0,
+        "name": "claygo_compliant",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text2826709616",
+        "max": 0,
+        "min": 0,
+        "name": "cctv_available",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text3185447909",
+        "max": 0,
+        "min": 0,
+        "name": "palengqr_implemented",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "hidden": false,
+        "id": "json1932452930",
+        "maxSize": 0,
+        "name": "seminars_attended",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "json"
+      },
+      {
+        "hidden": false,
+        "id": "number724012150",
+        "max": null,
+        "min": null,
+        "name": "electric_bill_amount",
+        "onlyInt": false,
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "number"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text3733362984",
+        "max": 0,
+        "min": 0,
+        "name": "electric_bill_status",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text3914483831",
+        "max": 0,
+        "min": 0,
+        "name": "electric_bill_due_date",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text1156222427",
+        "max": 0,
+        "min": 0,
+        "name": "remarks",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text3725765462",
+        "max": 0,
+        "min": 0,
+        "name": "created_by",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      },
+      {
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text2341372968",
+        "max": 0,
+        "min": 0,
+        "name": "created_at",
+        "pattern": "",
+        "presentable": false,
+        "primaryKey": false,
+        "required": false,
+        "system": false,
+        "type": "text"
+      }
+    ],
+    "id": "pbc_3268236152",
+    "indexes": [
+      "CREATE INDEX `idx_mon_stall_date` ON `monitoring_records` (`stall_no`, `monitoring_date`)"
+    ],
+    "listRule": "",
+    "name": "monitoring_records",
+    "system": false,
+    "type": "base",
+    "updateRule": "",
+    "viewRule": ""
+  });
+
+  return app.save(collection);
+}, (app) => {
+  const collection = app.findCollectionByNameOrId("pbc_3268236152");
+
+  return app.delete(collection);
+})

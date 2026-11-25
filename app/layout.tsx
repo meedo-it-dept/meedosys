@@ -18,12 +18,13 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/icons/icon.svg', type: 'image/svg+xml' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon.ico' },
+      { url: '/favicon_LGUMalungon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon_LGUMalungon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon_LGUMalungon/LGU_LOGO1.png', type: 'image/png' },
+      { url: '/favicon_LGUMalungon/favicon.ico' },
     ],
     apple: [
-      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/favicon_LGUMalungon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
   },
 };
@@ -45,13 +46,14 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" type="image/png" href="/favicon_LGUMalungon/LGU_LOGO1.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="MEEDOSys" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/favicon_LGUMalungon/apple-touch-icon.png" />
       </head>
-      <body className="min-h-screen bg-slate-100 text-slate-900 antialiased selection:bg-blue-600 selection:text-white pb-safe">
+      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-blue-600 selection:text-white pb-safe">
         <MeedoProvider>
           <PwaProvider>{children}</PwaProvider>
         </MeedoProvider>

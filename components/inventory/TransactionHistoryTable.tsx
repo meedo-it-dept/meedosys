@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { printTableReport } from '@/lib/print';
 import {
   Search,
   Filter,
@@ -98,7 +99,46 @@ export const TransactionHistoryTable: React.FC<TransactionHistoryTableProps> = (
   };
 
   const handlePrint = () => {
-    window.print();
+    const stockInTotal = filtered
+      .filter((t) => t.transaction_type === 'Stock In')
+      .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+    const releaseTotal = filtered
+      .filter((t) => t.transaction_type === 'Release')
+      .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+
+    printTableReport({
+      title: 'MEEDO Inventory & Stock Movement Ledger',
+      subtitle: `Filters: Dept=${selectedDept} | Type=${selectedType}${searchQuery ? ` | Search="${searchQuery}"` : ''}`,
+      dept: 'MEEDO — Supply & Inventory Property Section (Section G)',
+      orientation: 'landscape',
+      summaryCards: [
+        { label: 'Matching Transactions', value: filtered.length },
+        { label: 'Total Stocked In', value: stockInTotal },
+        { label: 'Total Released', value: releaseTotal },
+      ],
+      columns: [
+        { label: '#', align: 'center', width: '36px' },
+        { label: 'Transaction Date' },
+        { label: 'Type', align: 'center' },
+        { label: 'Item Name' },
+        { label: 'Qty / Unit', align: 'right' },
+        { label: 'Department / Section' },
+        { label: 'Released By' },
+        { label: 'Received By' },
+        { label: 'Remarks' },
+      ],
+      rows: filtered.map((t, idx) => [
+        idx + 1,
+        t.transaction_date || new Date(t.created_at).toLocaleDateString('en-PH'),
+        t.transaction_type,
+        t.item_name || '—',
+        `${t.quantity} ${t.unit || ''}`.trim(),
+        t.department_section || '—',
+        t.released_by || '—',
+        t.received_by || '—',
+        t.remarks || t.description || '—',
+      ]),
+    });
   };
 
   return (

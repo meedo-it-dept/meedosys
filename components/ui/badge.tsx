@@ -5,12 +5,14 @@ interface BadgeProps {
   children: React.ReactNode;
   variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'outline';
   className?: string;
+  title?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({
   children,
   variant = 'neutral',
   className,
+  title,
 }) => {
   const variants = {
     success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -23,8 +25,9 @@ export const Badge: React.FC<BadgeProps> = ({
 
   return (
     <span
+      title={title}
       className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border',
+        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border tabular-nums',
         variants[variant],
         className
       )}

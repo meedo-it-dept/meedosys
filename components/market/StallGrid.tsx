@@ -874,7 +874,7 @@ export const StallGrid: React.FC = () => {
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-extrabold text-xs tracking-wide">
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200/80 font-extrabold text-xs tracking-wide tabular-nums">
                           {stall.stall_no}
                         </span>
                         <span
@@ -939,12 +939,12 @@ export const StallGrid: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile Floating Action Dock */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 lg:hidden flex items-center gap-2 p-1.5 bg-slate-900/90 backdrop-blur-md text-white rounded-full shadow-2xl border border-white/20">
+      {/* Mobile Floating Action Dock (Light Premium) */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 lg:hidden flex items-center gap-2 p-1.5 bg-white text-slate-900 rounded-full shadow-[0_8px_28px_rgba(15,23,42,0.14)] border border-slate-200/90">
         <button
           type="button"
           onClick={() => setViewMode(viewMode === 'map' ? 'list' : 'map')}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white text-slate-900 shadow-sm transition-all"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-600 text-white shadow-2xs transition-all"
         >
           {viewMode === 'map' ? (
             <>

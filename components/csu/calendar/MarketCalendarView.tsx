@@ -35,7 +35,7 @@ export const MarketCalendarView: React.FC = () => {
   const { marketCalendarEvents, guards } = useMeedo();
 
   // Calendar State
-  const [currentDate, setCurrentDate] = useState<Date>(new Date('2026-09-26T00:00:00'));
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'agenda'>('month');
 
   // Filters
@@ -46,7 +46,9 @@ export const MarketCalendarView: React.FC = () => {
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createInitialDate, setCreateInitialDate] = useState<string>('2026-09-26');
+  const [createInitialDate, setCreateInitialDate] = useState<string>(
+    () => new Date().toISOString().split('T')[0]
+  );
   const [selectedEvent, setSelectedEvent] = useState<MarketCalendarEvent | null>(null);
 
   // Month navigation
@@ -75,7 +77,7 @@ export const MarketCalendarView: React.FC = () => {
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date('2026-09-26T00:00:00'));
+    setCurrentDate(new Date());
   };
 
   // Filtered Events
@@ -325,7 +327,7 @@ export const MarketCalendarView: React.FC = () => {
             {/* Create Event Trigger */}
             <Button
               onClick={() => {
-                setCreateInitialDate('2026-09-26');
+                setCreateInitialDate(new Date().toISOString().split('T')[0]);
                 setIsCreateModalOpen(true);
               }}
               className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5 shadow-md shadow-blue-600/20 px-4"
@@ -412,7 +414,7 @@ export const MarketCalendarView: React.FC = () => {
           <div className="grid grid-cols-7 divide-x divide-y divide-slate-100">
             {monthDays.map((item, idx) => {
               const dayEvents = filteredEvents.filter((e) => e.date === item.dateStr);
-              const isToday = item.dateStr === '2026-09-26';
+              const isToday = item.dateStr === new Date().toISOString().split('T')[0];
 
               return (
                 <div
@@ -507,7 +509,7 @@ export const MarketCalendarView: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center divide-x divide-slate-200">
             {weekDays.map((wd) => {
-              const isToday = wd.dateStr === '2026-09-26';
+              const isToday = wd.dateStr === new Date().toISOString().split('T')[0];
               return (
                 <div
                   key={wd.dateStr}

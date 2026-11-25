@@ -43,7 +43,7 @@ export const InventoryConfirmDialog: React.FC<InventoryConfirmDialogProps> = ({
   const stockAfter = Math.max(0, currentStock - quantity);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-in fade-in duration-150">
       <div
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200"
         role="dialog"

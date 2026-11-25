@@ -295,7 +295,7 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
 
       {/* Request Correction Modal */}
       {isCorrectionModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -347,7 +347,7 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
 
       {/* Add Violation Modal */}
       {isAddViolationOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900">Log Stall Infraction</h3>
@@ -400,7 +400,7 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
 
       {/* Add Lost & Found Modal */}
       {isAddLostFoundOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900">Log Lost & Found Item</h3>
@@ -443,7 +443,7 @@ export const GuardShiftBlotter: React.FC<GuardShiftBlotterProps> = ({ currentGua
 
       {/* Dedicated A4 / US Letter Print Preview Modal */}
       {isPrintModalOpen && activeReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 md:p-8 backdrop-blur-sm overflow-y-auto no-print:bg-black/75">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 md:p-8 overflow-y-auto">
           <div className="relative w-full max-w-5xl rounded-3xl bg-slate-100 p-4 sm:p-6 shadow-2xl max-h-[96vh] overflow-y-auto">
             <BlotterPrintSheet
               report={activeReport}

@@ -14,7 +14,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { isInstalled, openInstallGuide } = usePwa();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200 lg:hidden no-print">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 bg-white/95 border-b border-slate-200/85 shadow-[0_1px_3px_rgba(15,23,42,0.04)] lg:hidden no-print">
       <button
         onClick={onToggleSidebar}
         className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"

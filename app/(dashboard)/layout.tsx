@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { useMeedo } from '@/lib/store';
-import { checkRouteAccess, SECTIONS_META } from '@/lib/rbac';
+import { checkRouteAccess, isApprovedUser, SECTIONS_META } from '@/lib/rbac';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,19 +29,25 @@ export default function DashboardLayout({
   const { currentUser, authLoading, logout } = useMeedo();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Authentication check: redirect to /login if unauthenticated after state loaded
+  // Authentication check: redirect to /login if unauthenticated or not Approved
   useEffect(() => {
-    if (!authLoading && !currentUser) {
+    if (!authLoading && (!currentUser || !isApprovedUser(currentUser))) {
       router.push('/login');
     }
   }, [authLoading, currentUser, router]);
 
-  // Loading state while restoring auth from localStorage
+  // Loading state while restoring auth session
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="text-center space-y-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-sm w-full">
-          <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="text-center space-y-3 bg-white p-8 rounded-2xl shadow-[0_4px_16px_rgba(15,23,42,0.06)] border border-slate-200/85 max-w-sm w-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/favicon_LGUMalungon/LGU_LOGO1.png"
+            alt="Municipality of Malungon Seal"
+            className="w-12 h-12 object-contain mx-auto"
+          />
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <h3 className="font-bold text-slate-900 text-sm">MEEDOSys Enterprise</h3>
           <p className="text-xs text-slate-500 font-medium">Verifying Department Credentials...</p>
         </div>
@@ -49,8 +55,8 @@ export default function DashboardLayout({
     );
   }
 
-  // Not authenticated
-  if (!currentUser) {
+  // Not authenticated or not approved
+  if (!currentUser || !isApprovedUser(currentUser)) {
     return null;
   }
 

@@ -27,7 +27,7 @@ interface ReleaseItemModalProps {
     receivedBy: string;
     dateReceived: string;
     remarks?: string;
-  }) => { success: boolean; message?: string };
+  }) => Promise<{ success: boolean; message?: string }> | { success: boolean; message?: string };
   preselectedItemId?: string;
 }
 
@@ -123,7 +123,7 @@ export const ReleaseItemModal: React.FC<ReleaseItemModalProps> = ({
     setIsConfirmOpen(true);
   };
 
-  const handleExecuteRelease = () => {
+  const handleExecuteRelease = async () => {
     if (!currentItem) return;
     const qtyNum = typeof quantity === 'number' ? quantity : parseInt(quantity as string, 10);
 
@@ -135,50 +135,52 @@ export const ReleaseItemModal: React.FC<ReleaseItemModalProps> = ({
       year: 'numeric',
     });
 
-    const result = onReleaseSuccess({
-      itemId: currentItem.id,
-      department: effectiveDept,
-      quantity: qtyNum,
-      receivedBy: receivedBy.trim(),
-      dateReceived: formattedDate,
-      remarks: remarks.trim() || undefined,
-    });
+    try {
+      const result = await onReleaseSuccess({
+        itemId: currentItem.id,
+        department: effectiveDept,
+        quantity: qtyNum,
+        receivedBy: receivedBy.trim(),
+        dateReceived: formattedDate,
+        remarks: remarks.trim() || undefined,
+      });
 
-    setIsSubmitting(false);
-
-    if (result.success) {
-      setIsConfirmOpen(false);
-      onClose();
-    } else {
-      setErrorMsg(result.message || 'Failed to release item.');
-      setIsConfirmOpen(false);
+      if (result.success) {
+        setIsConfirmOpen(false);
+        onClose();
+      } else {
+        setErrorMsg(result.message || 'Failed to release item.');
+        setIsConfirmOpen(false);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <>
-      <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/35 animate-in fade-in duration-200">
         <div
           className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
           role="dialog"
           aria-modal="true"
         >
           {/* Header */}
-          <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+          <div className="px-6 py-4 bg-slate-50/90 border-b border-slate-200 text-slate-900 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
                 <ArrowUpRight className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="text-base font-bold tracking-tight">Request / Release Item</h2>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500">
                   Issue municipal supplies to LGU departments and sections
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>

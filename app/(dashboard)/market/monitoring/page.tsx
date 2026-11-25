@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMeedo } from '@/lib/store';
+import { escapeHtml, lguLetterheadHtml, openPrintDocument } from '@/lib/print';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -176,7 +177,57 @@ function MonthlyMonitoringContent() {
   };
 
   const handlePrintReceipt = () => {
-    window.print();
+    if (!stall) return;
+    const ownerName = stall.current_tenant?.stall_owner || 'N/A';
+    const businessLine = stall.current_tenant?.line_of_business || 'N/A';
+
+    const bodyHtml = `
+      ${lguLetterheadHtml({
+        title: 'MONTHLY MONITORING ACKNOWLEDGEMENT RECEIPT',
+        subtitle: `Stall No. ${stall.stall_no} • Inspection Date: ${monDate}`,
+        dept: 'MEEDO — Public Market Operations & Compliance Section (Section A)',
+        compact: true,
+      })}
+      <div style="border:1.5px solid #cbd5e1;border-radius:8px;padding:16px 20px;margin-top:8px;">
+        <table class="lgu-table" style="font-size:9.5pt;">
+          <tbody>
+            <tr><th style="width:36%;">Date of Inspection</th><td><strong>${escapeHtml(monDate)}</strong></td></tr>
+            <tr><th>Stall Number</th><td><strong>${escapeHtml(stall.stall_no)}</strong></td></tr>
+            <tr><th>Stall Tenant / Owner</th><td><strong>${escapeHtml(ownerName)}</strong></td></tr>
+            <tr><th>Line of Business</th><td>${escapeHtml(businessLine)}</td></tr>
+            <tr><th>CLAYGO Compliance</th><td><strong>${escapeHtml(claygo || 'No')}</strong></td></tr>
+            <tr><th>CCTV Available</th><td><strong>${escapeHtml(cctv || 'No')}</strong></td></tr>
+            <tr><th>Paleng-QR Ph Implemented</th><td><strong>${escapeHtml(palengqr || 'No')}</strong></td></tr>
+            ${remarks ? `<tr><th>Inspector Remarks</th><td>${escapeHtml(remarks)}</td></tr>` : ''}
+          </tbody>
+        </table>
+
+        <div class="lgu-signatures" style="margin-top:36px;">
+          <div class="lgu-sig-box">
+            <div class="lgu-sig-caption">Acknowledged By (Tenant / Representative):</div>
+            <div class="lgu-sig-line">${escapeHtml(ownerName === 'N/A' ? 'Stall Tenant / Representative' : ownerName)}</div>
+            <div class="lgu-sig-role">Signature Over Printed Name</div>
+          </div>
+          <div class="lgu-sig-box">
+            <div class="lgu-sig-caption">Inspected &amp; Verified By:</div>
+            <div class="lgu-sig-line">MEEDO Market Inspector</div>
+            <div class="lgu-sig-role">Inspecting Officer — Municipality of Malungon</div>
+          </div>
+        </div>
+      </div>
+      <div class="lgu-footer-note">
+        <span>Official Acknowledgement Slip • MEEDOSys v2.0</span>
+        <span>Stall: ${escapeHtml(stall.stall_no)}</span>
+      </div>
+    `;
+
+    openPrintDocument({
+      title: `Acknowledgement Receipt - Stall ${stall.stall_no}`,
+      bodyHtml,
+      orientation: 'portrait',
+      pageSize: 'A4',
+      margin: '0.5in',
+    });
   };
 
   const stallMonitoringHistory = monitoringRecords.filter(
@@ -319,16 +370,24 @@ function MonthlyMonitoringContent() {
       {/* PRINTABLE ACKNOWLEDGEMENT RECEIPT */}
       {showAckReceipt && stall && (
         <Card className="print-container border-2 border-slate-300 p-4 sm:p-8 max-w-xl mx-auto bg-white shadow-lg w-full min-w-0 overflow-hidden">
-          <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
-            <h1 className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900">
-              Municipality of Malungon
-            </h1>
-            <h2 className="text-[11px] sm:text-xs font-semibold uppercase text-slate-600">
-              Municipal Economic Enterprise Development Office (MEEDO)
-            </h2>
-            <p className="text-base sm:text-lg font-black mt-2 text-blue-900 uppercase">
-              Acknowledgement Receipt
-            </p>
+          <div className="flex items-center justify-center gap-3.5 border-b-2 border-slate-800 pb-4 mb-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/favicon_LGUMalungon/LGU_LOGO1.png"
+              alt="Municipality of Malungon Seal"
+              className="w-14 h-14 object-contain shrink-0"
+            />
+            <div className="text-left">
+              <h1 className="text-sm sm:text-base font-bold uppercase tracking-wider text-slate-900">
+                Municipality of Malungon
+              </h1>
+              <h2 className="text-[11px] sm:text-xs font-semibold uppercase text-slate-600">
+                Municipal Economic Enterprise Development Office (MEEDO)
+              </h2>
+              <p className="text-base sm:text-lg font-black mt-1 text-blue-900 uppercase">
+                Acknowledgement Receipt
+              </p>
+            </div>
           </div>
 
           <div className="space-y-3 text-xs">
@@ -655,7 +714,7 @@ function MonthlyMonitoringContent() {
               {savedSuccess && (
                 <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3.5 py-2 rounded-lg border border-emerald-200 font-semibold animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Monitoring entry logged & synchronized to Supabase!
+                  Monitoring entry logged & synchronized to PocketBase!
                   <button
                     type="button"
                     onClick={() => router.push(`/market/map?stall=${selectedStallNo}`)}
@@ -692,7 +751,7 @@ function MonthlyMonitoringContent() {
               <History className="w-4 h-4 text-slate-600" />
               Inspection Log & Audit Trail ({stallMonitoringHistory.length})
             </h3>
-            <span className="text-[11px] text-slate-500">Live synced with Supabase</span>
+            <span className="text-[11px] text-slate-500">Live synced with PocketBase</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -757,20 +816,20 @@ function MonthlyMonitoringContent() {
       {/* FULL VIEW PDF MODAL */}
       {fullViewPdf && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/80 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/40 animate-in fade-in duration-150"
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative w-full max-w-5xl h-[92vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-700">
+          <div className="relative w-full max-w-5xl h-[92vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
             {/* Modal Header */}
-            <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex items-center justify-between gap-3 border-b border-slate-800 shrink-0">
+            <div className="p-3.5 sm:p-4 bg-slate-50/90 text-slate-900 flex items-center justify-between gap-3 border-b border-slate-200 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
-                <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+                <FileText className="w-5 h-5 text-blue-600 shrink-0" />
                 <div className="min-w-0">
-                  <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                     {fullViewPdf.title}
                   </h3>
-                  <p className="text-[11px] text-slate-400 truncate font-mono">
+                  <p className="text-xs text-slate-500 truncate font-mono">
                     {fullViewPdf.filename}
                   </p>
                 </div>
@@ -783,7 +842,7 @@ function MonthlyMonitoringContent() {
                     const blobUrl = base64ToBlobUrl(fullViewPdf.url);
                     window.open(blobUrl, '_blank', 'noopener,noreferrer');
                   }}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-700"
+                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-200 shadow-2xs"
                   title="Open PDF in new browser tab"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -793,7 +852,7 @@ function MonthlyMonitoringContent() {
                 <a
                   href={base64ToBlobUrl(fullViewPdf.url)}
                   download={fullViewPdf.filename}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-700"
+                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-200 shadow-2xs"
                   title="Download PDF"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -803,7 +862,7 @@ function MonthlyMonitoringContent() {
                 <button
                   type="button"
                   onClick={() => setFullViewPdf(null)}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700"
+                  className="p-1.5 rounded-xl bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors border border-slate-200"
                   title="Close PDF viewer"
                 >
                   <X className="w-5 h-5" />
@@ -812,7 +871,7 @@ function MonthlyMonitoringContent() {
             </div>
 
             {/* Modal Body: PDF iframe viewer */}
-            <div className="flex-1 bg-slate-800 relative min-h-0">
+            <div className="flex-1 bg-slate-100 relative min-h-0">
               <iframe
                 src={`${base64ToBlobUrl(fullViewPdf.url)}#toolbar=1&navpanes=1`}
                 className="w-full h-full border-0"

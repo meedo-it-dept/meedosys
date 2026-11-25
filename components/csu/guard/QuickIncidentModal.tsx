@@ -105,24 +105,25 @@ export const QuickIncidentModal: React.FC<QuickIncidentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 overflow-y-auto">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-slate-200/90 shadow-[0_20px_50px_rgba(15,23,42,0.18)] overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-red-700 bg-red-600 px-6 py-4 text-white">
+        <div className="flex items-center justify-between border-b border-rose-200 bg-rose-50/90 px-6 py-4 text-slate-900">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/20 text-white backdrop-blur-md">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-100 text-rose-600 border border-rose-200">
               <ShieldAlert className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-wide uppercase">Report Market Incident</h2>
-              <p className="text-xs text-red-100 font-medium">
+              <h2 className="text-lg font-bold tracking-tight text-slate-900">Report Market Incident</h2>
+              <p className="text-xs text-rose-700 font-medium">
                 Immediate Operational Duty Logbook Entry
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-white/80 hover:bg-white/20 hover:text-white transition"
+            aria-label="Close modal"
+            className="rounded-xl p-2 text-slate-500 hover:bg-rose-100 hover:text-slate-900 transition"
           >
             <X className="h-5 w-5" />
           </button>
@@ -216,8 +217,8 @@ export const QuickIncidentModal: React.FC<QuickIncidentModalProps> = ({
                     onClick={() => setLocation(loc)}
                     className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold border transition ${
                       location === loc
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
                     {loc}

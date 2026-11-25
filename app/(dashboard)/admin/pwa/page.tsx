@@ -64,50 +64,51 @@ export default function AdminPwaGuidePage() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-fade-in">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-lg">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-white/10 backdrop-blur-xs">
-              <Smartphone className="w-5 h-5 text-blue-100" />
-            </span>
-            <Badge variant="neutral" className="bg-white/20 text-white border-none text-[10px] font-bold">
-              Progressive Web App v2.0
-            </Badge>
-            <Badge variant="neutral" className="bg-emerald-400/20 text-emerald-200 border-none text-[10px] font-bold">
-              Offline Capable
-            </Badge>
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-white mt-2">
-            Mobile App & PWA Installation Guide
-          </h1>
-          <p className="text-xs text-blue-100/90 max-w-2xl leading-relaxed">
-            Deploy MEEDOSys directly onto staff smartphones, tablets, and field devices with zero app-store delays, automatic updates, and full-screen performance.
-          </p>
-        </div>
-
-        {/* Live Install Button for Current Device */}
-        <div className="flex items-center gap-2">
-          {isInstalled ? (
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 text-xs font-bold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              Running in App Mode
+      {/* Page Header (Light Premium) */}
+      <div className="bg-white rounded-2xl border border-slate-200/85 shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_24px_-8px_rgba(37,99,235,0.08)] overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500" />
+        <div className="p-6 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Mobile App &amp; PWA Installation Guide
+            </h1>
+            <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
+              Deploy MEEDOSys directly onto staff smartphones, tablets, and field devices with zero app-store delays, automatic updates, and full-screen performance.
+            </p>
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
+                <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                Progressive Web App v2.0
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                Offline Capable
+              </span>
             </div>
-          ) : isInstallable ? (
-            <Button
-              onClick={installApp}
-              className="bg-white hover:bg-slate-50 text-blue-700 font-bold shadow-md hover:shadow-lg transition-all"
-            >
-              <Download className="w-4 h-4 mr-2" /> Install MEEDOSys Now
-            </Button>
-          ) : (
-            <Button
-              onClick={openInstallGuide}
-              className="bg-white hover:bg-slate-50 text-blue-700 font-bold shadow-md hover:shadow-lg transition-all"
-            >
-              <Smartphone className="w-4 h-4 mr-2" /> Add to Home Screen
-            </Button>
-          )}
+          </div>
+
+          {/* Live Install Button for Current Device */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isInstalled ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Running in App Mode
+              </div>
+            ) : isInstallable ? (
+              <Button
+                onClick={installApp}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition-all"
+              >
+                <Download className="w-4 h-4 mr-2" /> Install MEEDOSys Now
+              </Button>
+            ) : (
+              <Button
+                onClick={openInstallGuide}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition-all"
+              >
+                <Smartphone className="w-4 h-4 mr-2" /> Add to Home Screen
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -370,7 +371,7 @@ export default function AdminPwaGuidePage() {
 
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition-colors">
-                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-xs flex items-center justify-center shrink-0">
                       1
                     </div>
                     <div>
@@ -383,7 +384,7 @@ export default function AdminPwaGuidePage() {
                   </div>
 
                   <div className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition-colors">
-                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-xs flex items-center justify-center shrink-0">
                       2
                     </div>
                     <div>
@@ -397,7 +398,7 @@ export default function AdminPwaGuidePage() {
                   </div>
 
                   <div className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition-colors">
-                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-xs flex items-center justify-center shrink-0">
                       3
                     </div>
                     <div>
@@ -411,7 +412,7 @@ export default function AdminPwaGuidePage() {
                   </div>
 
                   <div className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition-colors">
-                    <div className="w-7 h-7 rounded-lg bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-xs flex items-center justify-center shrink-0">
                       4
                     </div>
                     <div>

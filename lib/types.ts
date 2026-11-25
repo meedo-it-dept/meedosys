@@ -9,6 +9,10 @@ export type UserStatus = 'Pending' | 'Approved' | 'Blocked';
 export interface UserProfile {
   id: string;
   username: string;
+  email?: string;
+  firebase_uid?: string;
+  auth_provider?: string;
+  photo_url?: string;
   role: UserRole;
   section: UserSection;
   status: UserStatus;

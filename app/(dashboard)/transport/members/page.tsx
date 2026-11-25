@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useMeedo } from '@/lib/store';
 import { TodaMember } from '@/lib/types';
+import { printTableReport } from '@/lib/print';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -140,7 +141,52 @@ export default function TodaMembersPage() {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => window.print()} className="no-print">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            const membersToPrint = todaMembers.filter((m) =>
+              selectedTodaId ? m.toda_id === selectedTodaId : true
+            );
+            const expiredCount = membersToPrint.filter((m) => isExpired(m.id_expiry)).length;
+            const maleCount = membersToPrint.filter((m) => m.sex === 'Male').length;
+            const femaleCount = membersToPrint.filter((m) => m.sex === 'Female').length;
+            printTableReport({
+              title: 'TODA Driver Members Profile Roster',
+              subtitle: selectedToda
+                ? `Association: ${selectedToda.name} (${selectedToda.reg_no || 'Registered'})`
+                : 'All Registered TODA Driver Members',
+              dept: 'MEEDO — Transport & TODA Regulatory Section (Section D)',
+              orientation: 'landscape',
+              summaryCards: [
+                { label: 'Total Drivers', value: membersToPrint.length },
+                { label: 'Male / Female', value: `${maleCount} / ${femaleCount}` },
+                { label: 'Expired Licenses', value: expiredCount },
+              ],
+              columns: [
+                { label: '#', align: 'center', width: '36px' },
+                { label: 'Full Name' },
+                { label: 'Sex', align: 'center' },
+                { label: 'Address (Brgy / Municipality)' },
+                { label: 'Contact No.' },
+                { label: 'ID / License Type' },
+                { label: 'ID Number' },
+                { label: 'Expiry Date', align: 'center' },
+              ],
+              rows: membersToPrint.map((m, idx) => [
+                idx + 1,
+                `${m.last_name}, ${m.first_name}${m.middle_name ? ` ${m.middle_name[0]}.` : ''}${m.ext_name ? ` ${m.ext_name}` : ''}`,
+                m.sex || '—',
+                `${m.barangay || '—'}, ${m.municipality || 'Malungon'}`,
+                m.contact_no || '—',
+                m.id_type || '—',
+                m.id_number || '—',
+                m.id_expiry ? `${m.id_expiry}${isExpired(m.id_expiry) ? ' (EXPIRED)' : ''}` : '—',
+              ]),
+            });
+          }}
+          className="no-print"
+        >
           <Printer className="w-4 h-4 mr-1.5" /> Print Member List
         </Button>
       </div>
@@ -404,7 +450,7 @@ export default function TodaMembersPage() {
 
       {/* Delete Confirmation Alert */}
       {memberToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <Card className="w-full max-w-md bg-white shadow-xl border-slate-200 p-5 space-y-4">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="p-2 bg-rose-100 rounded-full">

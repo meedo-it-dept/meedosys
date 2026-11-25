@@ -184,68 +184,64 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Toast Notification */}
+      {/* Toast Notification (Light Premium) */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-200">
-          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+        <div className="fixed bottom-6 right-6 z-50 p-4 bg-white text-slate-900 rounded-2xl shadow-[0_12px_32px_rgba(15,23,42,0.14)] border border-emerald-200 flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-200">
+          <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-bold">{toastMessage}</p>
-            <p className="text-[11px] text-slate-400">Inventory balance updated atomically.</p>
+            <p className="text-xs font-bold text-slate-900">{toastMessage}</p>
+            <p className="text-[11px] text-slate-500">Inventory balance updated atomically.</p>
           </div>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      {/* Header Banner (Light Premium) */}
+      <div className="bg-white rounded-2xl border border-slate-200/85 shadow-[0_1px_3px_rgba(15,23,42,0.04),0_8px_24px_-8px_rgba(37,99,235,0.08)] overflow-hidden">
+        <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500" />
+        <div className="p-6 md:p-7 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/40 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 backdrop-blur-sm text-blue-200 border border-white/10">
-                <Package className="w-3.5 h-3.5 text-blue-400" />
-                Supply & Property Custodianship
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
+              Inventory &amp; Supply Management
+            </h1>
+            <p className="text-slate-600 text-xs md:text-sm max-w-2xl leading-relaxed">
+              Centrally monitor municipal office supplies, manage departmental requisitions with instant stock deduction, and maintain an immutable audit trail of all supply releases.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
+                <Package className="w-3.5 h-3.5 text-blue-600" />
+                Supply &amp; Property Custodianship
               </span>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/20 text-blue-300">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
                 LGU Malungon Central Registry
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Inventory & Supply Management
-            </h1>
-            <p className="text-slate-300 text-xs md:text-sm max-w-2xl leading-relaxed">
-              Centrally monitor municipal office supplies, manage departmental requisitions with instant stock deduction, and maintain an immutable audit trail of all supply releases.
-            </p>
           </div>
 
           {/* Action Buttons Header */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Prominent Request / Release Item Button (Requirement #1) */}
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => handleOpenReleaseModal()}
-              className="px-5 py-3 rounded-xl font-extrabold text-sm text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 flex items-center gap-2.5"
+              className="px-4 py-2.5 rounded-xl font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.985] shadow-sm transition-all flex items-center gap-2"
             >
-              <ArrowUpRight className="w-5 h-5 text-white" />
+              <ArrowUpRight className="w-4 h-4 text-white" />
               <span>Request / Release Item</span>
             </button>
 
-            {/* Direct Add New Item to Catalog Button */}
             <button
               onClick={() => handleOpenAddNewItemModal()}
-              className="px-4 py-3 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 shadow-lg shadow-emerald-600/25 transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+              className="px-4 py-2.5 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.985] shadow-sm transition-all flex items-center gap-2"
             >
               <Plus className="w-4 h-4 text-white" />
-              <span>+ Add New Item</span>
+              <span>Add New Item</span>
             </button>
 
-            {/* Stock-In / Restock Supplies Button */}
             <button
               onClick={() => handleOpenStockInModal()}
-              className="px-4 py-3 rounded-xl font-bold text-sm text-slate-200 bg-white/10 hover:bg-white/20 active:bg-white/25 border border-white/10 backdrop-blur-sm transition-all flex items-center gap-2"
+              className="px-4 py-2.5 rounded-xl font-semibold text-sm text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition-all flex items-center gap-2"
             >
-              <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+              <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
               <span>Restock Supplies</span>
             </button>
           </div>
@@ -549,8 +545,8 @@ export default function InventoryPage() {
         items={inventoryItems}
         releasingOfficer={releasingOfficerName}
         preselectedItemId={selectedItemForAction?.id}
-        onReleaseSuccess={(params) => {
-          const res = releaseInventoryItem(params);
+        onReleaseSuccess={async (params) => {
+          const res = await releaseInventoryItem(params);
           if (res.success) {
             showToast(`Successfully released ${params.quantity} item(s) to ${params.department}!`);
           }
@@ -568,8 +564,8 @@ export default function InventoryPage() {
         items={inventoryItems}
         releasingOfficer={releasingOfficerName}
         initialMode={stockInMode}
-        onStockInSuccess={(params) => {
-          const res = stockInInventoryItem(params);
+        onStockInSuccess={async (params) => {
+          const res = await stockInInventoryItem(params);
           if (res.success) {
             showToast(`Stock replenished successfully!`);
           }
@@ -585,9 +581,12 @@ export default function InventoryPage() {
           setSelectedItemForAction(null);
         }}
         item={selectedItemForAction}
-        onAdjust={(id, newQty, reason) => {
-          adjustInventoryItem(id, newQty, reason);
-          showToast(`Stock balance adjusted successfully.`);
+        onAdjust={async (id, newQty, reason) => {
+          const res = await adjustInventoryItem(id, newQty, reason);
+          if (res.success) {
+            showToast(`Stock balance adjusted successfully.`);
+          }
+          return res;
         }}
       />
     </div>

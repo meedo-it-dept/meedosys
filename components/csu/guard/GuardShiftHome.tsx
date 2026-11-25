@@ -650,19 +650,19 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
         /* Case 2: ON ACTIVE DUTY - Interactive Duty Dashboard */
         <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50/50 via-white to-slate-50 p-6 sm:p-7 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-100 pb-5">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500 animate-ping" />
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h2 className="text-2xl font-black text-slate-900">
+                  {guardSession?.area}
+                </h2>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                   Duty In Progress
                 </span>
                 <Badge className="bg-emerald-700 text-white font-mono text-xs">
                   {guardSession?.shift_name}
                 </Badge>
               </div>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">
-                {guardSession?.area}
-              </h2>
               <p className="text-xs text-slate-500">
                 Radio Call Sign: <span className="font-mono font-bold text-slate-800">{guardSession?.call_sign}</span> • Post: {guardSession?.facility}
               </p>
@@ -794,31 +794,31 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
       </div>
 
       {/* Emergency Hotlines Quick Panel */}
-      <div className="rounded-2xl border border-slate-200 bg-slate-900 text-white p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <PhoneCall className="h-4 w-4 text-red-400" />
-            Emergency Contacts & Dispatch Hotlines
+      <div className="rounded-2xl border border-slate-200/85 bg-white text-slate-900 p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+            <PhoneCall className="h-4 w-4 text-rose-600" />
+            Emergency Contacts &amp; Dispatch Hotlines
           </span>
-          <span className="text-[11px] text-slate-400">Toll-free / Direct Line</span>
+          <span className="text-xs text-slate-500">Toll-free / Direct Line</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          <div className="rounded-xl bg-slate-800 p-2.5">
-            <span className="block text-[10px] text-slate-400 font-bold uppercase">MEEDO Admin</span>
-            <span className="block text-sm font-mono font-bold text-white mt-0.5">(033) 501-2244</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2.5">
+            <span className="block text-[11px] text-slate-500 font-semibold uppercase">MEEDO Admin</span>
+            <span className="block text-sm font-mono font-bold text-slate-900 mt-0.5 tabular-nums">(033) 501-2244</span>
           </div>
-          <div className="rounded-xl bg-slate-800 p-2.5">
-            <span className="block text-[10px] text-slate-400 font-bold uppercase">Market Guard Chief</span>
-            <span className="block text-sm font-mono font-bold text-white mt-0.5">0917-888-MEEDO</span>
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2.5">
+            <span className="block text-[11px] text-slate-500 font-semibold uppercase">Market Guard Chief</span>
+            <span className="block text-sm font-mono font-bold text-slate-900 mt-0.5 tabular-nums">0917-888-MEEDO</span>
           </div>
-          <div className="rounded-xl bg-slate-800 p-2.5">
-            <span className="block text-[10px] text-slate-400 font-bold uppercase">PNP Market Substation</span>
-            <span className="block text-sm font-mono font-bold text-white mt-0.5">117 / (033) 500-PNP</span>
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2.5">
+            <span className="block text-[11px] text-slate-500 font-semibold uppercase">PNP Market Substation</span>
+            <span className="block text-sm font-mono font-bold text-slate-900 mt-0.5 tabular-nums">117 / (033) 500-PNP</span>
           </div>
-          <div className="rounded-xl bg-slate-800 p-2.5">
-            <span className="block text-[10px] text-slate-400 font-bold uppercase">BFP Fire Station</span>
-            <span className="block text-sm font-mono font-bold text-white mt-0.5">160 / (033) 500-FIRE</span>
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-2.5">
+            <span className="block text-[11px] text-slate-500 font-semibold uppercase">BFP Fire Station</span>
+            <span className="block text-sm font-mono font-bold text-slate-900 mt-0.5 tabular-nums">160 / (033) 500-FIRE</span>
           </div>
         </div>
       </div>
@@ -833,7 +833,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
 
       {/* Patrol Check Modal */}
       {isPatrolModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -898,7 +898,7 @@ export const GuardShiftHome: React.FC<GuardShiftHomeProps> = ({
 
       {/* End Shift & Turnover Modal */}
       {isEndShiftModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4">
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { printTableReport } from '@/lib/print';
 import { useMeedo } from '@/lib/store';
 import {
   TrendingUp,
@@ -114,7 +115,67 @@ export const SecurityReportsAnalytics: React.FC = () => {
             </Button>
             <Button
               size="sm"
-              onClick={() => window.print()}
+              onClick={() => {
+                const now = Date.now();
+                const cutoffMs =
+                  dateRange === 'week'
+                    ? 7 * 86400000
+                    : dateRange === 'month'
+                    ? 30 * 86400000
+                    : Infinity;
+                const scopedReports = csuReports.filter((r) => {
+                  if (cutoffMs === Infinity) return true;
+                  const ts = r.report_date ? new Date(r.report_date).getTime() : 0;
+                  return ts > 0 && now - ts <= cutoffMs;
+                });
+                const scopedIncidents = scopedReports.reduce(
+                  (acc, r) => acc + (r.incident_data?.length || 0),
+                  0
+                );
+                const scopedViolations = scopedReports.reduce(
+                  (acc, r) => acc + (r.violations_data?.length || 0),
+                  0
+                );
+                const scopedLostFound = scopedReports.reduce(
+                  (acc, r) => acc + (r.lost_found_data?.length || 0),
+                  0
+                );
+                printTableReport({
+                  title: 'CSU Security & Market Guard Audit Report',
+                  subtitle: `Period Scope: ${dateRange.toUpperCase()} • Shift Coverage: ${coverageRate}% (${guards.length} Guards)`,
+                  dept: 'MEEDO — Civil Security Unit (Section F)',
+                  orientation: 'landscape',
+                  summaryCards: [
+                    { label: 'Shift Reports', value: scopedReports.length },
+                    { label: 'Coverage Rate', value: `${coverageRate}%` },
+                    { label: 'Incidents', value: scopedIncidents },
+                    { label: 'Ordinance Violations', value: scopedViolations },
+                    { label: 'Lost & Found', value: scopedLostFound },
+                  ],
+                  columns: [
+                    { label: '#', align: 'center', width: '36px' },
+                    { label: 'Report Date' },
+                    { label: 'Prepared / Guard' },
+                    { label: 'Shift / Area' },
+                    { label: 'Status', align: 'center' },
+                    { label: 'Personnel', align: 'right' },
+                    { label: 'Incidents', align: 'right' },
+                    { label: 'Violations', align: 'right' },
+                    { label: 'Lost & Found', align: 'right' },
+                  ],
+                  rows: scopedReports.map((r, idx) => [
+                    idx + 1,
+                    r.report_date || '—',
+                    r.prep_name || '—',
+                    `${r.shift || 'Shift'} / ${r.area_covered || 'Public Market'}`,
+                    r.is_locked ? 'Locked / Submitted' : 'Draft',
+                    r.personnel_data?.length || 0,
+                    r.incident_data?.length || 0,
+                    r.violations_data?.length || 0,
+                    r.lost_found_data?.length || 0,
+                  ]),
+                });
+              }}
               className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold gap-1.5 shadow-md shadow-blue-600/20"
             >
               <Printer className="h-4 w-4" /> Print Audit Report

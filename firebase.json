@@ -19,5 +19,20 @@
         ]
       }
     ]
+  },
+  "auth": {
+    "providers": {
+      "anonymous": false,
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "MEEDOSys Malungon",
+        "supportEmail": "el1t00t16.gwapo@gmail.com",
+        "authorizedRedirectUris": [
+          "https://meedosystem.firebaseapp.com/__/auth/handler",
+          "https://meedosystem.web.app/__/auth/handler",
+          "http://localhost:3000"
+        ]
+      }
+    }
   }
 }

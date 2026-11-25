@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { escapeHtml, lguLetterheadHtml, openPrintDocument } from '@/lib/print';
 import { useMeedo } from '@/lib/store';
 import { CemeteryBooking, BurialType } from '@/lib/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -145,9 +146,6 @@ export default function CemeteryReportsPage() {
 
   // Formal Print Window matching Legacy map_js.html printCemReport
   const handlePrint = () => {
-    const printWin = window.open('', '_blank', 'width=1050,height=750');
-    if (!printWin) return;
-
     let annualRowsHtml = '';
     Object.keys(inv.yearly)
       .sort()
@@ -166,7 +164,7 @@ export default function CemeteryReportsPage() {
     let brgyRowsHtml = '';
     brgyStats.forEach((b) => {
       brgyRowsHtml += `<tr>
-        <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${b.name}</td>
+        <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${escapeHtml(b.name)}</td>
         <td style="padding: 5px 8px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1;">${b.count}</td>
         <td style="padding: 5px 8px; text-align: right; color: #047857; font-weight: bold; border: 1px solid #cbd5e1;">₱ ${b.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
       </tr>`;
@@ -178,7 +176,7 @@ export default function CemeteryReportsPage() {
     let typeRowsHtml = '';
     typeStats.forEach((t) => {
       typeRowsHtml += `<tr>
-        <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${t.name}</td>
+        <td style="padding: 5px 8px; border: 1px solid #cbd5e1;">${escapeHtml(t.name)}</td>
         <td style="padding: 5px 8px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1;">${t.count}</td>
         <td style="padding: 5px 8px; text-align: right; color: #047857; font-weight: bold; border: 1px solid #cbd5e1;">₱ ${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
       </tr>`;
@@ -190,11 +188,11 @@ export default function CemeteryReportsPage() {
     let recordsRowsHtml = '';
     monthlyFiltered.forEach((c) => {
       recordsRowsHtml += `<tr>
-        <td style="padding: 6px 10px; font-weight: bold; border: 1px solid #cbd5e1;">${c.deceased_name}</td>
-        <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${c.address_barangay}</td>
-        <td style="padding: 6px 10px; font-family: monospace; border: 1px solid #cbd5e1;">${c.phone_number || '—'}</td>
-        <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${formatDate(c.burial_date)} ${c.burial_time || ''}</td>
-        <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${c.burial_type}</td>
+        <td style="padding: 6px 10px; font-weight: bold; border: 1px solid #cbd5e1;">${escapeHtml(c.deceased_name)}</td>
+        <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${escapeHtml(c.address_barangay)}</td>
+        <td style="padding: 6px 10px; font-family: monospace; border: 1px solid #cbd5e1;">${escapeHtml(c.phone_number || '—')}</td>
+        <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${escapeHtml(formatDate(c.burial_date))} ${escapeHtml(c.burial_time || '')}</td>
+        <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${escapeHtml(c.burial_type)}</td>
         <td style="padding: 6px 10px; text-align: right; color: #047857; font-weight: bold; border: 1px solid #cbd5e1;">₱ ${Number(c.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
       </tr>`;
     });
@@ -202,176 +200,149 @@ export default function CemeteryReportsPage() {
       recordsRowsHtml = `<tr><td colspan="6" style="text-align: center; padding: 15px; color: #94a3b8; border: 1px solid #cbd5e1;">No cemetery records found for this month.</td></tr>`;
     }
 
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cemetery Management Monthly Report - ${filterMonth}</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 30px; color: #1e293b; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .header h2 { margin: 0; font-size: 1.1rem; text-transform: uppercase; color: #0f172a; }
-          .header h3 { margin: 3px 0 0 0; font-size: 1rem; color: #334155; text-transform: uppercase; }
-          .header p.office { margin: 2px 0 0 0; font-size: 0.85rem; color: #64748b; font-weight: 600; }
-          .header h1 { margin: 10px 0 2px 0; font-size: 1.35rem; text-transform: uppercase; color: #047857; letter-spacing: 0.5px; }
-          .header p.subtitle { margin: 0; font-size: 0.95rem; font-weight: bold; color: #475569; }
-          
-          .kpi-container { display: flex; gap: 12px; margin-bottom: 20px; }
-          .kpi-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; text-align: center; background: #f8fafc; }
-          .kpi-val { font-size: 1.3rem; font-weight: 800; color: #0f172a; }
-          .kpi-lbl { font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748b; margin-top: 2px; }
-          .kpi-sub { font-size: 0.75rem; font-weight: 600; margin-top: 3px; }
+    const extraStyles = `
+      .kpi-container { display: flex; gap: 12px; margin-bottom: 16px; }
+      .kpi-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; text-align: center; background: #f8fafc; }
+      .kpi-val { font-size: 1.25rem; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+      .kpi-lbl { font-size: 7.5pt; text-transform: uppercase; font-weight: 700; color: #64748b; margin-top: 2px; }
+      .kpi-sub { font-size: 8pt; font-weight: 600; margin-top: 3px; }
+      .section-title { font-size: 10pt; font-weight: 800; color: #0f172a; margin: 14px 0 6px 0; }
+      .two-cols { display: flex; gap: 16px; margin-bottom: 16px; }
+      .col-half { flex: 1; }
+    `;
 
-          table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-          th { background: #f1f5f9; padding: 7px 10px; border: 1px solid #cbd5e1; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
-          
-          .section-title { font-size: 0.95rem; font-weight: 800; color: #0f172a; margin: 16px 0 8px 0; }
-          .two-cols { display: flex; gap: 16px; margin-bottom: 20px; }
-          .col-half { flex: 1; }
+    const bodyHtml = `
+      ${lguLetterheadHtml({
+        title: 'Cemetery Management Monthly Report',
+        subtitle: `Reporting Period: ${filterMonth}`,
+        dept: 'MEEDO — Public Cemetery Operations Section (Section C)',
+      })}
 
-          .sig-block { display: flex; justify-content: space-between; margin-top: 40px; page-break-inside: avoid; }
-          .sig-box { text-align: center; width: 240px; font-size: 0.85rem; }
-          .sig-line { border-bottom: 1.5px solid #000; margin: 45px 0 4px 0; }
+      <div class="kpi-container">
+        <div class="kpi-card" style="border-top: 4px solid #047857;">
+          <div class="kpi-val" style="color: #047857;">${inv.totalApartment} <span style="font-size: 0.85rem; font-weight: 500; color: #64748b;">/ ${inv.maxApartmentCapacity}</span></div>
+          <div class="kpi-lbl">Apartment Type - 624</div>
+          <div class="kpi-sub" style="color: #047857;">${inv.availableApartment} Available (${inv.occupancyPercent}% Occupied)</div>
+        </div>
+        <div class="kpi-card" style="border-top: 4px solid #4338ca;">
+          <div class="kpi-val" style="color: #4338ca;">${inv.totalGround}</div>
+          <div class="kpi-lbl">Ground (Old Tomb)</div>
+          <div class="kpi-sub" style="color: #64748b;">Unlimited Capacity</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val">${monthlyTotalBurials}</div>
+          <div class="kpi-lbl">Month Burials (${escapeHtml(filterMonth)})</div>
+          <div class="kpi-sub" style="color: #64748b;">Current log entries</div>
+        </div>
+        <div class="kpi-card" style="background: #f0fdf4;">
+          <div class="kpi-val" style="color: #047857;">₱ ${monthlyTotalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+          <div class="kpi-lbl">Total Collections (${escapeHtml(filterMonth)})</div>
+          <div class="kpi-sub" style="color: #047857;">Enterprise Revenue</div>
+        </div>
+      </div>
 
-          @media print {
-            body { margin: 0; padding: 15px; }
-            @page { size: landscape; margin: 0.4in; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h2>Republic of the Philippines</h2>
-          <h3>Municipality of Malungon</h3>
-          <p class="office">Municipal Economic Enterprise and Development Office (MEEDO)</p>
-          <h1>Cemetery Management Monthly Report</h1>
-          <p class="subtitle">Reporting Period: ${filterMonth}</p>
+      <div class="section-title">Annual Burial Inventory Summary (Apartment vs Ground)</div>
+      <table class="lgu-table">
+        <thead>
+          <tr>
+            <th style="text-align: left;">Year</th>
+            <th style="text-align: center;">Apartment Type - 624</th>
+            <th style="text-align: center;">Old Tomb (Ground)</th>
+            <th style="text-align: center;">Total Burials</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${annualRowsHtml}
+        </tbody>
+        <tfoot>
+          <tr style="background: #f8fafc; font-weight: 800;">
+            <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">Total (Running Balance)</td>
+            <td style="padding: 8px 10px; text-align: center; color: #047857; border: 1px solid #cbd5e1;">
+              ${inv.totalApartment} / ${inv.maxApartmentCapacity} (${inv.availableApartment} Available)
+            </td>
+            <td style="padding: 8px 10px; text-align: center; color: #4338ca; border: 1px solid #cbd5e1;">
+              ${inv.totalGround} (Unlimited)
+            </td>
+            <td style="padding: 8px 10px; text-align: center; border: 1px solid #cbd5e1;">
+              ${inv.grandTotal}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="two-cols" style="margin-top: 15px;">
+        <div class="col-half">
+          <div class="section-title" style="margin-top: 0;">Burials by Barangay (${escapeHtml(filterMonth)})</div>
+          <table class="lgu-table">
+            <thead>
+              <tr>
+                <th style="text-align: left;">Barangay</th>
+                <th style="text-align: center;">Total</th>
+                <th style="text-align: right;">Amount (₱)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${brgyRowsHtml}
+            </tbody>
+          </table>
         </div>
 
-        <div class="kpi-container">
-          <div class="kpi-card" style="border-top: 4px solid #047857;">
-            <div class="kpi-val" style="color: #047857;">${inv.totalApartment} <span style="font-size: 0.85rem; font-weight: 500; color: #64748b;">/ ${inv.maxApartmentCapacity}</span></div>
-            <div class="kpi-lbl">Apartment Type - 624</div>
-            <div class="kpi-sub" style="color: #047857;">${inv.availableApartment} Available (${inv.occupancyPercent}% Occupied)</div>
-          </div>
-          <div class="kpi-card" style="border-top: 4px solid #4338ca;">
-            <div class="kpi-val" style="color: #4338ca;">${inv.totalGround}</div>
-            <div class="kpi-lbl">Ground (Old Tomb)</div>
-            <div class="kpi-sub" style="color: #64748b;">Unlimited Capacity</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-val">${monthlyTotalBurials}</div>
-            <div class="kpi-lbl">Month Burials (${filterMonth})</div>
-            <div class="kpi-sub" style="color: #64748b;">Current log entries</div>
-          </div>
-          <div class="kpi-card" style="background: #f0fdf4;">
-            <div class="kpi-val" style="color: #047857;">₱ ${monthlyTotalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-            <div class="kpi-lbl">Total Collections (${filterMonth})</div>
-            <div class="kpi-sub" style="color: #047857;">Enterprise Revenue</div>
-          </div>
+        <div class="col-half">
+          <div class="section-title" style="margin-top: 0;">Burials by Type (${escapeHtml(filterMonth)})</div>
+          <table class="lgu-table">
+            <thead>
+              <tr>
+                <th style="text-align: left;">Burial Type</th>
+                <th style="text-align: center;">Total</th>
+                <th style="text-align: right;">Amount (₱)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${typeRowsHtml}
+            </tbody>
+          </table>
         </div>
+      </div>
 
-        <div class="section-title">Annual Burial Inventory Summary (Apartment vs Ground)</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="text-align: left;">Year</th>
-              <th style="text-align: center;">Apartment Type - 624</th>
-              <th style="text-align: center;">Old Tomb (Ground)</th>
-              <th style="text-align: center;">Total Burials</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${annualRowsHtml}
-          </tbody>
-          <tfoot>
-            <tr style="background: #f8fafc; font-weight: 800;">
-              <td style="padding: 8px 10px; border: 1px solid #cbd5e1;">Total (Running Balance)</td>
-              <td style="padding: 8px 10px; text-align: center; color: #047857; border: 1px solid #cbd5e1;">
-                ${inv.totalApartment} / ${inv.maxApartmentCapacity} (${inv.availableApartment} Available)
-              </td>
-              <td style="padding: 8px 10px; text-align: center; color: #4338ca; border: 1px solid #cbd5e1;">
-                ${inv.totalGround} (Unlimited)
-              </td>
-              <td style="padding: 8px 10px; text-align: center; border: 1px solid #cbd5e1;">
-                ${inv.grandTotal}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+      <div class="section-title">Detailed Burial Records (${escapeHtml(filterMonth)})</div>
+      <table class="lgu-table">
+        <thead>
+          <tr>
+            <th style="text-align: left;">Name of the Deceased</th>
+            <th style="text-align: left;">Address</th>
+            <th style="text-align: left;">Phone number</th>
+            <th style="text-align: left;">Date of Burial</th>
+            <th style="text-align: left;">Burial Type</th>
+            <th style="text-align: right;">Amount (₱)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${recordsRowsHtml}
+        </tbody>
+      </table>
 
-        <div class="two-cols" style="margin-top: 15px;">
-          <div class="col-half">
-            <div class="section-title" style="margin-top: 0;">Burials by Barangay (${filterMonth})</div>
-            <table>
-              <thead>
-                <tr>
-                  <th style="text-align: left;">Barangay</th>
-                  <th style="text-align: center;">Total</th>
-                  <th style="text-align: right;">Amount (₱)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${brgyRowsHtml}
-              </tbody>
-            </table>
-          </div>
-
-          <div class="col-half">
-            <div class="section-title" style="margin-top: 0;">Burials by Type (${filterMonth})</div>
-            <table>
-              <thead>
-                <tr>
-                  <th style="text-align: left;">Burial Type</th>
-                  <th style="text-align: center;">Total</th>
-                  <th style="text-align: right;">Amount (₱)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${typeRowsHtml}
-              </tbody>
-            </table>
-          </div>
+      <div class="lgu-signatures">
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Prepared by:</div>
+          <div class="lgu-sig-line">Cemetery In-Charge / Staff</div>
+          <div class="lgu-sig-role">MEEDO — Public Cemetery Section</div>
         </div>
-
-        <div class="section-title">Detailed Burial Records (${filterMonth})</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="text-align: left;">Name of the Deceased</th>
-              <th style="text-align: left;">Address</th>
-              <th style="text-align: left;">Phone number</th>
-              <th style="text-align: left;">Date of Burial</th>
-              <th style="text-align: left;">Burial Type</th>
-              <th style="text-align: right;">Amount (₱)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${recordsRowsHtml}
-          </tbody>
-        </table>
-
-        <div class="sig-block">
-          <div class="sig-box">
-            <div>Prepared by:</div>
-            <div class="sig-line"></div>
-            <strong>Cemetery In-Charge / Staff</strong>
-          </div>
-          <div class="sig-box">
-            <div>Verified & Approved by:</div>
-            <div class="sig-line"></div>
-            <strong>MEEDO Administrator</strong>
-          </div>
+        <div class="lgu-sig-box">
+          <div class="lgu-sig-caption">Verified &amp; Approved by:</div>
+          <div class="lgu-sig-line">MEEDO Administrator</div>
+          <div class="lgu-sig-role">Municipality of Malungon</div>
         </div>
-      </body>
-      </html>
-    `);
+      </div>
+    `;
 
-    printWin.document.close();
-    printWin.focus();
-    setTimeout(() => {
-      printWin.print();
-    }, 400);
+    openPrintDocument({
+      title: `Cemetery Management Monthly Report - ${filterMonth}`,
+      bodyHtml,
+      styles: extraStyles,
+      orientation: 'landscape',
+      pageSize: 'A4',
+      margin: '0.35in',
+    });
   };
 
   return (
@@ -459,7 +430,7 @@ export default function CemeteryReportsPage() {
           <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">
             Ground (Old Tomb)
           </span>
-          <div className="text-2xl font-black text-indigo-900 mt-1">
+          <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
             {inv.totalGround}
           </div>
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mt-2">

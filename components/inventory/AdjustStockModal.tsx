@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Filter, AlertTriangle, ArrowRight, CheckCircle2 } from '@/components/icons';
 import { InventoryItem } from '@/lib/types';
 
@@ -8,7 +8,11 @@ interface AdjustStockModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: InventoryItem | null;
-  onAdjust: (id: string, newQuantity: number, reason: string) => void;
+  onAdjust: (
+    id: string,
+    newQuantity: number,
+    reason: string
+  ) => Promise<{ success: boolean; message?: string }> | { success: boolean; message?: string };
 }
 
 export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
@@ -20,11 +24,21 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
   const [newQty, setNewQty] = useState<number | ''>(item ? item.quantity : 0);
   const [reason, setReason] = useState<string>('Physical count reconciliation');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen && item) {
+      setNewQty(item.quantity);
+      setReason('Physical count reconciliation');
+      setErrorMsg('');
+    }
+  }, [isOpen, item]);
 
   if (!isOpen || !item) return null;
 
-  const handleAdjust = (e: React.FormEvent) => {
+  const handleAdjust = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
     const qtyVal = typeof newQty === 'number' ? newQty : parseInt(newQty as string, 10);
     if (isNaN(qtyVal) || qtyVal < 0) {
       setErrorMsg('Stock count cannot be negative.');
@@ -35,8 +49,17 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
       return;
     }
 
-    onAdjust(item.id, qtyVal, reason.trim());
-    onClose();
+    setIsSubmitting(true);
+    try {
+      const res = await onAdjust(item.id, qtyVal, reason.trim());
+      if (res.success) {
+        onClose();
+      } else {
+        setErrorMsg(res.message || 'Failed to save inventory adjustment.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const currentVal = item.quantity;
@@ -44,15 +67,21 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
   const difference = targetVal - currentVal;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 animate-in fade-in duration-150">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.18)] border border-slate-200 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-amber-400" />
-            <h3 className="text-base font-bold">Adjust Physical Stock Count</h3>
+        <div className="px-6 py-4 bg-slate-50/90 border-b border-slate-200 text-slate-900 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
+              <Filter className="w-4 h-4" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900">Adjust Physical Stock Count</h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <button
+            onClick={onClose}
+            aria-label="Close modal"
+            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200/70 transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -130,10 +159,11 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-xs flex items-center gap-1.5"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-xs flex items-center gap-1.5 disabled:opacity-50"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Save Adjustment
+              {isSubmitting ? 'Saving...' : 'Save Adjustment'}
             </button>
           </div>
         </form>
